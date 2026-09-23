@@ -389,7 +389,8 @@ function renderGroupControls_() {
     }).join('');
     select.value = STATE.groupSelection || 'all';
   }
-  document.getElementById('dashboardGraphLink').style.display = groupMode || !isAdminSession_() ? 'none' : 'inline-flex';
+  // グループのサイトではグラフを出さない（麗香 2026-09-24「グラフいまぐちゃぐちゃだからクラウン側には表示されないように」）。
+  document.getElementById('dashboardGraphLink').style.display = groupMode || !isAdminSession_() || siteGroup_() ? 'none' : 'inline-flex';
   document.querySelectorAll('.tab-btn').forEach(function(btn) {
     btn.style.display = groupMode && btn.getAttribute('data-tab') !== 'ranking' ? 'none' : '';
   });
