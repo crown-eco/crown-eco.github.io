@@ -416,7 +416,7 @@ function renderGroupKpi_() {
   document.getElementById('kpiGrid').innerHTML = [
     kpiCard_('受注件数', fmtNumber_(view.juchu_count) + '件', '損益 ' + fmtNumber_(view.loss_count) + '件（別枠）'),
     kpiCard_('売上件数', fmtNumber_(view.uriage_count) + '件'),
-    kpiCard_('売上金額', fmtMoney_(view.uriage_amount), '税込', false, true),
+    kpiCard_('売上金額', fmtMoney_(view.uriage_amount), '税込' + (Number(k.co_fee) ? ' / CO 差額' + suffix + ' ' + (Number(k.co_fee) > 0 ? '−' : '+') + fmtMoney_(Math.abs(Number(k.co_fee))) : ''), false, true),
     kpiCard_('広告費', fmtMoney_(view.ad_cost)),
     kpiCard_('経費' + suffix, fmtMoney_(k.keihi)),
     kpiCard_('吉田さんロイヤリティ' + suffix, fmtMoney_(k.royalty_yoshida)),
