@@ -427,8 +427,8 @@ function renderGroupKpi_() {
     kpiCard_('広告費', fmtMoney_(view.ad_cost)),
     kpiCard_('経費' + suffix, fmtMoney_(k.keihi)),
     kpiCard_('吉田さんロイヤリティ' + suffix, fmtMoney_(k.royalty_yoshida)),
-    kpiCard_('手残り' + suffix, fmtMoney_(k.tenokori), '', true),
-    kpiCard_('失注件数', fmtNumber_(view.lost_count) + '件', '失注 ' + fmtNumber_(loss.lost) + ' / 電話失注 ' + fmtNumber_(loss.phone_lost) + ' / 不通・保留 ' + fmtNumber_(loss.hold) + ' / 予約 ' + fmtNumber_(loss.yoyaku))
+    kpiCard_('手残り' + suffix, fmtMoney_(k.tenokori), '', true)
+    // 失注件数のカードはグループの画面に出さない（麗香 2026-09-24「失注件数いらない」）。
   ].join('');
 }
 function companyAdProfitCard_(value, lossSub) {
