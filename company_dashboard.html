@@ -327,11 +327,16 @@ var SESSION = window.ECOPITA_SESSION || null;
 if (SESSION && !canUseDashboard_()) {
   location.replace(window.ECOPITA_SITE.baseUrl + '/portal.html');
 }
+// グループのサイト（Crown など）では、全体管理者でもそのグループだけを出す（表示のみ・権限はサーバ側）。2026-09-24 麗香「Crown サイトのダッシュボードにクラウン側じゃない人が出てる」
+function siteGroup_() {
+  var g = String(window.ECOPITA_SITE && window.ECOPITA_SITE.group || 'main').trim().toLowerCase();
+  return /^[a-z0-9_]+$/.test(g) && g !== 'main' ? g : '';
+}
 var STATE = {
   mode: 'all',
   group: null,
   groups: [],
-  groupSelection: 'all',
+  groupSelection: siteGroup_() || 'all',
   pendingSavedGroup: '',
   groupProfits: {},
   periodType: 'day',
@@ -377,8 +382,8 @@ function renderGroupControls_() {
   document.getElementById('rankingSection').classList.toggle('group-view', groupMode);
   document.getElementById('dashboardTitle').textContent = groupMode ? String(STATE.group && STATE.group.display_name || '') + ' ダッシュボード' : '会社収益ダッシュボード';
   var select = document.getElementById('groupSelect');
-  document.getElementById('groupSelectField').style.display = isAdminSession_() ? '' : 'none';
-  if (isAdminSession_()) {
+  document.getElementById('groupSelectField').style.display = isAdminSession_() && !siteGroup_() ? '' : 'none';
+  if (isAdminSession_() && !siteGroup_()) {
     select.innerHTML = '<option value="all">全体</option>' + STATE.groups.map(function(group) {
       return '<option value="' + esc_(groupSelectionValue_(group.id)) + '">' + esc_(group.display_name) + '</option>';
     }).join('');
@@ -1062,7 +1067,7 @@ async function loadDashboard_(interactionStartedAt) {
     period_type: STATE.periodType,
     start_date: range.start,
     end_date: range.end,
-    group: isAdminSession_() ? (STATE.groupSelection || 'all') : '',
+    group: isAdminSession_() ? (siteGroup_() || STATE.groupSelection || 'all') : '',
     ua: navigator.userAgent || ''
   };
   var previousClientTiming = takePreviousDashboardClientTiming_();
@@ -1127,7 +1132,7 @@ function updateBaseDateDow_() {
 }
 
 function bindEvents_() {
-  if (isAdminSession_()) {
+  if (isAdminSession_() && !siteGroup_()) {
     try { STATE.pendingSavedGroup = sessionStorage.getItem(groupSelectionStorageKey_()) || ''; } catch(e) {}
     if (STATE.pendingSavedGroup === 'all') STATE.pendingSavedGroup = '';
   }
