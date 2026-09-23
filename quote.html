@@ -65,6 +65,7 @@ body { font-family:'Noto Sans JP',sans-serif; background:var(--bg); color:var(--
 .email-warn { color:var(--red); font-weight:600; font-size:.85rem; margin-top:4px; }
 </style>
 <script src="./shared-gas-call.js?v=20260914-read-v1"></script>
+<script src="./shared-screen-latency.js?v=20260924-1"></script>
 </head>
 <body>
 
@@ -400,6 +401,8 @@ function showLkErr(m) {
 }
 
 async function loadData(caseId) {
+  var screenTiming_ = window.ECOPITA_SCREEN_LATENCY ? window.ECOPITA_SCREEN_LATENCY.begin() : null;
+  try {
   try {
     var r = await gasCall(
       { form_type: 'quote_lookup', case_id: caseId, report_id: paramReportId, p1_sf: 'p1_sf_v1' },
@@ -453,6 +456,9 @@ async function loadData(caseId) {
     renderMain();
   } catch(e) {
     showLkErr('通信エラー: ' + e.message);
+  }
+  } finally {
+    try { if (window.ECOPITA_SCREEN_LATENCY) window.ECOPITA_SCREEN_LATENCY.finish(screenTiming_, r, { url: GAS_API_URL }); } catch (ignored) {}
   }
 }
 
@@ -971,6 +977,8 @@ function hideQuotePreview() {
 }
 
 async function confirmQuoteSend() {
+  var screenTiming_ = window.ECOPITA_SCREEN_LATENCY ? window.ECOPITA_SCREEN_LATENCY.begin() : null;
+  try {
   if (gasP1SfGuard('quote_lookup', Q.case_id || paramCaseId, function(message) { alert(message); })) return;
   var pq = window._pendingQuote;
   var btn = document.getElementById('btn_quote_confirm');
@@ -1013,6 +1021,9 @@ async function confirmQuoteSend() {
   } catch(e) {
     btn.disabled = false; btn.textContent = '発行する';
     alert('通信エラー: ' + e.message);
+  }
+  } finally {
+    try { if (window.ECOPITA_SCREEN_LATENCY) window.ECOPITA_SCREEN_LATENCY.finish(screenTiming_, r, { url: GAS_API_URL }); } catch (ignored) {}
   }
 }
 </script>

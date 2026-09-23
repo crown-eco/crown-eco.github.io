@@ -8,6 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <!-- reCAPTCHA v3（見えない認証、スパム/bot対策）。sitekey は登録後に差し替え -->
 <script src="./shared-gas-call.js?v=20260914-read-v1"></script>
+<script src="./shared-screen-latency.js?v=20260924-1"></script>
 <script>
   window.RECAPTCHA_SITE_KEY = '6Lc6D6otAAAAADVD1SF958DQkj86yw0N3yUmZA0b';
 </script>
@@ -2003,6 +2004,8 @@ function closePrivacyOverlayConfirmed() {
 }
 
 async function doSubmit() {
+  var screenTiming_ = window.ECOPITA_SCREEN_LATENCY ? window.ECOPITA_SCREEN_LATENCY.begin() : null;
+  try {
   if (gasP1SfGuard('lookup', buildIndexCaseId(), function(message) { alert(message); })) return;
   const btn = document.getElementById('btnNext');
   btn.disabled = true; btn.textContent = '処理中...';
@@ -2149,6 +2152,9 @@ async function doSubmit() {
       }
     })
     .catch(function(){ /* 通信断のみ。サーバ側処理は継続中の可能性が高いため黙殺 */ });
+  } finally {
+    try { if (window.ECOPITA_SCREEN_LATENCY) window.ECOPITA_SCREEN_LATENCY.finish(screenTiming_, result, { url: GAS_API_URL }); } catch (ignored) {}
+  }
 }
 
 function _recentOrderMinutesAgo_(createdAt) {

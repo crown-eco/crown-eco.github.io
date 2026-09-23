@@ -137,6 +137,7 @@ tbody tr:hover { background: rgba(79,140,255,.04); }
 }
 </style>
 <script src="./shared-gas-call.js?v=20260914-read-v1"></script>
+<script src="./shared-screen-latency.js?v=20260924-1"></script>
 </head>
 <body>
 
@@ -176,7 +177,7 @@ tbody tr:hover { background: rgba(79,140,255,.04); }
     <div class="section-title">下請け別パフォーマンス</div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th class="sticky-col" style="text-align:center">担当者</th><th style="text-align:center">受付</th><th style="text-align:center">成約</th><th style="text-align:center">失注</th><th style="text-align:center">電話失注</th><th style="text-align:center">予約</th><th style="text-align:center">成約率</th><th style="text-align:right">売上</th><th style="text-align:right">広告費</th><th style="text-align:right">粗利</th><th style="text-align:right">報酬見込</th></tr></thead>
+        <thead><tr><th class="sticky-col" style="text-align:center">担当者</th><th style="text-align:center">受付</th><th style="text-align:center">成約</th><th style="text-align:center">失注</th><th style="text-align:center">電話失注</th><th style="text-align:center">予約</th><th style="text-align:center">成約率</th><th style="text-align:right">売上</th><th style="text-align:right">広告費</th><th style="text-align:right">粗利</th><th id="staffRewardHeader" style="text-align:right">報酬見込</th></tr></thead>
         <tbody id="staffBody"></tbody>
       </table>
     </div>
@@ -420,6 +421,7 @@ function setUpdateBusy_(busy) {
 }
 
 function fetchData(retryCount) {
+  var screenTiming_ = window.ECOPITA_SCREEN_LATENCY ? window.ECOPITA_SCREEN_LATENCY.begin() : null;
   retryCount = retryCount || 0;
   showScreen_('loadingScreen');
   setUpdateBusy_(true);
@@ -427,6 +429,7 @@ function fetchData(retryCount) {
   var from = document.getElementById('dateFrom').value;
   var to   = document.getElementById('dateTo').value;
   var params = '?mode=json&token=' + encodeURIComponent(STATE.token);
+  if (window.ECOPITA_SITE.group !== 'main') params += '&siteGroup=' + encodeURIComponent(window.ECOPITA_SITE.group);
   if (from) params += '&from=' + encodeURIComponent(from);
   if (to)   params += '&to='   + encodeURIComponent(to);
   if (STATE.viewAs) params += '&view_as=' + encodeURIComponent(STATE.viewAs);
@@ -464,10 +467,12 @@ function fetchData(retryCount) {
       render(json);
       showScreen_('mainScreen');
       setUpdateBusy_(false);
+      try { if (window.ECOPITA_SCREEN_LATENCY) window.ECOPITA_SCREEN_LATENCY.finish(screenTiming_, json, { url: GAS_URL, portal: true, token: STATE.token }); } catch (ignored) {}
       // cases.html用にキャッシュ
       try {
         sessionStorage.setItem('portal_preview_as', STATE.previewAs || '');
-        sessionStorage.setItem('portal_cache', JSON.stringify({ ts: Date.now(), cases: json.case_list || [], previewAs: STATE.previewAs || '' }));
+        if (window.ECOPITA_SITE.group !== 'main' || (json.groupId && json.groupId !== 'main')) sessionStorage.removeItem('portal_cache');
+        else sessionStorage.setItem('portal_cache', JSON.stringify({ ts: Date.now(), cases: json.case_list || [], previewAs: STATE.previewAs || '' }));
       } catch(e) {}
     })
     .catch(function(err) { setUpdateBusy_(false); showAuthError('通信エラー: ' + (err.message || err)); });
@@ -487,9 +492,11 @@ function doLogout() {
 function render(json) {
   var isAdmin = json.is_admin;
   var rewardHidden = getRewardHidden_() && !isAdmin;
-  var isViewingAll = isAdmin && (!json.selectedStaffId || json.selectedStaffId === STATE.id);
+  var groupAdmin = json.groupAdmin === true;
+  var showStaffColumn = isAdmin || groupAdmin;
+  var isViewingAll = (json.groupId && json.groupId !== 'main') ? json.groupViewAll === true : (isAdmin && (!json.selectedStaffId || json.selectedStaffId === STATE.id));
   var s = (isViewingAll && json.global_summary) ? json.global_summary : json.summary;
-  var _hu = document.getElementById('headerUser'); if (_hu) _hu.textContent = json.staff_name + (isAdmin ? '（管理者）' : '');
+  var _hu = document.getElementById('headerUser'); if (_hu) _hu.textContent = json.staff_name + (isAdmin ? '（管理者）' : groupAdmin ? '（グループ管理者）' : '');
   var sel = document.getElementById('viewAsSelect');
   var selLabel = document.getElementById('viewAsLabel');
   var viewableMembers = json.viewableMembers || [];
@@ -555,7 +562,8 @@ function render(json) {
   document.getElementById('allGrid').innerHTML = allHtml;
 
   var staffSection = document.getElementById('staffSection');
-  if (isAdmin && json.global_summary && json.global_summary.by_staff) {
+  document.getElementById('staffRewardHeader').style.display = json.groupRewardHidden ? 'none' : '';
+  if ((isAdmin || groupAdmin) && json.global_summary && json.global_summary.by_staff) {
     staffSection.style.display = '';
     var sortedStaff = json.global_summary.by_staff.slice().sort(function(a,b){ return (a.staff_id||'').localeCompare(b.staff_id||''); });
     document.getElementById('staffBody').innerHTML = sortedStaff.map(function(st) {
@@ -565,18 +573,18 @@ function render(json) {
         + '<td class="mono" style="text-align:center;color:var(--purple)">' + st.yoyaku + '</td><td class="mono" style="text-align:center">' + st.seiyaku_rate + '%</td>'
         + '<td class="mono r">' + fmtYen(st.revenue) + '</td><td class="mono r">' + fmtYen(st.ad_cost) + '</td>'
         + '<td class="mono r" style="color:' + (st.gross_profit >= 0 ? 'var(--green)' : 'var(--red)') + '">' + fmtYen(st.gross_profit) + '</td>'
-        + '<td class="mono r">' + fmtYen(st.reward) + '</td></tr>';
+        + (json.groupRewardHidden ? '' : '<td class="mono r">' + fmtYen(st.reward) + '</td>') + '</tr>';
     }).join('');
   } else { staffSection.style.display = 'none'; }
 
   var caseRows = (json.rows || []).slice().reverse().slice(0, 100);
-  var caseCols = isAdmin ? 8 : 7;
+  var caseCols = showStaffColumn ? 8 : 7;
   var caseHead = document.querySelector('#caseBody').closest('table').querySelector('thead tr');
-  caseHead.innerHTML = (isAdmin ? '<th class="sticky-col" style="text-align:center">担当者</th>' : '')
+  caseHead.innerHTML = (showStaffColumn ? '<th class="sticky-col" style="text-align:center">担当者</th>' : '')
     + '<th style="text-align:center">案件番号</th><th style="text-align:center">日付</th><th style="text-align:center">ステータス</th>'
     + '<th>お客様</th><th style="text-align:center">内容</th><th style="text-align:right">売上</th><th>備考</th>';
   document.getElementById('caseBody').innerHTML = caseRows.length ? caseRows.map(function(r) {
-    return (isAdmin ? '<tr><td class="sticky-col" style="text-align:center">' + esc(r.staff_name || '') + '</td>' : '<tr>')
+    return (showStaffColumn ? '<tr><td class="sticky-col" style="text-align:center">' + esc(r.staff_name || '') + '</td>' : '<tr>')
       + '<td class="mono" style="font-size:12px;text-align:center">' + esc(r.case_id) + '</td>'
       + '<td style="text-align:center">' + esc(r.date) + '</td><td style="text-align:center">' + statusBadge(r.status) + '</td>'
       + '<td>' + esc(r.customer) + '</td><td style="text-align:center">' + esc(r.equipment) + '</td>'
@@ -599,7 +607,7 @@ function renderPreviewControls_(json, isAdmin) {
     seen[id] = true;
     return '<option value="' + esc(id) + '">' + esc(id + ' ' + (v.name || '')) + '</option>';
   }).join('');
-  if (selected && !seen[selected]) sel.innerHTML += '<option value="' + esc(selected) + '">' + esc(selected) + '</option>';
+  if (selected && !seen[selected]) { if (json.groupId && json.groupId !== 'main') selected = ''; else sel.innerHTML += '<option value="' + esc(selected) + '">' + esc(selected) + '</option>'; }
   sel.value = selected;
   STATE.previewAs = selected;
   try { sessionStorage.setItem('portal_preview_as', STATE.previewAs || ''); } catch(e) {}

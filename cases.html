@@ -92,6 +92,7 @@ tbody tr.overdue{background:rgba(248,113,113,.06);}
 }
 </style>
 <script src="./shared-gas-call.js?v=20260914-read-v1"></script>
+<script src="./shared-screen-latency.js?v=20260924-1"></script>
 </head>
 <body>
 <div id="loadingScreen" class="state-screen">
@@ -175,7 +176,7 @@ window.addEventListener('DOMContentLoaded',function(){
   if(window.ECOPITA_SITE_BLOCKED)return;
   try{var s=localStorage.getItem('ecopita_session');if(s){var sess=JSON.parse(s);if(sess.token){if(window.ECOPITA_SITE_NOTICE(sess))return;STATE.token=sess.token;STATE.id=sess.staffId||'';try{STATE.previewAs=sessionStorage.getItem('portal_preview_as')||'';}catch(pe){}
     // portalからのキャッシュがあれば即表示
-    try{var pc=sessionStorage.getItem('portal_cache');if(pc){var pcd=JSON.parse(pc);if(pcd.cases&&pcd.ts&&Date.now()-pcd.ts<120000&&(pcd.previewAs||'')===(STATE.previewAs||'')){renderFromCache_(pcd.cases);}}}catch(ce){}
+    try{if(window.ECOPITA_SITE.group==='main'&&(!sess.groupId||sess.groupId==='main')){var pc=sessionStorage.getItem('portal_cache');if(pc){var pcd=JSON.parse(pc);if(pcd.cases&&pcd.ts&&Date.now()-pcd.ts<120000&&(pcd.previewAs||'')===(STATE.previewAs||'')){renderFromCache_(pcd.cases);}}}else{sessionStorage.removeItem('portal_cache');}}catch(ce){}
     fetchData();return;}}}catch(e){}
   window.location.href=window.ECOPITA_SITE.baseUrl + '/portal.html';
 });
@@ -191,9 +192,11 @@ function renderFromCache_(cases){
 }
 
 function fetchData(){
+  var screenTiming_ = window.ECOPITA_SCREEN_LATENCY ? window.ECOPITA_SCREEN_LATENCY.begin() : null;
   document.getElementById('loadingScreen').style.display='flex';
   document.getElementById('mainScreen').style.display='none';
   var params='?mode=cases&token='+encodeURIComponent(STATE.token);
+  if(window.ECOPITA_SITE.group!=='main')params+='&siteGroup='+encodeURIComponent(window.ECOPITA_SITE.group);
   if(STATE.viewAs) params+='&view_as='+encodeURIComponent(STATE.viewAs);
   if(STATE.previewAs) params+='&preview_as='+encodeURIComponent(STATE.previewAs);
   gasReadFetch(GAS_URL+params, F, { onStatus: gasReadStatusTarget(document.querySelector('#loadingScreen span')) }).then(function(r){return r.json();}).then(function(json){
@@ -204,11 +207,13 @@ function fetchData(){
       return;
     }
     render(json);
+    try { if (window.ECOPITA_SCREEN_LATENCY) window.ECOPITA_SCREEN_LATENCY.finish(screenTiming_, json, { url: GAS_URL, portal: true, token: STATE.token }); } catch (ignored) {}
   }).catch(function(){gasReadStatusTarget(document.querySelector('#loadingScreen span'))(GAS_READ_FINAL_MESSAGE);});
 }
 
 function render(json){
   STATE.isAdmin=!!json.is_admin;
+  STATE.showStaffColumn=STATE.isAdmin||json.groupAdmin===true;
   document.getElementById('headerUser').textContent=STATE.isAdmin?'管理者':(json.staff_name||STATE.id);
   var sel=document.getElementById('viewAsSelect');
   var vm=json.viewableMembers||[];
@@ -218,7 +223,7 @@ function render(json){
   }else{sel.style.display='none';}
   renderPreviewControls_(json);
   var headerRow=document.getElementById('casesHeaderRow');
-  if(STATE.isAdmin&&!document.getElementById('thStaff')){
+  if(STATE.showStaffColumn&&!document.getElementById('thStaff')){
     var th=document.createElement('th');
     th.id='thStaff';th.textContent='担当者';
     th.style.cssText='padding:10px 12px;text-align:left;font-weight:500;color:var(--text2);font-size:12px;border-bottom:1px solid var(--border);white-space:nowrap;background:var(--surface2);';
@@ -308,7 +313,7 @@ if (SORT_COL) {
 }
 
 function renderRows(rows){
-  var isAdmin=STATE.isAdmin,cols=isAdmin?11:10;
+  var isAdmin=STATE.showStaffColumn,cols=isAdmin?11:10;
   document.getElementById('casesBody').innerHTML=rows.length?rows.map(function(r){
     var isOverdue=r.pay_status==='期限超過';
     var tr='<tr class="'+(isOverdue?'overdue':'')+'">';
@@ -350,7 +355,7 @@ function renderPreviewControls_(json){
   if(!STATE.isAdmin){wrap.style.display='none';STATE.previewAs='';try{sessionStorage.removeItem('portal_preview_as');}catch(e){}return;}
   var viewers=json.preview_viewers||[],applied=json.preview_as||'',selected=(applied&&applied!==STATE.id)?applied:(STATE.previewAs||''),seen={};
   sel.innerHTML='<option value="">通常（自分）</option>'+viewers.map(function(v){var id=v.staffId||v.staff_id||'';if(!id||seen[id])return'';seen[id]=true;return'<option value="'+esc(id)+'">'+esc(id+' '+(v.name||''))+'</option>';}).join('');
-  if(selected&&!seen[selected])sel.innerHTML+='<option value="'+esc(selected)+'">'+esc(selected)+'</option>';
+  if(selected&&!seen[selected]){if(json.groupId&&json.groupId!=='main')selected='';else sel.innerHTML+='<option value="'+esc(selected)+'">'+esc(selected)+'</option>';}
   sel.value=selected;STATE.previewAs=selected;try{sessionStorage.setItem('portal_preview_as',STATE.previewAs||'');}catch(e){}
   wrap.style.display='flex';
   if(badge){badge.style.display=selected?'':'none';badge.textContent=selected?'プレビュー: '+selected+' として表示中':'';}

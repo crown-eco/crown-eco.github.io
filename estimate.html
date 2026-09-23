@@ -977,6 +977,7 @@ input[type="date"]{width:100%;max-width:100%;box-sizing:border-box;-webkit-appea
 </div>
 
 <script src="./shared-gas-call.js?v=20260914-read-v1"></script>
+<script src="./shared-screen-latency.js?v=20260924-1"></script>
 <script src="./write-async-status.js?v=20260902-v1"></script>
 <script>
 // ================================
@@ -3137,6 +3138,8 @@ function _showRecentReportChoice_(recent, windowMinutes) {
 }
 
 async function confirmSend() {
+  var screenTiming_ = window.ECOPITA_SCREEN_LATENCY ? window.ECOPITA_SCREEN_LATENCY.begin() : null;
+  try {
   var btnC = document.getElementById('btn_confirm_send');
   btnC.disabled = true; btnC.textContent = '送信中...';
 
@@ -3229,6 +3232,9 @@ async function confirmSend() {
   window._submittedPayload = payload;
 
   window._submittedPayload = payload;
+  } finally {
+    try { if (window.ECOPITA_SCREEN_LATENCY) window.ECOPITA_SCREEN_LATENCY.finish(screenTiming_, syncResult, { url: GAS_API_URL }); } catch (ignored) {}
+  }
 }
 
 async function generateDoc(type) {

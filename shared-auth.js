@@ -25,6 +25,8 @@
 
   // privacy.html はログイン不要（注文フォームからリンクで飛ぶため）
   var currentPath = decodeURIComponent(location.pathname).toLowerCase();
+  // This site has no reward screen yet, including for global administrators.
+  if (currentPath.endsWith('/reward.html') && window.ECOPITA_SITE.group !== 'main') return;
   if (currentPath.indexOf('login.html') > -1) return; // login.html自身はスキップ
   if (currentPath.indexOf('privacy.html') > -1) {
     // privacy.html は直接アクセス → index.htmlにリダイレクト
