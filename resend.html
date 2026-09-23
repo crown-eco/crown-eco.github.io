@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<script src="./shared-site-config.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>メール再送</title>
+<script src="./shared-auth.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--purple:#5c2d91;--purple-deep:#3a1a5e;--bg:#f7f8fc;--card:#fff;--text:#1a1a1a;--sub:#5f6368;--border:#dce1e8;--good:#2e7d32;--warn:#e65100;--danger:#c62828}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text);line-height:1.6;padding-bottom:88px}
+.hero{background:linear-gradient(160deg,var(--purple),var(--purple-deep));color:#fff;padding:24px 20px;text-align:center}
+.hero h1{font-size:1.45rem;font-weight:800}
+.hero p{font-size:.92rem;opacity:.88;margin-top:6px}
+.container{max-width:500px;margin:0 auto;padding:16px 18px}
+.card{background:var(--card);border-radius:16px;box-shadow:0 10px 28px rgba(0,0,0,.06);padding:18px;margin-bottom:14px;border:1px solid var(--border)}
+.card-title{font-weight:800;color:var(--purple);margin-bottom:12px;text-align:center;font-size:1.02rem}
+.field{margin-bottom:14px}
+.field label{display:block;font-weight:700;font-size:.9rem;margin-bottom:6px}
+.field input{width:100%;padding:10px 12px;border:2px solid var(--border);border-radius:10px;font-size:1rem;background:#fff}
+.btn{display:block;width:100%;padding:14px;border-radius:12px;border:none;font-size:1.02rem;font-weight:800;cursor:pointer;background:var(--purple);color:#fff;margin-top:8px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.error-msg{display:none;margin-top:12px;padding:12px;background:#ffebee;border:2px solid var(--danger);border-radius:10px;color:var(--danger);font-weight:700;font-size:.9rem;text-align:center}
+.notice{padding:12px;border-radius:10px;margin-bottom:12px;font-size:.9rem;font-weight:700}
+.notice.warn{background:#fff3e0;border:2px solid #ffb74d;color:var(--warn)}
+.notice.ok{background:#e8f5e9;border:2px solid #81c784;color:var(--good)}
+.muted{color:var(--sub);font-size:.84rem}
+.hidden{display:none}
+.info-row{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid #eee;font-size:.94rem}
+.info-row:last-child{border-bottom:none}
+.info-label{color:var(--sub);font-weight:700;min-width:96px}
+.info-value{font-weight:700;text-align:right;word-break:break-all}
+.result-box{text-align:center;padding:26px 12px}
+.result-box h2{color:var(--good);margin-bottom:10px}
+.result-box p{white-space:pre-line}
+/* LWアプリ内ブラウザ案内バナー */
+.lw-banner{background:#fff8e1;border:1px solid #ffd54f;border-radius:12px;padding:12px 14px;margin-bottom:14px;font-size:.86rem;color:#7a5b00;position:relative}
+.lw-banner .lw-close{position:absolute;top:6px;right:8px;background:none;border:none;font-size:1.1rem;color:#b08900;cursor:pointer;line-height:1;padding:4px}
+.lw-banner .lw-copy{margin-top:8px;background:#ffd54f;border:none;border-radius:8px;padding:7px 14px;font-size:.84rem;font-weight:700;color:#5a4400;cursor:pointer}
+.note{padding:10px 12px;background:#f4eefe;border-radius:10px;font-size:.84rem;color:var(--sub);margin-top:8px}
+.spin{margin-top:14px}
+/* 非バウンス: 送信済み書類の候補リスト */
+.cand{display:block;width:100%;text-align:left;border:2px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:10px;background:#fff;cursor:pointer;transition:border-color .12s,background .12s}
+.cand:last-child{margin-bottom:0}
+.cand.selected{border-color:var(--purple);background:#f4eefe}
+.cand .cand-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:4px}
+.cand .cand-label{font-weight:800;color:var(--purple);font-size:.98rem}
+.cand .cand-date{font-size:.82rem;color:var(--sub);font-weight:700;white-space:nowrap}
+.cand .cand-email{font-size:.88rem;color:var(--text);word-break:break-all}
+.cand .cand-check{display:inline-block;width:18px;height:18px;border-radius:50%;border:2px solid var(--border);margin-right:8px;vertical-align:middle;position:relative;flex:0 0 auto}
+  .cand.selected .cand-check{border-color:var(--purple)}
+  .cand.selected .cand-check::after{content:'';position:absolute;left:3px;top:3px;width:8px;height:8px;border-radius:50%;background:var(--purple)}
+  .cand-row{display:flex;align-items:center}
+  .multi-cand{display:flex;gap:10px;align-items:flex-start;border:2px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:10px;background:#fff}
+  .multi-cand:last-child{margin-bottom:0}
+  .multi-cand input{width:auto;margin-top:4px;flex:0 0 auto}
+  .multi-cand.disabled{opacity:.58}
+  .multi-label{font-weight:800;color:var(--purple);font-size:.98rem}
+  .multi-meta{display:block;font-size:.84rem;color:var(--sub);word-break:break-all;margin-top:3px}
+</style>
+<script src="./shared-gas-call.js?v=20260914-read-v1"></script>
+</head>
+<body>
+
+<div class="hero">
+  <h1>📧 メール再送</h1>
+  <p id="hero_sub">不達となった宛先を修正して再送します</p>
+</div>
+
+<div class="container">
+
+  <!-- LWアプリ内ブラウザ検知バナー（保険・閉じられる）。フォームは隠さず常に表示 -->
+  <div id="lw_banner" class="lw-banner hidden">
+    <button type="button" class="lw-close" onclick="document.getElementById('lw_banner').classList.add('hidden')" aria-label="閉じる">×</button>
+    <div>Safari / Chrome など普段のブラウザで開くと、ログイン状態が引き継がれてスムーズです。</div>
+    <button type="button" class="lw-copy" id="lw_copy_btn" onclick="copyPageUrl()">このページのURLをコピー</button>
+  </div>
+
+  <!-- URLパラメータなし: 案件番号から送信済み書類を探す常設入口 -->
+  <div id="step_no_target" class="hidden">
+    <div class="card">
+      <div class="card-title">案件番号から書類を探す</div>
+      <form onsubmit="searchCase(event)">
+        <div class="field">
+          <label for="case_search_input">案件番号</label>
+          <input type="text" id="case_search_input" placeholder="例：CP-12345" autocomplete="off" autocapitalize="characters">
+        </div>
+        <div class="note">送信済みの書類を選び、正しいメールアドレスへ送り直せます。</div>
+        <button type="submit" class="btn">送信済み書類を探す</button>
+        <div class="error-msg" id="case_search_error"></div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 照会中 -->
+  <div id="step_loading" class="hidden">
+    <div class="card">
+      <div class="muted" style="text-align:center">対象を確認しています…</div>
+    </div>
+  </div>
+
+  <!-- 照会失敗（権限なし等） -->
+  <div id="step_lookup_error" class="hidden">
+    <div class="card">
+      <div class="error-msg" id="lookup_error" style="display:block"></div>
+    </div>
+  </div>
+
+  <!-- 再送フォーム -->
+  <div id="step_form" class="hidden">
+    <div class="card">
+      <div class="card-title">再送対象</div>
+      <div class="info-row"><span class="info-label">案件番号</span><span class="info-value" id="info_case_id">-</span></div>
+      <div class="info-row"><span class="info-label">再送する書類</span><span class="info-value" id="info_doc_type">-</span></div>
+      <div class="info-row"><span class="info-label">不達だった宛先</span><span class="info-value" id="info_failed_email">-</span></div>
+    </div>
+
+    <!-- 複数書類が同じ不達に該当したときだけ表示 -->
+    <div id="card_multi_resend" class="hidden">
+      <div class="card">
+        <div class="card-title">再送する書類を選んでください</div>
+        <div id="batch_cand_list"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">正しいメールアドレス</div>
+        <div class="field">
+          <label for="batch_new_email">送信先メールアドレス</label>
+          <input type="email" id="batch_new_email" placeholder="example@email.com" autocomplete="email" inputmode="email" oninput="batchValidate()">
+        </div>
+        <div class="note">チェックした書類を、ここに入力したアドレスにのみ再送します。</div>
+        <button class="btn" id="btn_batch_resend" onclick="doBatchResend()" disabled>チェックした書類をこの宛先に再送する</button>
+        <div class="error-msg" id="batch_resend_error"></div>
+      </div>
+    </div>
+
+    <!-- resend_available=false のとき表示。入力カードの代わりに理由を出す -->
+    <div id="card_unavailable" class="hidden">
+      <div class="notice warn" id="unavailable_reason_text"></div>
+      <div class="notice warn">お手数ですが従来どおり書類を再発行してください。</div>
+    </div>
+
+    <!-- resend_available=true のとき表示 -->
+    <div id="card_resend_input" class="hidden">
+      <div class="card">
+        <div class="card-title">正しいメールアドレス</div>
+        <div class="field">
+          <label for="new_email">送信先メールアドレス</label>
+          <input type="email" id="new_email" placeholder="example@email.com" autocomplete="email" inputmode="email">
+        </div>
+        <div class="note">再送は、ここに入力したアドレスにのみ行います。</div>
+        <button class="btn" id="btn_resend" onclick="doResend()">この宛先に再送する</button>
+        <div class="error-msg" id="resend_error"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 完了 -->
+  <div id="step_done" class="hidden">
+    <div class="card">
+      <div class="result-box">
+        <h2 id="done_title">✅ 再送しました</h2>
+        <p id="done_detail"></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- 非バウンスモード（?case=… 指定時）: 送信済み書類を選んで宛先を直して送り直す -->
+  <!-- バウンスモードの DOM とは独立。show() で排他切替される -->
+  <!-- ============================================================ -->
+
+  <!-- 非バウンス: 候補ゼロ -->
+  <div id="nb_step_empty" class="hidden">
+    <div class="card">
+      <div class="card-title">送り直し対象</div>
+      <div class="info-row"><span class="info-label">案件番号</span><span class="info-value" id="nb_empty_case_id">-</span></div>
+    </div>
+    <div class="card">
+      <div class="notice warn" style="margin-bottom:0">この案件で送り直せる送信済み書類が見つかりませんでした。</div>
+    </div>
+  </div>
+
+  <!-- 非バウンス: 候補選択フォーム -->
+  <div id="nb_step_form" class="hidden">
+    <div class="card">
+      <div class="card-title">送り直す書類を選んでください</div>
+      <div class="info-row" style="margin-bottom:10px"><span class="info-label">案件番号</span><span class="info-value" id="nb_info_case_id">-</span></div>
+      <div id="nb_cand_list"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">正しいメールアドレス</div>
+      <div class="field">
+        <label for="nb_new_email">送信先メールアドレス</label>
+        <input type="email" id="nb_new_email" placeholder="example@email.com" autocomplete="email" inputmode="email" oninput="nbValidate()">
+      </div>
+      <div class="note">選んだ書類を、ここに入力したアドレスにのみ送り直します。</div>
+      <button class="btn" id="nb_btn_resend" onclick="nbDoResend()" disabled>この宛先に送り直す</button>
+      <div class="error-msg" id="nb_resend_error"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// GAS エンドポイント・セッショントークン取得方法は receipt.html を踏襲。
+// - GAS_URL: receipt.html と同一の定数値
+// - セッショントークン: shared-auth.js が window.ECOPITA_SESSION にセットし、
+//   fetch をラップして form_type 付き GAS リクエストへ sessionToken を自動注入する。
+//   ここでは確実性のため payload にも明示的に同じトークン値を入れる（同値なので二重注入にならない）。
+var GAS_URL = 'https://script.google.com/macros/s/AKfycbyvjri6i0fe11hzfoqfhSxWCsn1aP2WyT9ELZOzNMrVyEOx-ZsKqlhJQONzlaFLmPw/exec';
+
+var _params = new URLSearchParams(location.search);
+var bounceId = _params.get('bounce') || '';
+// 非バウンスモード用パラメータ（bounce が無いときのみ使用）
+var caseParam = _params.get('case') || '';
+var docTypeParam = _params.get('doc_type') || '';
+var manualSearchMode = !bounceId && !caseParam;
+var batchState = { candidates: [] };
+
+function $(id){ return document.getElementById(id); }
+
+function show(id){
+  ['step_no_target','step_loading','step_lookup_error','step_form','step_done',
+   'nb_step_empty','nb_step_form'].forEach(function(s){
+    $(s).classList.add('hidden');
+  });
+  $(id).classList.remove('hidden');
+}
+
+function showError(id, msg){
+  var el = $(id);
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+function clearError(id){ $(id).style.display = 'none'; }
+
+// セッショントークン取得（shared-auth.js が公開する window.ECOPITA_SESSION.token）
+function sessionToken(){
+  return (window.ECOPITA_SESSION && window.ECOPITA_SESSION.token) || '';
+}
+
+// 初期表示の照会
+async function lookup(){
+  if (!bounceId) { show('step_no_target'); return; }
+  show('step_loading');
+  try {
+    var resp = await gasReadFetch(GAS_URL, {
+      method: 'POST',
+      body: JSON.stringify({ form_type: 'resend_lookup', sessionToken: sessionToken(), bounce: bounceId })
+    }, { onStatus: gasReadStatusTarget(document.querySelector('#step_loading .muted')) });
+    var data = await resp.json();
+    if (!data || !data.ok) {
+      showError('lookup_error', (data && data.error) || '対象の取得に失敗しました');
+      show('step_lookup_error');
+      return;
+    }
+    // 表示するのは社内案件番号(case_id)のみ。元案件番号は扱わない。
+    $('info_case_id').textContent = data.case_id || '-';
+    $('info_failed_email').textContent = data.failed_email || '-';
+
+    if (data.multi && data.candidates && data.candidates.length) {
+      $('info_doc_type').textContent = '複数書類';
+      batchState.candidates = data.candidates || [];
+      batchRenderCandidates();
+      $('card_unavailable').classList.add('hidden');
+      $('card_resend_input').classList.add('hidden');
+      $('card_multi_resend').classList.remove('hidden');
+      batchValidate();
+    } else if (data.resend_available) {
+      // 控えが特定できた場合: 書類ラベル＋送信日を表示し、入力カードを出す
+      var docLabel = data.resolved_doc_type || '-';
+      if (data.sent_at) docLabel += '（' + data.sent_at + ' 送信分）';
+      $('info_doc_type').textContent = docLabel;
+      $('card_unavailable').classList.add('hidden');
+      $('card_resend_input').classList.remove('hidden');
+      $('card_multi_resend').classList.add('hidden');
+    } else {
+      // 控えが無い場合: 書類欄は「—」、入力カードを出さずに理由を表示
+      $('info_doc_type').textContent = '—';
+      $('unavailable_reason_text').textContent = data.unavailable_reason || '再送記録がありません。';
+      $('card_unavailable').classList.remove('hidden');
+      $('card_resend_input').classList.add('hidden');
+      $('card_multi_resend').classList.add('hidden');
+    }
+    show('step_form');
+  } catch(e) {
+    showError('lookup_error', GAS_READ_FINAL_MESSAGE);
+    show('step_lookup_error');
+  }
+}
+
+// 再送実行
+async function doResend(){
+  clearError('resend_error');
+  var newEmail = $('new_email').value.trim();
+  if (!newEmail || newEmail.indexOf('@') === -1) {
+    showError('resend_error', '正しいメールアドレスを入力してください');
+    return;
+  }
+  var btn = $('btn_resend');
+  btn.disabled = true;             // 二重送信防止
+  btn.textContent = '再送中...';
+  try {
+    var resp = await fetch(GAS_URL, {
+      method: 'POST',
+      body: JSON.stringify({ form_type: 'mail_resend', sessionToken: sessionToken(), bounce: bounceId, new_email: newEmail })
+    });
+    var data = await resp.json();
+    if (!data || !data.ok) {
+      showError('resend_error', (data && data.error) || '再送に失敗しました');
+      btn.disabled = false;
+      btn.textContent = 'この宛先に再送する';
+      return;
+    }
+    var n = (data.replacedCount != null) ? data.replacedCount : 0;
+    var dispatch = data.dispatchOk ? '成功' : '保留';
+    $('done_title').textContent = '✅ 再送しました';
+    $('done_detail').textContent = '再送しました（正本も更新: ' + n + '箇所 / 即時送信: ' + dispatch + '）';
+    show('step_done');
+    window.scrollTo(0, 0);
+  } catch(e) {
+    showError('resend_error', '通信エラーが発生しました');
+    btn.disabled = false;
+    btn.textContent = 'この宛先に再送する';
+  }
+}
+
+function batchRenderCandidates(){
+  var html = '';
+  batchState.candidates.forEach(function(c, i){
+    var label = nbEsc(c.doc_label || c.doc_type || '書類');
+    var sentAt = nbEsc(c.sent_at || '');
+    var failed = nbEsc(c.failed_email || $('info_failed_email').textContent || '');
+    var alreadyResent = !!c.already_resent;
+    var checked = (c.initial_checked !== false);
+    html += '' +
+      '<label class="multi-cand">' +
+        '<input type="checkbox" class="batch-check" data-idx="' + i + '" value="' + nbEsc(c.queue_id || '') + '" onchange="batchValidate()" ' +
+          (checked ? 'checked ' : '') + '>' +
+        '<span style="flex:1 1 auto;min-width:0">' +
+          '<span class="multi-label">' + label + '</span>' +
+          '<span class="multi-meta">' + (sentAt ? '送信日: ' + sentAt + ' / ' : '') + '旧宛先: ' + (failed || '—') + '</span>' +
+          (alreadyResent ? '<span class="multi-meta">一度送り直し済みです（もう一度送れます）</span>' : '') +
+        '</span>' +
+      '</label>';
+  });
+  $('batch_cand_list').innerHTML = html;
+}
+
+function batchSelectedQueueIds(){
+  var checks = document.querySelectorAll('.batch-check');
+  var ids = [];
+  for (var i = 0; i < checks.length; i++) {
+    if (checks[i].checked && !checks[i].disabled && checks[i].value) ids.push(checks[i].value);
+  }
+  return ids;
+}
+
+function batchValidate(){
+  var email = $('batch_new_email').value.trim();
+  var emailOk = email.indexOf('@') > 0 && email.indexOf('.', email.indexOf('@')) > -1;
+  var ok = batchSelectedQueueIds().length > 0 && emailOk;
+  $('btn_batch_resend').disabled = !ok;
+  return ok;
+}
+
+async function doBatchResend(){
+  clearError('batch_resend_error');
+  if (!batchValidate()) {
+    showError('batch_resend_error', '書類を選び、正しいメールアドレスを入力してください');
+    return;
+  }
+  var newEmail = $('batch_new_email').value.trim();
+  var queueIds = batchSelectedQueueIds();
+  var btn = $('btn_batch_resend');
+  btn.disabled = true;
+  btn.textContent = '再送中...';
+  try {
+    var resp = await fetch(GAS_URL, {
+      method: 'POST',
+      body: JSON.stringify({ form_type: 'mail_resend_batch', sessionToken: sessionToken(), bounce: bounceId, queue_ids: queueIds, new_email: newEmail })
+    });
+    var data = await resp.json();
+    if (!data || !data.ok) {
+      showError('batch_resend_error', (data && data.error) || '再送に失敗しました');
+      btn.disabled = false;
+      btn.textContent = 'チェックした書類をこの宛先に再送する';
+      return;
+    }
+    var results = data.results || [];
+    var lines = results.map(function(r){
+      var label = r.doc_label || r.doc_type || '書類';
+      if (r.ok) {
+        var line = label + '=送信済（正本更新: ' + (r.replacedCount || 0) + '箇所）';
+        if (r.warning) line += '\n⚠️ ' + r.warning;
+        return line;
+      }
+      return label + '=失敗（' + (r.error || '再送できませんでした') + '）';
+    });
+    if (!lines.length) lines = ['再送対象がありませんでした'];
+    if ((data.success_count || 0) > 0 && (data.failed_count || 0) > 0) {
+      $('done_title').textContent = '⚠️ 一部再送できませんでした';
+    } else if ((data.success_count || 0) > 0) {
+      $('done_title').textContent = '✅ 再送しました';
+    } else {
+      $('done_title').textContent = '⚠️ 再送できませんでした';
+    }
+    $('done_detail').textContent = lines.join('\n');
+    show('step_done');
+    window.scrollTo(0, 0);
+  } catch(e) {
+    showError('batch_resend_error', '通信エラーが発生しました');
+    btn.disabled = false;
+    btn.textContent = 'チェックした書類をこの宛先に再送する';
+  }
+}
+
+// ============================================================
+// 非バウンスモード（?case=…）: 間違った宛先に送った書類を、正しい宛先へ送り直す
+// バウンス用の lookup()/doResend() は一切呼ばず、別関数・別状態で完結させる。
+// ============================================================
+var nbState = { caseId: '', candidates: [], selectedQueueId: '' };
+
+// URLパラメータなしの常設入口。案件番号の検証・担当照合とエラー文言は
+// 既存 resend_nonbounce_lookup に一本化する。
+function searchCase(event){
+  if (event && event.preventDefault) event.preventDefault();
+  clearError('case_search_error');
+  caseParam = $('case_search_input').value.trim();
+  docTypeParam = '';
+  nbLookup();
+}
+
+// HTML エスケープ（候補表示用・recipient_email 等を安全に描画）
+function nbEsc(s){
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// 起動時の候補照会
+async function nbLookup(){
+  show('step_loading');
+  nbState.caseId = caseParam;
+  try {
+    var payload = { form_type: 'resend_nonbounce_lookup', sessionToken: sessionToken(), case_id: caseParam };
+    // doc_type は決まった値があるときだけ送る（無ければ省略 = 全書類対象）
+    if (docTypeParam) payload.doc_type = docTypeParam;
+    var resp = await gasReadFetch(GAS_URL, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    }, { onStatus: gasReadStatusTarget(document.querySelector('#step_loading .muted')) });
+    var data = await resp.json();
+    if (!data || !data.ok) {
+      var serverMessage = (data && data.error) || '対象の取得に失敗しました';
+      if (manualSearchMode) {
+        show('step_no_target');
+        showError('case_search_error', serverMessage);
+      } else {
+        showError('lookup_error', serverMessage);
+        show('step_lookup_error');
+      }
+      return;
+    }
+    nbState.candidates = (data.candidates && data.candidates.length) ? data.candidates : [];
+    if (nbState.candidates.length === 0) {
+      $('nb_empty_case_id').textContent = data.case_id || caseParam || '-';
+      show('nb_step_empty');
+      return;
+    }
+    $('nb_info_case_id').textContent = data.case_id || caseParam || '-';
+    nbRenderCandidates();
+    show('nb_step_form');
+  } catch(e) {
+    showError('lookup_error', GAS_READ_FINAL_MESSAGE);
+    show('step_lookup_error');
+  }
+}
+
+// 候補リスト描画。各候補をクリック/ラジオで1件選択できる。
+function nbRenderCandidates(){
+  var html = '';
+  nbState.candidates.forEach(function(c, i){
+    var label = nbEsc(c.doc_label || c.doc_type || '書類');
+    var sentAt = nbEsc(c.sent_at || '');
+    var email = nbEsc(c.recipient_email || '');
+    var qid = nbEsc(c.queue_id || '');
+    var amount = Number(c.amount_inc || 0);
+    var amountText = amount > 0 ? '¥' + amount.toLocaleString('ja-JP') : '—';
+    var pay = nbEsc(c.payment_method || '');
+    html += '' +
+      '<button type="button" class="cand" data-idx="' + i + '" data-qid="' + qid + '" onclick="nbSelect(' + i + ')">' +
+        '<div class="cand-row">' +
+          '<span class="cand-check"></span>' +
+          '<span style="flex:1 1 auto;min-width:0">' +
+            '<span class="cand-head">' +
+              '<span class="cand-label">' + label + '</span>' +
+              (sentAt ? '<span class="cand-date">' + sentAt + ' 送信</span>' : '') +
+            '</span>' +
+            '<span class="cand-email">金額: ' + amountText + (pay ? '　支払方法: ' + pay : '') + '</span>' +
+            '<span class="cand-email">現在の宛先: ' + (email || '—') + '</span>' +
+          '</span>' +
+        '</div>' +
+      '</button>';
+  });
+  $('nb_cand_list').innerHTML = html;
+}
+
+// 候補選択
+function nbSelect(idx){
+  var c = nbState.candidates[idx];
+  if (!c) return;
+  nbState.selectedQueueId = c.queue_id || '';
+  var nodes = $('nb_cand_list').querySelectorAll('.cand');
+  for (var i = 0; i < nodes.length; i++) {
+    if (parseInt(nodes[i].getAttribute('data-idx'), 10) === idx) nodes[i].classList.add('selected');
+    else nodes[i].classList.remove('selected');
+  }
+  nbValidate();
+}
+
+// 送信ボタンの活性制御（候補選択済み かつ メール妥当 のときだけ押せる）
+function nbValidate(){
+  var email = $('nb_new_email').value.trim();
+  var emailOk = email.indexOf('@') > 0 && email.indexOf('.', email.indexOf('@')) > -1;
+  var ok = !!nbState.selectedQueueId && emailOk;
+  $('nb_btn_resend').disabled = !ok;
+  return ok;
+}
+
+// 送り直し実行
+async function nbDoResend(){
+  clearError('nb_resend_error');
+  if (!nbValidate()) {
+    showError('nb_resend_error', '書類を選び、正しいメールアドレスを入力してください');
+    return;
+  }
+  var newEmail = $('nb_new_email').value.trim();
+  var btn = $('nb_btn_resend');
+  btn.disabled = true;             // 二重送信防止
+  btn.textContent = '送り直し中...';
+  try {
+    var resp = await fetch(GAS_URL, {
+      method: 'POST',
+      body: JSON.stringify({ form_type: 'mail_resend_nonbounce', sessionToken: sessionToken(), case_id: nbState.caseId, queue_id: nbState.selectedQueueId, new_email: newEmail })
+    });
+    var data = await resp.json();
+    if (!data || !data.ok) {
+      showError('nb_resend_error', (data && data.error) || '送り直しに失敗しました');
+      btn.disabled = false;
+      btn.textContent = 'この宛先に送り直す';
+      return;
+    }
+    var n = (data.replacedCount != null) ? data.replacedCount : 0;
+    var dispatch = data.dispatchOk ? '成功' : '保留';
+    $('done_title').textContent = '✅ 再送しました';
+    $('done_detail').textContent = '送り直しました（正本も更新: ' + n + '箇所 / 即時送信: ' + dispatch + '）';
+    show('step_done');
+    window.scrollTo(0, 0);
+  } catch(e) {
+    showError('nb_resend_error', '通信エラーが発生しました');
+    btn.disabled = false;
+    btn.textContent = 'この宛先に送り直す';
+  }
+}
+
+// URL コピー（LWアプリ内ブラウザ案内用）
+function copyPageUrl(){
+  var url = location.href;
+  var btn = $('lw_copy_btn');
+  function done(){ btn.textContent = 'コピーしました'; setTimeout(function(){ btn.textContent = 'このページのURLをコピー'; }, 2000); }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(done).catch(fallbackCopy);
+  } else {
+    fallbackCopy();
+  }
+  function fallbackCopy(){
+    try {
+      var ta = document.createElement('textarea');
+      ta.value = url; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.focus(); ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      done();
+    } catch(e) {
+      btn.textContent = 'コピーできませんでした';
+    }
+  }
+}
+
+// LINE WORKS アプリ内ブラウザ検知（保険）。
+// ※UA 文字列の確証は無いため緩めの部分一致。実機で要確認。
+// 観測されうる兆候: UA に "LINEWORKS" / "lineworks" / "Lite"（一部 WebView）等。
+// 過剰検知を避けるため、判定が曖昧でもバナーを出すだけでフォームは隠さない。
+(function lwBannerCheck_(){
+  var ua = (navigator.userAgent || '').toLowerCase();
+  // 緩い部分一致: スペース有無の揺れも拾う
+  var isLw = ua.indexOf('lineworks') > -1 || ua.indexOf('line works') > -1 || ua.indexOf('worksmobile') > -1;
+  if (isLw) {
+    var b = document.getElementById('lw_banner');
+    if (b) b.classList.remove('hidden');
+  }
+})();
+
+// ログイン確立後に照会を実行。
+// shared-auth.js は未ログインなら login.html へリダイレクトするため、
+// ここに到達した時点でセッションは確立済み（token は ECOPITA_SESSION から取得可）。
+//
+// モード判定:
+//   ?bounce=<id>            → 既存バウンスモード（lookup / doResend）— 一切変更なし
+//   bounce無し かつ ?case=  → 非バウンスモード（nbLookup / nbDoResend）
+//   どちらも無し            → 案件番号の検索入口
+if (bounceId) {
+  // 既存バウンスモード（hero サブ文言はデフォルトのまま）
+  lookup();
+} else if (caseParam) {
+  // 非バウンスモード: 「送り直す」系の文言に切替
+  var heroSub = $('hero_sub');
+  if (heroSub) heroSub.textContent = '送信済みの書類を、正しい宛先に送り直します';
+  nbLookup();
+} else {
+  var heroSub2 = $('hero_sub');
+  if (heroSub2) heroSub2.textContent = '送信済みの書類を、正しい宛先に送り直します';
+  show('step_no_target');
+}
+</script>
+<script src="./shared-nav.js"></script>
+<script src="./shared-email-check.js"></script>
+</body>
+</html>

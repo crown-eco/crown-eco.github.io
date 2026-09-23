@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<script src="./shared-site-config.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>経費申請</title>
+
+<script src="./shared-auth.js"></script>
+<script src="./shared-nav.js" defer></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',sans-serif;font-size:14px;color:#222;background:#f5f5f5;padding-bottom:80px}
+.header{background:linear-gradient(160deg,#E91E63,#AD1457);padding:20px 16px;text-align:center}
+.header h1{font-size:1.4rem;font-weight:700;color:#fff}
+.header p{font-size:.9rem;color:rgba(255,255,255,.85);margin-top:4px}
+.section{margin:12px auto 0;padding:0 16px;max-width:500px}
+.step-label{font-size:11px;font-weight:600;color:#888;letter-spacing:.05em;margin-bottom:6px;text-transform:uppercase}
+.card{background:#fff;border-radius:12px;border:1px solid #e8e8e8;padding:14px 16px;margin-bottom:10px}
+.card-title{font-size:13px;font-weight:600;color:#555;margin-bottom:10px}
+label{display:block;font-size:12px;color:#666;margin-bottom:4px}
+input[type=text],input[type=number]{width:100%;height:40px;border:1px solid #d0d0d0;border-radius:8px;padding:0 10px;font-size:14px;background:#fff;color:#222;-webkit-appearance:none}
+input[type=text]:focus,input[type=number]:focus{outline:none;border-color:#378ADD}
+.search-row{display:flex;gap:8px;align-items:flex-end}
+.search-row .grow{flex:1}
+.btn{height:40px;border:1px solid #d0d0d0;border-radius:8px;padding:0 16px;font-size:14px;background:#fff;color:#222;cursor:pointer;white-space:nowrap}
+.btn-primary{background:#222;color:#fff;border-color:#222;width:100%;height:46px;font-size:15px;border-radius:10px;margin-top:4px}
+.btn-primary:disabled{background:#aaa;border-color:#aaa;cursor:not-allowed}
+.btn-search{background:#378ADD;color:#fff;border-color:#378ADD}
+.contract-list{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.contract-item{border:1px solid #e0e0e0;border-radius:10px;padding:12px 14px;cursor:pointer;position:relative;background:#fff}
+.contract-item.selected{border:2px solid #378ADD;background:#f0f7ff}
+.contract-item .cid{font-size:13px;font-weight:600}
+.contract-item .meta{font-size:12px;color:#888;margin-top:3px}
+.contract-item .detail{font-size:12px;color:#555;margin-top:5px;line-height:1.5}
+.selected-badge{position:absolute;top:10px;right:12px;font-size:11px;padding:2px 8px;border-radius:6px;background:#e0f0ff;color:#1860a0;font-weight:600}
+.checkbox-row{display:flex;align-items:center;gap:10px;padding:10px 0}
+.checkbox-row input[type=checkbox]{width:18px;height:18px;flex-shrink:0;accent-color:#378ADD}
+.checkbox-row span{font-size:15px;font-weight:500}
+.indent{margin-left:28px;margin-top:4px;padding-bottom:4px;display:flex;flex-direction:column;gap:10px}
+.divider{height:1px;background:#f0f0f0;margin:8px 0}
+.receipt-item{border:1px solid #e0e0e0;border-radius:10px;padding:12px 14px;background:#fafafa;position:relative}
+.receipt-item-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.receipt-item-title{font-size:12px;font-weight:600;color:#555}
+.receipt-delete{font-size:12px;color:#c0392b;cursor:pointer;padding:2px 6px}
+.receipt-preview{width:100%;max-height:160px;object-fit:contain;border-radius:8px;border:1px solid #e0e0e0;display:block;margin-top:8px}
+.file-input-wrapper{position:relative}
+.file-input-wrapper input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.file-btn{width:100%;height:38px;border:1px dashed #b0b0b0;border-radius:8px;background:#fff;font-size:13px;color:#555;display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer}
+.file-btn.has-file{border-color:#378ADD;color:#378ADD;border-style:solid}
+.add-btn{font-size:13px;color:#378ADD;cursor:pointer;padding:8px 0;display:inline-flex;align-items:center;gap:4px;background:none;border:none}
+.total-box{background:#f8f8f8;border-radius:10px;padding:12px 14px}
+.total-row{display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:14px}
+.total-row.grand{padding-top:10px;border-top:1px solid #e0e0e0;margin-top:4px}
+.total-row.grand .label{font-weight:600;font-size:15px}
+.total-row.grand .value{font-weight:700;font-size:18px}
+.error-msg{color:#c0392b;font-size:12px;margin-top:6px}
+.success-screen{text-align:center;padding:48px 16px}
+.success-screen .icon{font-size:48px;margin-bottom:16px}
+.success-screen h2{font-size:20px;font-weight:600;margin-bottom:8px}
+.success-screen p{font-size:14px;color:#666}
+.hidden{display:none}
+/* 案件番号builder */
+.case-id-builder{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.case-id-builder select{padding:10px 8px;border:1px solid #d0d0d0;border-radius:8px;font-size:14px;font-weight:700;color:#378ADD;background:#fff;height:40px;-webkit-appearance:none}
+#e_case_prefix{min-width:70px}
+#e_case_alpha{min-width:60px;background:#e8f2fc!important;border-color:#378ADD!important}
+.case-id-sep{font-size:1.1rem;font-weight:700;color:#999}
+#e_case_num{flex:1;min-width:120px}
+.case-id-preview{margin-top:6px;font-size:12px;color:#888}
+.case-id-preview span{font-weight:700;color:#378ADD}
+/* ログイン画面 */
+.login-view{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px;background:linear-gradient(160deg,#161b26,#232b3e 40%,#1a2030)}
+.login-card{width:100%;max-width:380px;background:#fff;border-radius:16px;box-shadow:0 8px 30px rgba(0,0,0,.15);overflow:hidden}
+.login-card-header{background:#1a1d27;padding:24px;text-align:center;border-bottom:3px solid #378ADD}
+.login-card-header h2{color:#fff;font-size:17px;font-weight:600}
+.login-card-header p{color:rgba(255,255,255,.4);font-size:11px;margin-top:3px}
+.login-form{padding:24px;display:flex;flex-direction:column;gap:12px}
+.login-input{width:100%;height:44px;border:1px solid #d0d0d0;border-radius:8px;padding:0 12px;font-size:15px;background:#f8f8f8;color:#222;outline:none}
+.login-input:focus{border-color:#378ADD;background:#fff}
+.login-btn{width:100%;height:44px;background:#378ADD;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer}
+.login-btn:disabled{background:#aaa;cursor:not-allowed}
+.login-error{color:#c0392b;font-size:12px;text-align:center;display:none}
+/* TOTP画面 */
+.totp-view{display:none;align-items:center;justify-content:center;min-height:100vh;padding:20px;background:linear-gradient(160deg,#161b26,#232b3e 40%,#1a2030)}
+.totp-view.active{display:flex}
+.totp-card{width:100%;max-width:380px;background:#fff;border-radius:16px;padding:28px 24px;box-shadow:0 8px 30px rgba(0,0,0,.15)}
+.totp-title{font-size:17px;font-weight:600;text-align:center;margin-bottom:8px}
+.totp-desc{font-size:13px;color:#555;text-align:center;line-height:1.7;margin-bottom:4px}
+.totp-error{color:#c0392b;font-size:12px;text-align:center;margin:6px 0;display:none}
+.totp-note{font-size:11px;color:#888;text-align:center;margin-top:12px}
+.otp-wrap{display:flex;align-items:center;justify-content:center;gap:16px;margin:18px 0}
+.otp-input{font-size:2rem;letter-spacing:10px;text-align:center;width:190px;padding:10px 8px;border:2px solid #d0d0d0;border-radius:8px;outline:none}
+.otp-input:focus{border-color:#378ADD}
+.countdown-ring{position:relative;width:48px;height:48px;flex-shrink:0}
+.ring-svg{transform:rotate(-90deg)}
+.ring-bg{fill:none;stroke:#eee;stroke-width:3}
+.ring-fill{fill:none;stroke:#378ADD;stroke-width:3;stroke-linecap:round;stroke-dasharray:100;stroke-dashoffset:0;transition:stroke-dashoffset 1s linear,stroke 1s}
+.countdown-num{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:13px;font-weight:700;color:#555}
+.qrcode-box{display:flex;justify-content:center;margin:16px 0}
+.qrcode-box canvas,.qrcode-box img{border:4px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.12)}
+.secret-text{font-size:11px;word-break:break-all;background:#f5f5f5;padding:4px 8px;border-radius:6px;display:inline-block;margin-top:4px}
+</style>
+<script src="./shared-gas-call.js?v=20260914-read-v1"></script>
+</head>
+<body>
+
+<!-- メイン画面 -->
+<div id="app-screen">
+  <div class="header">
+    <h1>経費申請</h1>
+  </div>
+
+  <div id="main-form">
+    <div class="section">
+      <div class="step-label">Step 1 — 案件を選択</div>
+      <div class="card">
+        <div class="card-title">案件番号を入力</div>
+        <label>案件番号</label>
+        <div class="case-id-builder">
+          <select id="e_case_prefix" data-ecopita-case-prefixes onchange="onPrefixChange()">
+            <option value="YA">YA</option>
+            <option value="HM">HM</option>
+            <option value="CP">CP</option>
+            <option value="EC">EC</option>
+            <option value="HC">HC</option>
+          </select>
+          <select id="e_case_alpha" onchange="updatePreview()">
+            <option value="">-</option>
+            <option value="A">A</option><option value="B">B</option><option value="C">C</option>
+            <option value="D">D</option><option value="E">E</option><option value="F">F</option>
+            <option value="G">G</option><option value="H">H</option><option value="I">I</option>
+            <option value="J">J</option><option value="K">K</option><option value="L">L</option>
+            <option value="M">M</option><option value="N">N</option><option value="O">O</option>
+            <option value="P">P</option><option value="Q">Q</option><option value="R">R</option>
+            <option value="S">S</option><option value="T">T</option><option value="U">U</option>
+            <option value="V">V</option><option value="W">W</option><option value="X">X</option>
+            <option value="Y">Y</option><option value="Z">Z</option>
+          </select>
+          <span class="case-id-sep">-</span>
+          <input type="text" id="e_case_num" placeholder="例: 12345678" inputmode="numeric" oninput="updatePreview()">
+          <button class="btn btn-search" id="search-btn" onclick="searchCase()">検索</button>
+        </div>
+        <div class="case-id-preview">案件番号: <span id="e_case_id_preview">---</span></div>
+        <div id="search-error" class="error-msg hidden"></div>
+        <div id="contract-list" class="contract-list hidden"></div>
+      </div>
+    </div>
+
+    <div class="section" id="expense-section" style="display:none">
+      <div class="step-label">Step 2 — 経費内容を入力</div>
+      <div class="card">
+        <div class="card-title">経費種別（複数選択可）</div>
+        <div class="checkbox-row">
+          <input type="checkbox" id="chk-maker" onchange="toggleMaker()">
+          <span>メーカー施工費（会社へ請求）</span>
+        </div>
+        <div class="indent" id="maker-fields" style="display:none">
+          <div>
+            <label>メーカー名 <span style="color:#c0392b">*</span></label>
+            <input type="text" id="maker-name" placeholder="例: ダイキン工業">
+          </div>
+          <div>
+            <label>金額（税込） <span style="color:#c0392b">*</span></label>
+            <input type="number" id="maker-amount" placeholder="0" min="1" oninput="updateTotal()">
+          </div>
+          <div id="maker-error" class="error-msg hidden"></div>
+        </div>
+        <div class="divider"></div>
+        <div class="checkbox-row">
+          <input type="checkbox" id="chk-body" onchange="toggleBody()">
+          <span>本体代</span>
+        </div>
+        <div class="indent" id="body-fields" style="display:none">
+          <div id="body-items-container"></div>
+          <button class="add-btn" onclick="addBodyItem()">＋ 領収書を追加</button>
+          <div id="body-error" class="error-msg hidden"></div>
+        </div>
+        <div id="kind-error" class="error-msg hidden"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">申請合計</div>
+        <div class="total-box">
+          <div class="total-row" id="total-maker-row" style="display:none">
+            <span class="label">メーカー施工費</span>
+            <span id="total-maker-val">¥0</span>
+          </div>
+          <div class="total-row" id="total-body-row" style="display:none">
+            <span class="label">本体代合計</span>
+            <span id="total-body-val">¥0</span>
+          </div>
+          <div class="total-row grand">
+            <span class="label">合計</span>
+            <span class="value" id="total-grand-val">¥0</span>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn-primary" id="submit-btn" onclick="submitExpense()">申請する</button>
+      <div id="submit-error" class="error-msg" style="margin-top:8px"></div>
+    </div>
+  </div>
+
+  <div id="success-screen" class="success-screen hidden">
+    <div class="icon">✅</div>
+    <h2>申請が完了しました</h2>
+    <p>LINE WORKSに通知を送りました。</p>
+    <p id="success-payment-note" class="hidden" style="margin-top:16px;padding:12px 14px;background:#fff4e5;border:1px solid #f0b37e;border-radius:8px;color:#b35900;font-weight:600;font-size:14px;line-height:1.6;">まだ着金していないため、経費精算は着金後になります。</p>
+    <button class="btn" style="margin-top:24px" onclick="resetForm()">続けて申請する</button>
+  </div>
+</div>
+
+<script>
+var GAS_URL = 'https://script.google.com/macros/s/AKfycbyvjri6i0fe11hzfoqfhSxWCsn1aP2WyT9ELZOzNMrVyEOx-ZsKqlhJQONzlaFLmPw/exec';
+var CASE_ID_INVALID_MESSAGE = '案件番号が正しくありません　確認してください';
+var sessionToken = '';
+var staffId = '';
+var selectedContract = null;
+var bodyItemCount = 0;
+var bodyItemData = {};
+var _totpPassToken = '', _totpStaffId = '', _totpMode = '', _totpDisplayName = '', _countdownTimer = null;
+var ALL_SCREENS = ['app-screen'];
+
+// === 経費申請の提出anchor（ack喪失後の再送でも同じ申請を識別する） ===
+var EXPENSE_PENDING_STORAGE_PREFIX_ = 'ecopita_expense_pending_v1:';
+var EXPENSE_PENDING_MAX_AGE_MS_ = 48 * 60 * 60 * 1000;
+var EXPENSE_SUBMISSION_STAMP_RE_ = /^\d{14}$/;
+var EXPENSE_SUBMISSION_TOKEN_RE_ = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+window._expensePendingSubmissionMemory = window._expensePendingSubmissionMemory || {};
+
+function expensePendingStorageKey_(caseId) {
+  return EXPENSE_PENDING_STORAGE_PREFIX_ + String(caseId || '').trim();
+}
+
+function expenseSubmissionJstStamp_(value) {
+  var source = value instanceof Date ? value : new Date(value == null ? Date.now() : value);
+  var jst = new Date(source.getTime() + 9 * 60 * 60 * 1000);
+  return String(jst.getUTCFullYear())
+    + String(jst.getUTCMonth() + 1).padStart(2, '0')
+    + String(jst.getUTCDate()).padStart(2, '0')
+    + String(jst.getUTCHours()).padStart(2, '0')
+    + String(jst.getUTCMinutes()).padStart(2, '0')
+    + String(jst.getUTCSeconds()).padStart(2, '0');
+}
+
+function expenseSubmissionUuid_() {
+  if (window.crypto && typeof window.crypto.randomUUID === 'function') return window.crypto.randomUUID();
+  var bytes = new Uint8Array(16);
+  if (window.crypto && typeof window.crypto.getRandomValues === 'function') {
+    window.crypto.getRandomValues(bytes);
+  } else {
+    for (var i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
+  }
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  var hex = Array.prototype.map.call(bytes, function(byte) {
+    return ('0' + byte.toString(16)).slice(-2);
+  }).join('');
+  return hex.slice(0, 8) + '-' + hex.slice(8, 12) + '-' + hex.slice(12, 16) + '-'
+    + hex.slice(16, 20) + '-' + hex.slice(20);
+}
+
+function expensePendingEnvelopeValid_(envelope, caseId, nowMs) {
+  if (!envelope || envelope.version !== 1 || !envelope.payload) return false;
+  if (String(envelope.case_id || '').trim() !== String(caseId || '').trim()) return false;
+  var savedAt = Number(envelope.saved_at_ms || 0);
+  if (!isFinite(savedAt) || savedAt <= 0 || nowMs - savedAt < 0 || nowMs - savedAt > EXPENSE_PENDING_MAX_AGE_MS_) return false;
+  return String(envelope.payload.expense_submission_case_id || '').trim() === String(caseId || '').trim()
+    && EXPENSE_SUBMISSION_STAMP_RE_.test(String(envelope.payload.expense_submission_at || ''))
+    && EXPENSE_SUBMISSION_TOKEN_RE_.test(String(envelope.payload.expense_submission_token || ''));
+}
+
+function expenseReadPendingSubmission_(caseId, nowMs) {
+  var key = expensePendingStorageKey_(caseId);
+  var envelope = window._expensePendingSubmissionMemory[key] || null;
+  try {
+    var raw = localStorage.getItem(key);
+    if (raw) envelope = JSON.parse(raw);
+  } catch (e) {}
+  if (expensePendingEnvelopeValid_(envelope, caseId, nowMs)) return envelope;
+  delete window._expensePendingSubmissionMemory[key];
+  try { localStorage.removeItem(key); } catch (e2) {}
+  return null;
+}
+
+function expensePreparePendingSubmission_(payload, nowMs) {
+  var currentMs = Number(nowMs == null ? Date.now() : nowMs);
+  var caseId = String((payload && payload.case_id) || '').trim();
+  if (!payload || !caseId) return payload;
+  var existing = expenseReadPendingSubmission_(caseId, currentMs);
+  if (existing) {
+    payload.expense_submission_at = existing.payload.expense_submission_at;
+    payload.expense_submission_token = existing.payload.expense_submission_token;
+  } else {
+    payload.expense_submission_at = expenseSubmissionJstStamp_(currentMs);
+    payload.expense_submission_token = expenseSubmissionUuid_();
+  }
+  payload.expense_submission_case_id = caseId;
+  var envelope = {
+    version: 1,
+    case_id: caseId,
+    saved_at_ms: existing ? existing.saved_at_ms : currentMs,
+    payload: payload
+  };
+  var key = expensePendingStorageKey_(caseId);
+  window._expensePendingSubmissionMemory[key] = envelope;
+  try { localStorage.setItem(key, JSON.stringify(envelope)); } catch (e) {}
+  return payload;
+}
+
+function expenseClearPendingSubmission_(payload, nowMs) {
+  var caseId = String((payload && payload.case_id) || '').trim();
+  if (!caseId) return false;
+  var key = expensePendingStorageKey_(caseId);
+  var current = expenseReadPendingSubmission_(caseId, Number(nowMs == null ? Date.now() : nowMs));
+  if (!current) return false;
+  if (String(current.payload.expense_submission_at || '') !== String(payload.expense_submission_at || '')
+      || String(current.payload.expense_submission_token || '') !== String(payload.expense_submission_token || '')) return false;
+  delete window._expensePendingSubmissionMemory[key];
+  try { localStorage.removeItem(key); } catch (e) {}
+  return true;
+}
+
+function showScreen(id) {
+  ALL_SCREENS.forEach(function(s) {
+    var el = document.getElementById(s);
+    if (!el) return;
+    if (s === 'app-screen') { el.style.display = (s === id) ? 'block' : 'none'; }
+    else if (s === 'screen-login') { el.style.display = (s === id) ? 'flex' : 'none'; }
+    else { el.classList.toggle('active', s === id); }
+  });
+}
+
+function callApi(payload) {
+  var json = JSON.stringify(payload);
+  var encoded = btoa(unescape(encodeURIComponent(json)));
+  var url = GAS_URL + '?_portal_data=' + encodeURIComponent(encoded);
+  return (payload.action === 'expense_lookup' ? gasReadFetch(url, { redirect: 'follow' }, { onStatus: gasReadStatusTarget('search-error') }) : fetch(url, { redirect: 'follow' })).then(function(r) { return r.json(); });
+}
+
+function init() {
+  if (window.ECOPITA_SESSION) {
+    sessionToken = window.ECOPITA_SESSION.token;
+    staffId = window.ECOPITA_SESSION.staffId;
+    var displayName = window.ECOPITA_SESSION.displayName || staffId;
+    showApp(displayName);
+  }
+}
+
+function showApp(displayName) {
+  showScreen('app-screen');
+  document.getElementById('staff-name-label').textContent = (displayName || staffId) + '（' + staffId + '）';
+  onPrefixChange();
+  if (document.getElementById('body-items-container').children.length === 0) addBodyItem();
+}
+
+async function doLogin() {
+  var id = document.getElementById('login-id').value.trim();
+  var pin = document.getElementById('login-pin').value.trim();
+  var errEl = document.getElementById('login-error');
+  errEl.style.display = 'none';
+  if (!id || !pin) { errEl.textContent = '担当者番号とPINを入力してください'; errEl.style.display = 'block'; return; }
+  var btn = document.getElementById('login-btn');
+  btn.disabled = true; btn.textContent = 'ログイン中...';
+  try {
+    var r = await callApi({ action: 'login', staffId: id, pin: pin, ua: navigator.userAgent || '' });
+    btn.disabled = false; btn.textContent = 'ログイン';
+    if (!r || !r.ok) { errEl.textContent = r.error || 'ログイン失敗'; errEl.style.display = 'block'; return; }
+    _totpPassToken = r.passToken || '';
+    _totpStaffId = r.staffId || id;
+    _totpDisplayName = r.displayName || id;
+    if (r.totp_required) {
+      _totpMode = 'login';
+      document.getElementById('totp-desc').textContent = 'Google Authenticatorに表示されている\n6桁のコードを入力してください。';
+      document.getElementById('totp-btn').textContent = 'ログイン';
+      document.getElementById('totp-input').value = '';
+      document.getElementById('totp-error').style.display = 'none';
+      showScreen('screen-totp');
+      startCountdown();
+    } else if (r.totp_setup_required) {
+      _totpMode = 'setup';
+      sendLwOtc_();
+    } else {
+      finishLogin_(r);
+    }
+  } catch(e) {
+    btn.disabled = false; btn.textContent = 'ログイン';
+    errEl.textContent = '通信エラーが発生しました'; errEl.style.display = 'block';
+  }
+}
+
+async function finishLogin_(r) {
+  try {
+    var otcResult = await callApi({ action: 'exchangeOTC', otc: r.otc });
+    if (!otcResult || !otcResult.ok) {
+      document.getElementById('login-error').textContent = otcResult.error || '認証エラー';
+      document.getElementById('login-error').style.display = 'block';
+      showScreen('screen-login');
+      return;
+    }
+    if (window.ECOPITA_SITE_NOTICE(otcResult)) return;
+    sessionToken = otcResult.token;
+    staffId = _totpStaffId;
+    var displayName = _totpDisplayName || staffId;
+    localStorage.setItem('ecopita_session', JSON.stringify({
+      token: sessionToken,
+      staffId: staffId,
+      displayName: displayName,
+      canUseRm: otcResult.canUseRm === true,
+      groupId: otcResult.groupId || 'main',
+      groupAdmin: otcResult.groupAdmin === true,
+      groupSiteUrl: window.ECOPITA_SITE_URL(otcResult.groupSiteUrl),
+      role: otcResult.role || '',
+      casePrefixes: otcResult.casePrefixes || r.casePrefixes || []
+    }));
+    showApp(displayName);
+  } catch(e) {
+    document.getElementById('login-error').textContent = '通信エラーが発生しました';
+    document.getElementById('login-error').style.display = 'block';
+    showScreen('screen-login');
+  }
+}
+
+async function sendLwOtc_() {
+  showScreen('screen-lw-otc');
+  document.getElementById('lw-otc-input').value = '';
+  document.getElementById('lw-otc-error').style.display = 'none';
+  try {
+    var res = await callApi({ action: 'totp_send_otc', staffId: _totpStaffId, passToken: _totpPassToken });
+    if (!res.ok) { showTotpErr('lw-otc-error', 'コードの送信に失敗しました'); return; }
+    _totpPassToken = res.passToken || _totpPassToken;
+    document.getElementById('lw-otc-input').focus();
+  } catch(e) { showTotpErr('lw-otc-error', '通信エラーが発生しました'); }
+}
+
+async function submitLwOtc() {
+  var code = document.getElementById('lw-otc-input').value.trim();
+  if (code.length !== 6) { showTotpErr('lw-otc-error', '6桁のコードを入力してください'); return; }
+  var btn = document.getElementById('lw-otc-btn');
+  btn.disabled = true; btn.textContent = '送信中...';
+  try {
+    var res = await callApi({ action: 'totp_verify_otc', staffId: _totpStaffId, passToken: _totpPassToken, code: code });
+    btn.disabled = false; btn.textContent = '確認';
+    _totpPassToken = res.passToken || _totpPassToken;
+    if (!res.ok) {
+      var msg = res.reason === 'expired' ? '有効期限が切れました。再度ログインしてください'
+        : res.reason === 'mismatch' ? 'コードが違います'
+        : res.reason === 'invalid_pass_token' ? 'もう一度ログインしてください' : 'エラーが発生しました';
+      showTotpErr('lw-otc-error', msg); return;
+    }
+    showQrCode_(res.otpauth);
+  } catch(e) { btn.disabled = false; btn.textContent = '確認'; showTotpErr('lw-otc-error', '通信エラーが発生しました'); }
+}
+
+function showQrCode_(otpauth) {
+  showScreen('screen-qr');
+  var container = document.getElementById('qrcode-container');
+  container.innerHTML = '';
+  new QRCode(container, { text: otpauth, width: 200, height: 200, correctLevel: QRCode.CorrectLevel.M });
+  var secret = (otpauth.match(/secret=([A-Z2-7]+)/i) || [])[1] || '';
+  document.getElementById('secret-text').textContent = secret;
+}
+
+function showTotpConfirm() {
+  showScreen('screen-totp');
+  startCountdown();
+  document.getElementById('totp-desc').textContent = 'Google Authenticatorに表示されている\n6桁のコードを入力して登録を完了してください。';
+  document.getElementById('totp-btn').textContent = '登録完了';
+  document.getElementById('totp-input').value = '';
+  document.getElementById('totp-error').style.display = 'none';
+}
+
+async function submitTotp() {
+  var code = document.getElementById('totp-input').value.trim();
+  if (code.length !== 6) { showTotpErr('totp-error', '6桁のコードを入力してください'); return; }
+  var btn = document.getElementById('totp-btn');
+  btn.disabled = true; btn.textContent = '送信中...';
+  var action = (_totpMode === 'login') ? 'totp_verify_login' : 'totp_confirm_setup';
+  try {
+    var res = await callApi({ action: action, staffId: _totpStaffId, passToken: _totpPassToken, code: code });
+    btn.disabled = false; btn.textContent = (_totpMode === 'login') ? 'ログイン' : '登録完了';
+    if (!res.ok) {
+      _totpPassToken = res.passToken || _totpPassToken;
+      var msg = res.reason === 'busy' ? (res.error || 'ただいま混雑しています。しばらく待ってからもう一度お試しください。')
+        : res.reason === 'locked' ? 'ロックされました。' + (res.remainMin || 10) + '分後にお試しください'
+        : res.reason === 'invalid' ? 'コードが違います。残り' + (res.remainTry || '?') + '回入力できます'
+        : res.reason === 'invalid_pass_token' ? 'もう一度ログインしてください'
+        : 'エラーが発生しました';
+      showTotpErr('totp-error', msg);
+      document.getElementById('totp-input').value = '';
+      return;
+    }
+    stopCountdown();
+    if (window.ECOPITA_SITE_NOTICE(res)) return;
+    sessionToken = res.token;
+    staffId = _totpStaffId;
+    var displayName = _totpDisplayName || staffId;
+    localStorage.setItem('ecopita_session', JSON.stringify({
+      token: sessionToken,
+      staffId: staffId,
+      displayName: displayName,
+      canUseRm: res.canUseRm === true,
+      groupId: res.groupId || 'main',
+      groupAdmin: res.groupAdmin === true,
+      groupSiteUrl: window.ECOPITA_SITE_URL(res.groupSiteUrl),
+      role: res.role || '',
+      casePrefixes: res.casePrefixes || []
+    }));
+    showApp(displayName);
+  } catch(e) {
+    btn.disabled = false; btn.textContent = (_totpMode === 'login') ? 'ログイン' : '登録完了';
+    showTotpErr('totp-error', '通信エラーが発生しました');
+  }
+}
+
+function startCountdown() { stopCountdown(); updateCountdown_(); _countdownTimer = setInterval(updateCountdown_, 1000); }
+function stopCountdown() { if (_countdownTimer) { clearInterval(_countdownTimer); _countdownTimer = null; } }
+function updateCountdown_() {
+  var remain = 30 - (Math.floor(Date.now() / 1000) % 30);
+  var numEl = document.getElementById('countdown-num'), ringEl = document.getElementById('ring-fill');
+  if (!numEl || !ringEl) return;
+  numEl.textContent = remain;
+  ringEl.style.strokeDashoffset = (1 - remain / 30) * 100;
+  ringEl.style.stroke = remain <= 5 ? '#c0392b' : '#378ADD';
+}
+function showTotpErr(id, msg) { var el = document.getElementById(id); if (!el) return; el.textContent = msg; el.style.display = 'block'; }
+
+/* ============================================================
+   案件番号 builder
+   ============================================================ */
+function onPrefixChange() {
+  var prefix = document.getElementById('e_case_prefix').value;
+  var alphaEl = document.getElementById('e_case_alpha');
+  alphaEl.style.display = (prefix === 'YA') ? '' : 'none';
+  if (prefix !== 'YA') alphaEl.value = '';
+  updatePreview();
+}
+
+function buildCaseId() {
+  var prefix = document.getElementById('e_case_prefix').value;
+  var alpha  = document.getElementById('e_case_alpha').value;
+  var num    = document.getElementById('e_case_num').value.trim();
+  if (!num) return '';
+  if (prefix === 'YA') return alpha ? 'YA-' + alpha + num : 'YA-' + num;
+  return prefix + '-' + num;
+}
+
+function updatePreview() {
+  var id = buildCaseId();
+  document.getElementById('e_case_id_preview').textContent = id || '---';
+}
+
+/* ============================================================
+   API通信（GETリクエスト経由）
+   ============================================================ */
+function post(payload) {
+  var data = Object.assign({ sessionToken: sessionToken }, payload);
+  return callApi(data);
+}
+
+function postUpload(payload) {
+  var data = Object.assign({ sessionToken: sessionToken }, payload);
+  return fetch(GAS_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify(data),
+    redirect: 'follow'
+  }).then(function(r) { return r.json(); });
+}
+
+function fmt(n) { var v = Math.floor(n || 0); return v < 0 ? '-¥' + Math.abs(v).toLocaleString() : '¥' + v.toLocaleString(); }
+function showErr(id, msg) { var el = document.getElementById(id); el.textContent = msg; el.classList.remove('hidden'); }
+function hideErr(id) { var el = document.getElementById(id); el.textContent = ''; el.classList.add('hidden'); }
+function buildReceiptLabel(idx) {
+  var slipType = String((selectedContract && selectedContract.slip_type) || 'unknown');
+  var caseId = String((selectedContract && selectedContract.case_id) || buildCaseId() || 'unknown_case');
+  var uriageRow = String((selectedContract && selectedContract.uriage_row) || '0');
+  if (slipType === 'paper') return 'receipt_paper_' + caseId + '_' + uriageRow + '_' + (idx + 1);
+  if (slipType === 'unknown') return 'receipt_unknown_' + caseId + '_' + uriageRow + '_' + (idx + 1);
+  if (selectedContract && selectedContract.contract_id) return 'receipt_' + selectedContract.contract_id + '_' + (idx + 1);
+  return 'receipt_electronic_' + caseId + '_' + uriageRow + '_' + (idx + 1);
+}
+
+function searchCase() {
+  var caseId = buildCaseId();
+  hideErr('search-error');
+  document.getElementById('contract-list').classList.add('hidden');
+  if (!caseId) { showErr('search-error', '案件番号を入力してください'); return; }
+  document.getElementById('search-btn').textContent = '検索中...';
+  document.getElementById('search-btn').disabled = true;
+  post({ action: 'expense_lookup', case_id: caseId })
+    .then(function(res) {
+      document.getElementById('search-btn').textContent = '検索';
+      document.getElementById('search-btn').disabled = false;
+      if (res && res.case_id_valid === false) { showErr('search-error', CASE_ID_INVALID_MESSAGE); return; }
+      if (!res.ok) { showErr('search-error', res.error); return; }
+      renderContracts(res.contracts);
+    })
+    .catch(function() {
+      document.getElementById('search-btn').textContent = '検索';
+      document.getElementById('search-btn').disabled = false;
+      showErr('search-error', GAS_READ_FINAL_MESSAGE);
+    });
+}
+
+function renderContracts(contracts) {
+  var list = document.getElementById('contract-list');
+  list.innerHTML = '';
+  contracts.forEach(function(c) {
+    var item = document.createElement('div');
+    item.className = 'contract-item';
+    var expenseNote = c.expense_w ? '（経費申請済: ' + fmt(Math.abs(c.expense_w)) + '）' : '';
+    item.innerHTML =
+      '<div class="cid">' + c.datetime + '　' + fmt(c.amount) + '</div>' +
+      '<div class="meta">' + c.name + ' ／ ' + c.payment + expenseNote + '</div>';
+    item.onclick = function() { selectContract(c, item); };
+    list.appendChild(item);
+  });
+  list.classList.remove('hidden');
+  selectedContract = null;
+  document.getElementById('expense-section').style.display = 'none';
+}
+
+function selectContract(c, el) {
+  document.querySelectorAll('.contract-item').forEach(function(i) {
+    i.classList.remove('selected');
+    var b = i.querySelector('.selected-badge');
+    if (b) b.remove();
+  });
+  el.classList.add('selected');
+  var badge = document.createElement('div');
+  badge.className = 'selected-badge';
+  badge.textContent = '選択中';
+  el.appendChild(badge);
+  selectedContract = c;
+  document.getElementById('expense-section').style.display = 'block';
+  document.getElementById('expense-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function toggleMaker() {
+  var checked = document.getElementById('chk-maker').checked;
+  document.getElementById('maker-fields').style.display = checked ? '' : 'none';
+  hideErr('kind-error'); hideErr('maker-error'); updateTotal();
+}
+function toggleBody() {
+  var checked = document.getElementById('chk-body').checked;
+  document.getElementById('body-fields').style.display = checked ? '' : 'none';
+  hideErr('kind-error'); hideErr('body-error'); updateTotal();
+}
+
+function addBodyItem() {
+  bodyItemCount++;
+  var id = bodyItemCount;
+  bodyItemData[id] = { amount: 0, file: null, dataUrl: null, mime: null };
+  var container = document.getElementById('body-items-container');
+  var wrap = document.createElement('div');
+  wrap.className = 'receipt-item';
+  wrap.id = 'body-item-' + id;
+  wrap.innerHTML =
+    '<div class="receipt-item-header">' +
+      '<span class="receipt-item-title">領収書 ' + id + '枚目</span>' +
+      (id > 1 ? '<span class="receipt-delete" onclick="removeBodyItem(' + id + ')">削除</span>' : '') +
+    '</div>' +
+    '<div><label>金額（税込） <span style="color:#c0392b">*</span></label>' +
+    '<input type="number" id="body-amount-' + id + '" placeholder="0" min="1" oninput="onBodyAmountChange(' + id + ')"></div>' +
+    '<div id="body-file-area-' + id + '" style="margin-top:8px"><label>領収書写真 <span style="color:#c0392b">*</span></label>' +
+    '<div class="file-input-wrapper"><div class="file-btn" id="file-btn-' + id + '">📷 タップして添付</div>' +
+    '<input type="file" accept="image/*" onchange="onFileChange(' + id + ', this)"></div></div>' +
+    '<img id="preview-' + id + '" class="receipt-preview hidden">' +
+    '<div id="file-actions-' + id + '" class="hidden" style="display:none;gap:12px;margin-top:6px">' +
+    '<span style="font-size:12px;color:#378ADD;cursor:pointer" onclick="changeFile(' + id + ')">変更</span>' +
+    '<span style="font-size:12px;color:#c0392b;cursor:pointer" onclick="deleteFile(' + id + ')">削除</span>' +
+    '<input type="file" accept="image/*" id="change-input-' + id + '" style="display:none" onchange="onFileChange(' + id + ', this)"></div>' +
+    '<div id="item-error-' + id + '" class="error-msg hidden"></div>';
+  container.appendChild(wrap);
+  updateTotal();
+}
+
+function removeBodyItem(id) {
+  var el = document.getElementById('body-item-' + id);
+  if (el) el.remove();
+  delete bodyItemData[id];
+  updateTotal();
+}
+function onBodyAmountChange(id) {
+  bodyItemData[id].amount = Number(document.getElementById('body-amount-' + id).value) || 0;
+  updateTotal();
+}
+function onFileChange(id, input) {
+  var file = input.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var dataUrl = e.target.result;
+    bodyItemData[id].file = file;
+    bodyItemData[id].dataUrl = dataUrl.split(',')[1];
+    bodyItemData[id].mime = file.type;
+    var preview = document.getElementById('preview-' + id);
+    preview.src = dataUrl; preview.classList.remove('hidden');
+    var btn = document.getElementById('file-btn-' + id);
+    btn.textContent = '✓ ' + file.name; btn.classList.add('has-file');
+    document.getElementById('body-file-area-' + id).querySelector('.file-input-wrapper').style.display = 'none';
+    var actions = document.getElementById('file-actions-' + id);
+    actions.style.display = 'flex'; actions.classList.remove('hidden');
+  };
+  reader.readAsDataURL(file);
+}
+function changeFile(id) { document.getElementById('change-input-' + id).click(); }
+function deleteFile(id) {
+  bodyItemData[id].file = null; bodyItemData[id].dataUrl = null; bodyItemData[id].mime = null;
+  var preview = document.getElementById('preview-' + id);
+  preview.src = ''; preview.classList.add('hidden');
+  var btn = document.getElementById('file-btn-' + id);
+  btn.textContent = '📷 タップして添付'; btn.classList.remove('has-file');
+  document.getElementById('body-file-area-' + id).querySelector('.file-input-wrapper').style.display = '';
+  var actions = document.getElementById('file-actions-' + id);
+  actions.style.display = 'none'; actions.classList.add('hidden');
+}
+function getActiveBodyItems() {
+  return Object.keys(bodyItemData)
+    .map(function(id) { return { id: id, data: bodyItemData[id] }; })
+    .filter(function(it) { return document.getElementById('body-item-' + it.id) && it.data.amount > 0; });
+}
+function updateTotal() {
+  var makerChecked = document.getElementById('chk-maker').checked;
+  var bodyChecked = document.getElementById('chk-body').checked;
+  var makerAmt = makerChecked ? (Number(document.getElementById('maker-amount').value) || 0) : 0;
+  var activeItems = bodyChecked ? getActiveBodyItems() : [];
+  var bodyAmt = activeItems.reduce(function(s, it) { return s + it.data.amount; }, 0);
+  document.getElementById('total-maker-row').style.display = makerChecked && makerAmt > 0 ? '' : 'none';
+  document.getElementById('total-body-row').style.display = bodyChecked && bodyAmt > 0 ? '' : 'none';
+  document.getElementById('total-maker-val').textContent = fmt(makerAmt);
+  document.getElementById('total-body-val').textContent = fmt(bodyAmt);
+  document.getElementById('total-grand-val').textContent = fmt(makerAmt + bodyAmt);
+}
+function validate() {
+  hideErr('kind-error'); hideErr('maker-error'); hideErr('body-error');
+  document.querySelectorAll('[id^=item-error-]').forEach(function(el) { el.classList.add('hidden'); });
+  if (!selectedContract) { showErr('search-error', '施工を選択してください'); return false; }
+  var makerChecked = document.getElementById('chk-maker').checked;
+  var bodyChecked = document.getElementById('chk-body').checked;
+  if (!makerChecked && !bodyChecked) { showErr('kind-error', '経費種別を選択してください'); return false; }
+  if (makerChecked) {
+    if (!document.getElementById('maker-name').value.trim()) { showErr('maker-error', 'メーカー名を入力してください'); return false; }
+    if (!(Number(document.getElementById('maker-amount').value) > 0)) { showErr('maker-error', 'メーカー施工費の金額を入力してください'); return false; }
+  }
+  if (bodyChecked) {
+    var activeItems = getActiveBodyItems();
+    if (activeItems.length === 0) { showErr('body-error', '本体代の金額を1件以上入力してください'); return false; }
+    for (var i = 0; i < activeItems.length; i++) {
+      if (!activeItems[i].data.dataUrl) { showErr('item-error-' + activeItems[i].id, '領収書を添付してください'); return false; }
+    }
+  }
+  return true;
+}
+function submitExpense() {
+  document.getElementById('submit-error').textContent = '';
+  if (!validate()) return;
+  var slipType = String((selectedContract && selectedContract.slip_type) || 'unknown');
+  if (slipType === 'unknown') {
+    document.getElementById('submit-error').textContent = '伝票種別を判定できません（要管理者対応）';
+    return;
+  }
+  var btn = document.getElementById('submit-btn');
+  btn.disabled = true; btn.textContent = '送信中...';
+  var makerChecked = document.getElementById('chk-maker').checked;
+  var bodyChecked = document.getElementById('chk-body').checked;
+  var activeItems = bodyChecked ? getActiveBodyItems() : [];
+  var submittedPayload = null;
+
+  // 領収書を先に1枚ずつアップロード
+  var uploadPromises = activeItems.map(function(it, idx) {
+    return postUpload({
+      form_type: 'expense_upload_receipt',
+      receipt_base64: it.data.dataUrl,
+      receipt_mime: it.data.mime,
+      label: buildReceiptLabel(idx)
+    }).then(function(res) {
+      if (!res.ok) throw new Error(res.error || '領収書アップロード失敗');
+      return { amount: it.data.amount, receipt_url: res.url };
+    });
+  });
+
+  Promise.all(uploadPromises)
+    .then(function(uploadedItems) {
+      var payload = {
+        action: 'expense_submit',
+        contract_id: String(selectedContract.contract_id || ''),
+        slip_type: slipType,
+        case_id: String(selectedContract.case_id || buildCaseId()),
+        uriage_row: String(selectedContract.uriage_row || ''),
+        sales_record_id: String(selectedContract.sales_record_id || ''),
+        source_partition: String(selectedContract.source_partition || ''),
+        equipment: selectedContract.equipment || '',
+        maker_fee: makerChecked ? { selected: true, maker_name: document.getElementById('maker-name').value.trim(), amount: Number(document.getElementById('maker-amount').value) || 0 } : null,
+        body_cost: bodyChecked ? { selected: true, items: uploadedItems } : null
+      };
+      expensePreparePendingSubmission_(payload);
+      submittedPayload = payload;
+      return post(payload);
+    })
+    .then(function(res) {
+      btn.disabled = false; btn.textContent = '申請する';
+      if (!res.ok) { document.getElementById('submit-error').textContent = res.error; return; }
+      expenseClearPendingSubmission_(submittedPayload);
+      var payNote = document.getElementById('success-payment-note');
+      if (payNote) {
+        if (res.settled === false) payNote.classList.remove('hidden');
+        else payNote.classList.add('hidden');
+      }
+      document.getElementById('main-form').classList.add('hidden');
+      document.getElementById('success-screen').classList.remove('hidden');
+    })
+    .catch(function(e) {
+      btn.disabled = false; btn.textContent = '申請する';
+      document.getElementById('submit-error').textContent = e.message || '通信エラーが発生しました';
+    });
+}
+function resetForm() {
+  selectedContract = null; bodyItemCount = 0; bodyItemData = {};
+  document.getElementById('e_case_num').value = '';
+  document.getElementById('e_case_alpha').value = '';
+  updatePreview();
+  document.getElementById('contract-list').classList.add('hidden');
+  document.getElementById('expense-section').style.display = 'none';
+  document.getElementById('chk-maker').checked = false;
+  document.getElementById('chk-body').checked = false;
+  document.getElementById('maker-fields').style.display = 'none';
+  document.getElementById('body-fields').style.display = 'none';
+  document.getElementById('body-items-container').innerHTML = '';
+  document.getElementById('main-form').classList.remove('hidden');
+  document.getElementById('success-screen').classList.add('hidden');
+  var pn = document.getElementById('success-payment-note'); if (pn) pn.classList.add('hidden');
+  addBodyItem();
+  window.scrollTo(0, 0);
+}
+
+function doLogout() {
+  localStorage.removeItem('ecopita_session');
+  sessionToken = ''; staffId = '';
+  selectedContract = null; bodyItemCount = 0; bodyItemData = {};
+  document.getElementById('body-items-container').innerHTML = '';
+  showScreen('screen-login');
+}
+  
+window.addEventListener('load', init);
+</script>
+</body>
+</html>

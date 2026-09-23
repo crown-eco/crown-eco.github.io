@@ -1,0 +1,3754 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<script src="./shared-site-config.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>業務報告</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --blue:#0055a4; --blue-dark:#003d7a; --blue-light:#e8f2fc;
+  --green:#2e7d32; --green-light:#e8f5e9; --red:#c62828;
+  --bg:#f5f7fa; --card:#fff; --text:#1a1a1a; --text-sub:#5f6368;
+  --border:#dce1e8; --radius:14px;
+  --orange:#e65100; --orange-bg:#fff3e0;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text);line-height:1.6;padding-bottom:100px}
+.hero{background:linear-gradient(160deg,var(--green),#1b5e20);color:#fff;padding:24px 20px;text-align:center}
+.hero h1{font-size:1.4rem;font-weight:700}
+.hero .case-info{font-size:.9rem;opacity:.9;margin-top:6px}
+.container{max-width:500px;margin:0 auto;padding:15px 20px}
+.card{background:var(--card);border-radius:var(--radius);box-shadow:0 2px 8px rgba(0,0,0,.06);padding:18px;margin-bottom:14px;border:1px solid var(--border)}
+.card-title{font-weight:700;color:var(--blue);margin-bottom:12px;display:flex;align-items:center;gap:8px;font-size:1rem}
+.section-title{font-weight:700;font-size:.95rem;margin:16px 0 10px;padding:8px 12px;background:var(--blue-light);border-radius:8px;color:var(--blue)}
+
+/* 契約状況グリッド */
+.status-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}
+.status-label{border:2px solid var(--border);border-radius:10px;padding:14px 8px;text-align:center;font-size:.9rem;font-weight:700;cursor:pointer;background:#fff;transition:all .2s}
+.status-label input{display:none}
+.status-label .icon{font-size:1.3rem;display:block;margin-bottom:4px}
+.status-label:has(input:checked){border-color:var(--blue);background:var(--blue-light);color:var(--blue)}
+.status-label.loss:has(input:checked){border-color:var(--red);background:#ffebee;color:var(--red)}
+.status-label.cancel:has(input:checked){border-color:#666;background:#eee;color:#333}
+.status-label.reserve:has(input:checked){border-color:var(--orange);background:var(--orange-bg);color:var(--orange)}
+
+/* 修理メニュー */
+.repair-item{display:flex;justify-content:space-between;align-items:center;background:#fff;border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:6px}
+.repair-item.active{border-color:var(--blue);box-shadow:0 0 0 1px var(--blue) inset}
+.repair-name{font-size:.9rem;font-weight:500;flex:1}
+.repair-price-tag{font-size:.8rem;color:var(--text-sub);display:block}
+.counter{display:flex;align-items:center;gap:8px}
+.counter button{width:30px;height:30px;border-radius:50%;border:none;font-size:1.1rem;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.counter .minus{background:#eee;color:#555}
+.counter .plus{background:var(--blue);color:#fff}
+.counter .num{font-weight:700;width:20px;text-align:center}
+
+/* 合計エリア */
+.total-box{background:var(--green-light);border:2px solid var(--green);border-radius:12px;padding:16px;text-align:center;margin:12px 0}
+.total-label{font-size:.9rem;color:var(--green);font-weight:600}
+.total-amount{font-size:1.8rem;font-weight:800;color:var(--green)}
+
+/* 見積りトグル */
+.toggle-box{background:var(--orange-bg);border:1px solid #ffcc80;border-radius:10px;padding:14px;margin:14px 0}
+.toggle-label{display:flex;gap:10px;align-items:center;cursor:pointer;font-weight:700;color:var(--orange)}
+.toggle-label input{transform:scale(1.3)}
+#estimate_area{display:none;margin-top:12px}
+.estimate-total-box{background:#fff3e0;border:2px solid var(--orange);border-radius:12px;padding:16px;text-align:center;margin:12px 0}
+.estimate-total-label{font-size:.9rem;color:var(--orange);font-weight:600}
+.estimate-total-amount{font-size:1.6rem;font-weight:800;color:var(--orange)}
+
+/* 支払い */
+.pay-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}
+.pay-label{border:2px solid var(--border);border-radius:10px;padding:12px 5px;text-align:center;font-size:.9rem;font-weight:600;cursor:pointer;background:#fff;display:flex;align-items:center;justify-content:center;min-height:50px}
+.pay-label input{display:none}
+.pay-label:has(input:checked){border-color:var(--blue);background:var(--blue-light);color:var(--blue)}
+
+/* 分割（ご相談）UI */
+.split-payment-area{margin-top:15px;background:#f0f4f8;border:1px solid var(--border);border-radius:10px;padding:15px}
+.split-title{font-weight:700;font-size:.9rem;color:var(--blue);margin-bottom:12px}
+.split-row{background:#fff;border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px;position:relative}
+.split-row-header{font-size:.85rem;font-weight:700;color:var(--text-sub);margin-bottom:8px}
+.split-row input,.split-row select{width:100%;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:.95rem;margin-bottom:6px;background:#fff;-webkit-appearance:none}
+.split-inc{font-size:.8rem;color:var(--green);font-weight:600;margin-bottom:6px}
+.split-deadline{display:none}
+.split-transfer-name-row{display:none;margin-top:4px}
+.split-remove-btn{position:absolute;top:10px;right:10px;background:#ff5252;color:#fff;border:none;border-radius:50%;width:24px;height:24px;font-size:.9rem;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.split-total-area{background:#fff;border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-top:8px;display:flex;justify-content:space-between;align-items:center}
+.split-total-area.match{border-color:var(--green)}
+.split-total-label{font-size:.9rem;color:var(--text-sub);font-weight:600}
+.split-total-val{font-size:1.1rem;font-weight:700;color:var(--blue)}
+.split-total-val.match{color:var(--green)}
+.split-diff-msg{font-size:.8rem;font-weight:600;margin-top:2px}
+.split-common-name{margin-top:10px}
+.split-common-name label{font-size:.85rem;font-weight:600;color:var(--text-sub);display:block;margin-bottom:4px}
+.split-common-name input{width:100%;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:.95rem;background:#fff}
+label.split-diff-name-check{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:.85rem;color:var(--text-sub);cursor:pointer;max-width:100%;box-sizing:border-box}
+.split-diff-name-check input[type="checkbox"]{width:18px;height:18px;padding:0;border:1px solid #999;background:#fff;-webkit-appearance:checkbox;appearance:checkbox;transform:scale(1.2);flex-shrink:0;margin:0 6px 0 0}
+.split-diff-name-hint{font-size:.78rem;color:var(--text-sub);margin-top:4px;padding-left:20px}
+.btn-add-split{background:var(--blue-light);color:var(--blue);border:1px solid var(--blue);border-radius:8px;padding:8px 16px;font-size:.88rem;font-weight:700;cursor:pointer;margin-top:8px;width:100%}
+
+/* ボタン */
+.btn-submit{display:block;width:100%;padding:16px;border-radius:12px;border:none;font-size:1.1rem;font-weight:700;cursor:pointer;margin-top:12px}
+.btn-primary{background:var(--green);color:#fff}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed}
+.btn-loss{background:var(--red);color:#fff}
+.btn-cancel{background:#666;color:#fff}
+.btn-reserve{background:var(--orange);color:#fff}
+
+/* 後日ドキュメント発行 */
+.doc-section{margin-top:20px}
+.doc-btn-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.doc-btn{padding:12px;border-radius:10px;border:2px solid var(--border);background:#fff;font-weight:700;font-size:.85rem;cursor:pointer;text-align:center}
+.doc-btn:hover{border-color:var(--blue);background:var(--blue-light)}
+.doc-btn.done{border-color:var(--green);background:var(--green-light);color:var(--green)}
+
+.field{margin-bottom:14px}
+.field label{display:block;font-weight:600;font-size:.9rem;margin-bottom:5px}
+.field input,.field textarea,.field select{width:100%;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:1rem;background:#fff;max-width:100%;box-sizing:border-box}
+input[type="date"]{width:100%;max-width:100%;box-sizing:border-box;-webkit-appearance:none}
+.field-hint{font-size:.75rem;color:var(--text-sub);margin-top:4px}
+.field-required{color:var(--red);font-size:.8rem}
+.case-id-error{display:none;margin-top:6px;font-size:.8rem;color:var(--red);font-weight:700}
+.case-id-error.active{display:block}
+.dup-guard-warn{margin-top:10px;padding:12px 14px;background:var(--orange-bg);border:1px solid #ffcc80;border-left:4px solid var(--orange);border-radius:8px;font-size:.85rem;line-height:1.6;color:#7a4a00}
+.dup-guard-warn .dup-guard-title{font-weight:700;display:block;margin-bottom:2px}
+.dup-guard-warn .dup-guard-detail{color:var(--text-sub);font-size:.78rem}
+.complete-msg{text-align:center;padding:30px 20px;font-size:1.4rem;font-weight:700;min-height:70vh;display:flex;align-items:center;justify-content:center;flex-direction:column}
+.hidden{display:none}
+
+/* 失注・キャンセル時のメッセージ */
+.status-notice{padding:16px;border-radius:10px;margin:14px 0;text-align:center;font-weight:600;font-size:.95rem}
+.status-notice.loss-notice{background:#ffebee;border:2px solid var(--red);color:var(--red)}
+.status-notice.cancel-notice{background:#eee;border:2px solid #999;color:#555}
+.status-notice.reserve-notice{background:var(--orange-bg);border:2px solid var(--orange);color:var(--orange)}
+.status-label.hold:has(input:checked){border-color:#7b1fa2;background:#f3e5f5;color:#7b1fa2}
+.status-notice.hold-notice{background:#f3e5f5;border:2px solid #7b1fa2;color:#7b1fa2}
+
+.btn-hold{background:#7b1fa2;color:#fff}
+.btn-reserve-sub{flex:1;padding:12px 8px;border:2px solid #66bb6a;border-radius:10px;background:#fff;font-size:.9rem;font-weight:700;color:#2e7d32;cursor:pointer;text-align:center;transition:all .2s}
+.btn-reserve-sub:hover{background:#e8f5e9}
+.btn-reserve-sub.active{background:#66bb6a;color:#fff;border-color:#2e7d32}
+.btn-kankou-sub{flex:1;padding:12px 8px;border:2px solid #42a5f5;border-radius:10px;background:#fff;font-size:.9rem;font-weight:700;color:#1565c0;cursor:pointer;text-align:center;transition:all .2s}
+.btn-kankou-sub:hover{background:#e3f2fd}
+.btn-kankou-sub.active{background:#42a5f5;color:#fff;border-color:#1565c0}
+.btn-diag-est{background:#0288d1;color:#fff}
+/* 顧客種別トグル */
+.cust-type-label{transition:all .2s}
+.cust-type-label:has(input:checked){border-color:var(--blue)!important;background:var(--blue-light)!important;color:var(--blue)}
+#est_toggle_corp.cust-type-label:has(input:checked){border-color:#7b1fa2!important;background:#f3e5f5!important;color:#7b1fa2}
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>📋 業務報告</h1>
+  <div class="case-info">
+    案件番号: <span id="h_case_id">---</span> ／ <span id="h_name">---</span> 様
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- ===== メイン画面 ===== -->
+  <div id="main_view">
+
+    <!-- お客様情報（手入力用：パラメータなし時のみ表示） -->
+    <div class="card" id="customer_input_section" style="display:none">
+      <div class="card-title">🏠 お客様情報</div>
+      <div class="field" id="manual_case_id_field">
+        <label>案件番号 <span class="field-required">※必須</span></label>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          <!-- プレフィックス選択 -->
+          <select id="case_prefix" data-ecopita-case-prefixes onchange="onPrefixChange()"
+            style="padding:10px 8px;border:2px solid var(--border);border-radius:8px;
+                   font-size:1rem;font-weight:700;color:var(--blue);background:#fff;min-width:80px">
+            <option value="YA">YA</option>
+            <option value="HM">HM</option>
+            <option value="CP">CP</option>
+            <option value="EC">EC</option>
+            <option value="HC">HC</option>
+          </select>
+          <!-- YA専用：A〜Zアルファベット選択 -->
+          <select id="case_alpha"
+            style="padding:10px 8px;border:2px solid var(--blue);border-radius:8px;
+                   font-size:1rem;font-weight:700;color:var(--blue);background:#e8f2fc;min-width:64px">
+            <option value="">-</option>
+            <option value="A">A</option><option value="B">B</option><option value="C">C</option>
+            <option value="D">D</option><option value="E">E</option><option value="F">F</option>
+            <option value="G">G</option><option value="H">H</option><option value="I">I</option>
+            <option value="J">J</option><option value="K">K</option><option value="L">L</option>
+            <option value="M">M</option><option value="N">N</option><option value="O">O</option>
+            <option value="P">P</option><option value="Q">Q</option><option value="R">R</option>
+            <option value="S">S</option><option value="T">T</option><option value="U">U</option>
+            <option value="V">V</option><option value="W">W</option><option value="X">X</option>
+            <option value="Y">Y</option><option value="Z">Z</option>
+          </select>
+          <span style="font-weight:700;font-size:1.1rem;color:#999">-</span>
+          <!-- 番号入力: 入力中はローカル更新のみ、検索はblur時に1回 -->
+          <input type="text" id="case_number" placeholder="12345678" inputmode="numeric"
+            style="flex:1;min-width:120px;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:1rem"
+            oninput="updateCaseIdPreview(); clearEstCustomerFields(); clearEstCaseIdError();"
+            onblur="clearTimeout(_lookupTimer); lookupByCaseIdEst(true);">
+        </div>
+        <!-- 組み立て結果プレビュー -->
+        <div id="case_id_preview" style="margin-top:6px;font-size:.8rem;color:var(--text-sub)">
+          案件番号: <span id="case_id_preview_val" style="font-weight:700;color:var(--blue)">---</span>
+        </div>
+        <div class="case-id-error" id="manual_case_id_error">案件番号が正しくありません　確認してください</div>
+        <!-- 二重報告ソフト警告（送信はブロックしない） -->
+        <div id="dup_guard_warning" class="dup-guard-warn" style="display:none"></div>
+        <!-- 隠しフィールド（既存コードとの互換性維持） -->
+        <input type="hidden" id="manual_case_id">
+      </div>
+      <!-- 顧客種別トグル -->
+      <div class="field">
+        <label>お客様種別</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <label class="cust-type-label" id="est_toggle_ind"
+            style="border:2px solid var(--border);border-radius:10px;padding:10px 5px;
+                   text-align:center;font-size:.9rem;font-weight:600;cursor:pointer;background:#fff">
+            <input type="radio" name="est_customer_type" value="個人" checked
+              onclick="onEstCustomerTypeChange()" style="display:none">
+            👤 個人
+          </label>
+          <label class="cust-type-label" id="est_toggle_corp"
+            style="border:2px solid var(--border);border-radius:10px;padding:10px 5px;
+                   text-align:center;font-size:.9rem;font-weight:600;cursor:pointer;background:#fff">
+            <input type="radio" name="est_customer_type" value="法人・団体"
+              onclick="onEstCustomerTypeChange()" style="display:none">
+            🏢 法人・団体
+          </label>
+        </div>
+      </div>
+
+      <!-- 法人フィールド -->
+      <div id="est_corp_fields" style="display:none;border:2px solid #ce93d8;border-radius:10px;padding:14px;margin-bottom:10px;background:#fdf6ff">
+        <div style="font-size:.85rem;font-weight:700;color:#7b1fa2;margin-bottom:10px">🏢 会社・団体情報</div>
+        <div class="field">
+          <label>会社・団体・店舗名 <span class="field-required">※必須</span></label>
+          <input type="text" id="est_company_name" placeholder="例：株式会社○○">
+        </div>
+        <div class="field">
+          <label>会社・団体・店舗名ふりがな <span class="field-required">※必須</span></label>
+          <input type="text" id="est_company_kana" placeholder="例：かぶしきがいしゃまるまる">
+        </div>
+      </div>
+
+      <div class="field">
+        <label id="est_label_name">お客様名 <span class="field-required">※必須</span></label>
+        <input type="text" id="manual_name" placeholder="例：山田太郎">
+      </div>
+      <div class="field">
+        <label>電話番号 <span class="field-required">※必須</span></label>
+        <input type="tel" id="manual_tel" placeholder="例：09012345678" inputmode="numeric">
+      </div>
+      <div class="field">
+        <label>メールアドレス</label>
+        <input type="email" id="manual_email" placeholder="例：yamada@example.com">
+        <div id="cc_email_area_manual"></div>
+        <button type="button" onclick="addCcEmail('manual')"
+          style="margin-top:6px;background:#eee;border:1px solid #ccc;border-radius:8px;
+                 padding:6px 14px;font-size:.85rem;cursor:pointer">
+          ＋ CCを追加
+        </button>
+      </div>
+      <div class="field">
+        <label>住所 <span class="field-required">※必須</span></label>
+        <input type="text" id="manual_address" placeholder="例：東京都板橋区本町1-2-3">
+        <div class="field-hint">※番地・建物名まで一括入力OK</div>
+      </div>
+
+    </div>
+
+    <!-- 担当者番号（セッションから自動取得） -->
+    <input type="hidden" id="staff_id">
+      <div class="field">
+        <label>案件取得日</label>
+        <input type="date" id="visit_date">
+      </div>
+    </div>
+
+    <!-- メールアドレス（パラメータあり時に表示） -->
+    <div class="card" id="report_email_section" style="display:none">
+      <div class="card-title">📧 メールアドレス</div>
+      <div class="field">
+        <input type="email" id="report_email" placeholder="example@email.com" style="width:100%;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:1rem;box-sizing:border-box">
+        <div style="font-size:.75rem;color:var(--text-sub);margin-top:4px">※見積書・請求書の送信先です。変更する場合は上書きしてください。</div>
+        <div id="cc_email_area_report"></div>
+        <button type="button" onclick="addCcEmail('report')" style="margin-top:6px;background:#eee;border:1px solid #ccc;border-radius:8px;padding:6px 14px;font-size:.85rem;cursor:pointer">＋ CCを追加</button>
+      </div>
+    </div>
+
+    <!-- 契約状況 -->
+    <div class="section-title">📊 契約状況</div>
+    <div class="card">
+      <div class="status-grid" id="status_grid">
+        <label class="status-label" onclick="onKankouClick()" id="opt_kankou">
+          <input type="radio" name="contract_status" value="完工" checked>
+          <span class="icon">✅</span>完工
+        </label>
+        <label class="status-label reserve" onclick="onReserveClick()" id="opt_reserve">
+          <input type="radio" name="contract_status" value="予約">
+          <span class="icon">📅</span>予約
+        </label>
+        <label class="status-label loss" onclick="onStatusChange()" id="opt_loss">
+          <input type="radio" name="contract_status" value="失注">
+          <span class="icon">❌</span>失注
+        </label>
+        <label class="status-label loss" onclick="onStatusChange()" id="opt_denwa_loss">
+          <input type="radio" name="contract_status" value="電話失注">
+          <span class="icon">📵</span>電話失注
+        </label>
+        <label class="status-label cancel" onclick="onStatusChange()" id="opt_cancel">
+          <input type="radio" name="contract_status" value="キャンセル">
+          <span class="icon">🚫</span>キャンセル
+        </label>
+        <label class="status-label hold" onclick="onStatusChange()" id="opt_hold">
+          <input type="radio" name="contract_status" value="不通・保留">
+          <span class="icon">⏸️</span>不通・保留
+        </label>
+      </div>
+      <!-- 完工サブ選択（初期表示: 完工がデフォルトなので最初から表示） -->
+      <div id="kankou_sub_panel" style="margin-top:12px;padding:12px;background:#e3f2fd;border-radius:10px;border:2px solid #42a5f5">
+        <div style="font-weight:700;color:#1565c0;margin-bottom:10px;text-align:center">完工の種類を選択</div>
+        <div style="display:flex;gap:8px">
+          <button type="button" class="btn-kankou-sub" style="flex:1;display:flex;align-items:center;justify-content:center;line-height:1.3" onclick="selectKankouSub('完工', this)">なし</button>
+          <button type="button" class="btn-kankou-sub" style="flex:1;display:flex;align-items:center;justify-content:center;line-height:1.3" onclick="selectKankouSub('完工（請求書あり）', this)"><span>請求書<br>あり</span></button>
+        </div>
+      </div>
+      <!-- 予約サブ選択 -->
+      <div id="reserve_sub_panel" class="hidden" style="margin-top:12px;padding:12px;background:#e8f5e9;border-radius:10px;border:2px solid #66bb6a">
+        <div style="font-weight:700;color:#2e7d32;margin-bottom:10px;text-align:center">予約の種類を選択</div>
+        <div style="display:flex;gap:8px">
+          <button type="button" class="btn-reserve-sub" style="flex:1;display:flex;align-items:center;justify-content:center;line-height:1.3" onclick="selectReserveSub('予約（見積なし）', this)">なし</button>
+          <button type="button" class="btn-reserve-sub" style="flex:1;display:flex;align-items:center;justify-content:center;line-height:1.3" onclick="selectReserveSub('予約（見積あり）', this)"><span>見積書<br>あり</span></button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 失注・キャンセル時の通知 -->
+    <div id="notice_loss" class="status-notice loss-notice hidden">
+      売上 ¥0 で報告します（広告費は記録されます）
+    </div>
+    <div id="notice_denwa_loss" class="status-notice loss-notice hidden">
+      電話段階での失注として報告します（売上 ¥0）
+    </div>
+    <div id="notice_cancel" class="status-notice cancel-notice hidden">
+      キャンセルとして報告します（広告費は記録されます）
+    </div>
+    <div id="notice_reserve_est" class="status-notice reserve-notice hidden">
+      予約として記録し、見積書をメールで送付します
+    </div>
+    <div id="notice_reserve_no" class="status-notice reserve-notice hidden">
+      予約として記録します（後追いアラート対象になります）
+    </div>
+    <div id="notice_reserve_inv" class="status-notice reserve-notice hidden">
+      予約として記録し、予約日に請求書金額で売上を立てます（後追い対象外）
+    </div>
+    <div id="notice_kankou_inv" class="status-notice reserve-notice hidden" style="background:#e3f2fd;border-color:#42a5f5;color:#1565c0">
+      完工として当日付で売上を立て、請求書を自動発行します（メーカー代行施工など）
+    </div>
+
+    <div id="notice_hold" class="status-notice hold-notice hidden">
+      不通・保留として記録します
+    </div>
+
+    <!-- 予約日時（予約系共通） -->
+    <div id="section_reserve_datetime" class="hidden">
+      <div class="section-title">📅 予約日時</div>
+      <div class="card">
+        <div class="field">
+          <label>予約日 <span style="font-size:.8rem;color:#666">（未定の場合は空欄でOK）</span></label>
+          <input type="date" id="reserve_date" onchange="document.getElementById('reserve_undecided_note').classList.toggle('hidden', !!this.value)">
+          <p id="reserve_undecided_note" class="hidden" style="margin-top:6px;font-size:.85rem;color:#e65100;font-weight:600">※ 予約日が未定で記録されます。決まったら更新してください。</p>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center">
+          <div class="field" style="flex:1">
+            <label>開始時間</label>
+            <select id="reserve_time_start" style="width:100%;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:1rem">
+              <option value="">--</option>
+              <option value="00:00">00:00</option><option value="00:30">00:30</option>
+              <option value="01:00">01:00</option><option value="01:30">01:30</option>
+              <option value="02:00">02:00</option><option value="02:30">02:30</option>
+              <option value="03:00">03:00</option><option value="03:30">03:30</option>
+              <option value="04:00">04:00</option><option value="04:30">04:30</option>
+              <option value="05:00">05:00</option><option value="05:30">05:30</option>
+              <option value="06:00">06:00</option><option value="06:30">06:30</option>
+              <option value="07:00">07:00</option><option value="07:30">07:30</option>
+              <option value="08:00">08:00</option><option value="08:30">08:30</option>
+              <option value="09:00">09:00</option><option value="09:30">09:30</option>
+              <option value="10:00">10:00</option><option value="10:30">10:30</option>
+              <option value="11:00">11:00</option><option value="11:30">11:30</option>
+              <option value="12:00">12:00</option><option value="12:30">12:30</option>
+              <option value="13:00">13:00</option><option value="13:30">13:30</option>
+              <option value="14:00">14:00</option><option value="14:30">14:30</option>
+              <option value="15:00">15:00</option><option value="15:30">15:30</option>
+              <option value="16:00">16:00</option><option value="16:30">16:30</option>
+              <option value="17:00">17:00</option><option value="17:30">17:30</option>
+              <option value="18:00">18:00</option><option value="18:30">18:30</option>
+              <option value="19:00">19:00</option><option value="19:30">19:30</option>
+              <option value="20:00">20:00</option><option value="20:30">20:30</option>
+              <option value="21:00">21:00</option><option value="21:30">21:30</option>
+              <option value="22:00">22:00</option><option value="22:30">22:30</option>
+              <option value="23:00">23:00</option><option value="23:30">23:30</option>
+            </select>
+          </div>
+          <span style="font-size:1.2rem;font-weight:700;margin-top:20px">〜</span>
+          <div class="field" style="flex:1">
+            <label>終了時間</label>
+            <select id="reserve_time_end" style="width:100%;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:1rem">
+              <option value="">--</option>
+              <option value="00:00">00:00</option><option value="00:30">00:30</option>
+              <option value="01:00">01:00</option><option value="01:30">01:30</option>
+              <option value="02:00">02:00</option><option value="02:30">02:30</option>
+              <option value="03:00">03:00</option><option value="03:30">03:30</option>
+              <option value="04:00">04:00</option><option value="04:30">04:30</option>
+              <option value="05:00">05:00</option><option value="05:30">05:30</option>
+              <option value="06:00">06:00</option><option value="06:30">06:30</option>
+              <option value="07:00">07:00</option><option value="07:30">07:30</option>
+              <option value="08:00">08:00</option><option value="08:30">08:30</option>
+              <option value="09:00">09:00</option><option value="09:30">09:30</option>
+              <option value="10:00">10:00</option><option value="10:30">10:30</option>
+              <option value="11:00">11:00</option><option value="11:30">11:30</option>
+              <option value="12:00">12:00</option><option value="12:30">12:30</option>
+              <option value="13:00">13:00</option><option value="13:30">13:30</option>
+              <option value="14:00">14:00</option><option value="14:30">14:30</option>
+              <option value="15:00">15:00</option><option value="15:30">15:30</option>
+              <option value="16:00">16:00</option><option value="16:30">16:30</option>
+              <option value="17:00">17:00</option><option value="17:30">17:30</option>
+              <option value="18:00">18:00</option><option value="18:30">18:30</option>
+              <option value="19:00">19:00</option><option value="19:30">19:30</option>
+              <option value="20:00">20:00</option><option value="20:30">20:30</option>
+              <option value="21:00">21:00</option><option value="21:30">21:30</option>
+              <option value="22:00">22:00</option><option value="22:30">22:30</option>
+              <option value="23:00">23:00</option><option value="23:30">23:30</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 共通メモ（予約日時の直下に移動、全ステータス共通） -->
+    <div class="card">
+      <div class="field">
+        <label>担当者メモ（社内用）</label>
+        <textarea id="staff_memo" rows="2" placeholder="現場の状況・お客様への説明内容など"></textarea>
+      </div>
+    </div>
+
+    <!-- ===== 作業対象（作業セクションの上） ===== -->
+    <div class="section-title">🔧 作業対象</div>
+    <div class="card" style="margin-bottom:12px">
+      <select id="manual_equipment" style="width:100%;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:1rem" onchange="onEstEquipChange()">
+        <option value="">-- 選択してください --</option>
+        <option value="ルームエアコン">ルームエアコン</option>
+        <option value="業務用エアコン">業務用エアコン</option>
+      </select>
+    </div>
+
+    <!-- カスタム診断費（権限持ちスタッフのみ表示。section外に置いて kankou/予約+見積/予約+請求 で出せる） -->
+    <div id="est_custom_diag_fee_field" class="card" style="display:none;margin-bottom:12px">
+      <label style="font-weight:600;font-size:.95rem;display:block;margin-bottom:6px">🔍 故障診断費用（税抜）</label>
+      <select id="est_custom_diag_fee" style="width:100%;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:1rem;background:#fff">
+        <option value="">自動</option>
+        <option value="10000">¥10,000</option>
+        <option value="11000">¥11,000</option>
+        <option value="12000">¥12,000</option>
+        <option value="13000">¥13,000</option>
+        <option value="14000">¥14,000</option>
+        <option value="15000">¥15,000</option>
+      </select>
+    </div>
+
+    <!-- ===== 完工セクション ===== -->
+    <div id="section_kankou">
+
+      <!-- ★ 手入力モード専用：作業種別トグル（パラメータなし＋完工時のみ表示） -->
+      <div id="work_type_toggle" style="display:none">
+        <div class="section-title">🔨 作業種別</div>
+        <div class="card">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <label class="status-label">
+              <input type="radio" name="manual_work_type" value="診断" checked onchange="onWorkTypeChange()">
+              <span class="icon">🔍</span>故障診断
+            </label>
+            <label class="status-label">
+              <input type="radio" name="manual_work_type" value="修理" onchange="onWorkTypeChange()">
+              <span class="icon">🔧</span>修理
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- HC-手入力モード専用：清掃作業固定表示 -->
+      <div id="work_type_fixed_hc" style="display:none">
+        <div class="section-title">🔨 作業種別</div>
+        <div class="card">
+          <div style="font-weight:600;color:var(--blue);padding:8px 0">🧹 清掃作業</div>
+          <input type="hidden" name="manual_work_type_fixed" value="清掃作業">
+        </div>
+      </div>
+      <div id="add_conditions_section">
+      <div class="section-title">📋 追加条件</div>
+      <div class="card">
+        <div style="font-size:.82rem;color:var(--text-sub);margin-bottom:10px">該当する項目に金額を入力してください</div>
+        <div id="inv_options_area">
+          <div class="inv-est-row" data-inv-name="高所危険作業"
+            style="display:flex;justify-content:space-between;align-items:center;
+                   background:#fff;border:1px solid var(--border);border-radius:8px;
+                   padding:10px 12px;margin-bottom:6px">
+            <span style="font-size:.9rem;font-weight:600;flex:1">高所危険作業</span>
+            <input type="number" class="inv-est-price" placeholder="金額（税抜）" inputmode="numeric"
+              style="width:130px;padding:8px;border:2px solid var(--border);
+                     border-radius:8px;font-size:.95rem;text-align:right"
+              oninput="recalc()">
+          </div>
+          <div class="inv-est-row" data-inv-name="室外機特殊設置"
+            style="display:flex;justify-content:space-between;align-items:center;
+                   background:#fff;border:1px solid var(--border);border-radius:8px;
+                   padding:10px 12px;margin-bottom:6px">
+            <span style="font-size:.9rem;font-weight:600;flex:1">室外機特殊設置</span>
+            <input type="number" class="inv-est-price" placeholder="金額（税抜）" inputmode="numeric"
+              style="width:130px;padding:8px;border:2px solid var(--border);
+                     border-radius:8px;font-size:.95rem;text-align:right"
+              oninput="recalc()">
+          </div>
+          <div class="inv-est-row" data-inv-name="電気系統調査"
+            style="display:flex;justify-content:space-between;align-items:center;
+                   background:#fff;border:1px solid var(--border);border-radius:8px;
+                   padding:10px 12px;margin-bottom:6px">
+            <span style="font-size:.9rem;font-weight:600;flex:1">電気系統調査</span>
+            <input type="number" class="inv-est-price" placeholder="金額（税抜）" inputmode="numeric"
+              style="width:130px;padding:8px;border:2px solid var(--border);
+                     border-radius:8px;font-size:.95rem;text-align:right"
+              oninput="recalc()">
+          </div>
+        </div>
+      </div>
+      </div><!-- /add_conditions_section -->
+
+      <div id="today_repairs_section">
+      <div class="section-title">🔧 今日やった追加作業</div>
+      <div class="card" id="today_repairs">
+        <!-- JSで生成 -->
+      </div>
+      </div><!-- /today_repairs_section -->
+
+      <!-- 追加項目（自由入力） -->
+      <div id="kankou_custom_section">
+      <div class="section-title">✏️ 追加項目（自由入力）</div>
+      <div class="card">
+        <div id="custom_est_items_area">
+          <div class="custom-est-row"
+            style="display:flex;gap:6px;margin-bottom:6px;align-items:center;flex-wrap:wrap">
+            <input type="text" class="custom-est-name" placeholder="項目名"
+              style="flex:2;min-width:100px;padding:10px;border:2px solid var(--border);
+                     border-radius:8px;font-size:.95rem"
+              oninput="recalc()">
+            <input type="number" class="custom-est-price" placeholder="金額（税抜）" inputmode="numeric"
+              style="flex:1;min-width:90px;padding:10px;border:2px solid var(--border);
+                     border-radius:8px;font-size:.95rem"
+              oninput="recalc()">
+            <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
+              <button type="button" onclick="customEstQtyChange(this,-1)"
+                style="width:28px;height:28px;border-radius:50%;border:none;
+                       font-size:1rem;cursor:pointer;background:#eee;color:#555">-</button>
+              <span class="custom-est-qty" style="font-weight:700;width:20px;text-align:center">1</span>
+              <button type="button" onclick="customEstQtyChange(this,1)"
+                style="width:28px;height:28px;border-radius:50%;border:none;
+                       font-size:1rem;cursor:pointer;background:var(--blue);color:#fff">+</button>
+            </div>
+          </div>
+        </div>
+        <button type="button" onclick="addCustomEstItem()"
+          style="background:#eee;border:1px solid #ccc;border-radius:8px;
+                 padding:8px 16px;font-size:.85rem;cursor:pointer;margin-top:4px">
+          ＋ 項目を追加
+        </button>
+      </div>
+      </div><!-- /kankou_custom_section -->
+
+      <div id="kankou_coupon_section" class="card" style="margin-top:8px">
+        <label style="font-weight:600;font-size:.9rem">クーポンコード / 紹介コード</label>
+        <div style="display:flex;gap:8px;margin-top:6px">
+          <input type="text" id="est_coupon_code" placeholder="コードを入力" style="flex:1;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:1rem">
+          <button type="button" onclick="applyEstCoupon()" style="padding:10px 16px;background:var(--blue);color:#fff;border:none;border-radius:8px;font-size:.9rem;font-weight:700;cursor:pointer">適用</button>
+        </div>
+        <div id="est_coupon_result" style="font-size:.85rem;margin-top:5px;font-weight:bold"></div>
+      </div><!-- /kankou_coupon_section -->
+
+      <div id="kankou_total_section">
+            <div class="total-box">
+        <!-- 完工内訳 -->
+        <div id="today_breakdown_area" style="margin-bottom:8px"></div>
+        <div style="display:flex;justify-content:space-between;font-size:.85rem;color:#555;margin-bottom:4px">
+          <span>合計（税抜）</span><span id="today_subtotal_ex">¥0</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:.85rem;color:#555;padding-bottom:8px;margin-bottom:8px;border-bottom:1px solid rgba(0,0,0,.1)">
+          <span>消費税（<span id="today_tax_rate_label">10</span>%）</span><span id="today_tax_amount">¥0</span>
+        </div>
+        <div class="total-label">今日のお支払い合計（税込）</div>
+        <div class="total-amount" id="today_total">¥9,900</div>
+      </div>
+      </div><!-- /kankou_total_section -->
+
+      <div id="payment_section" class="card">
+        <div class="field">
+          <label>お支払い方法</label>
+          <div class="pay-grid">
+            <label class="pay-label"><input type="radio" name="payment" value="現金" checked>現金</label>
+            <label class="pay-label"><input type="radio" name="payment" value="クレジットカード">クレジットカード</label>
+            <label class="pay-label"><input type="radio" name="payment" value="銀行振り込み">銀行振り込み</label>
+            <label class="pay-label"><input type="radio" name="payment" value="ご相談">ご相談</label>
+          </div>
+          <div id="est_transfer_deadline_area" style="display:none;margin-top:10px">
+            <label style="font-size:.85rem;font-weight:600">振込期限 <span style="color:red;font-size:.8rem">※必須</span></label>
+            <input type="date" id="est_transfer_deadline" style="width:100%;padding:10px;border:2px solid #d9dee4;border-radius:8px;font-size:1rem;margin-top:4px">
+          </div>
+          <div id="est_transfer_name_area" style="display:none;margin-top:10px">
+            <label style="font-size:.85rem;font-weight:600">
+              振込名義 <span style="color:red;font-size:.8rem">※必須</span>
+            </label>
+            <input type="text" id="est_transfer_name" placeholder="例：ヤマダ タロウ"
+              style="width:100%;padding:10px;border:2px solid #d9dee4;
+                     border-radius:8px;font-size:1rem;margin-top:4px;box-sizing:border-box">
+          </div>
+          <div id="split_payment_area" style="display:none">
+            <div class="split-payment-area">
+              <div class="split-title">支払い売掛金内容を入力してください</div>
+              <div id="split_rows_container"></div>
+              <button type="button" class="btn-add-split" onclick="addSplitRow()">＋ 売掛金を追加</button>
+              <div class="split-total-area" id="split_total_area" style="margin-top:12px">
+                <div>
+                  <div class="split-total-label">売掛金合計（税込）</div>
+                  <div class="split-diff-msg" id="split_diff_msg"></div>
+                </div>
+                <div class="split-total-val" id="split_total_display">¥0</div>
+              </div>
+              <div class="split-common-name" id="split_common_name_area" style="display:none">
+                <label>振込名義（共通）</label>
+                <input type="text" id="split_transfer_name_common" placeholder="例：ヤマダ タロウ">
+              </div>
+              <label class="split-diff-name-check" style="display:none">
+                <input type="checkbox" id="split_diff_name_check" onchange="toggleSplitDiffName()"> 売掛金ごとに振込名義が異なる
+              </label>
+              <div class="split-diff-name-hint" id="split_diff_name_hint" style="display:none">銀行振り込みの売掛金にのみ個別入力欄が表示されます</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 後日見積り（完工時にも使える） -->
+      <div class="toggle-box" id="toggle_estimate_box">
+        <label class="toggle-label">
+          <input type="checkbox" id="chk_estimate" onchange="toggleEstimate()">
+          <span>後日分の見積書も作成する</span>
+        </label>
+        <div id="estimate_area">
+          <!-- 見積種別選択 -->
+          <div class="card" style="margin-bottom:12px;margin-top:10px">
+            <div style="font-weight:700;font-size:.95rem;margin-bottom:8px;color:var(--orange)">📝 見積書の種別</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+              <label id="est_chk_type_diag"
+                style="border:2px solid var(--border);border-radius:10px;padding:12px 8px;
+                       text-align:center;font-size:.9rem;font-weight:700;cursor:pointer;
+                       background:#fff;transition:all .2s">
+                <input type="radio" name="est_chk_doc_type" value="診断見積書"
+                  onchange="onEstChkTypeChange()" style="display:none">
+                📋 故障診断
+              </label>
+              <label id="est_chk_type_repair"
+                style="border:2px solid var(--orange);border-radius:10px;padding:12px 8px;
+                       text-align:center;font-size:.9rem;font-weight:700;cursor:pointer;
+                       background:var(--orange-bg);transition:all .2s">
+                <input type="radio" name="est_chk_doc_type" value="見積書" checked
+                  onchange="onEstChkTypeChange()" style="display:none">
+                🔧 修理
+              </label>
+            </div>
+            <div id="est_chk_diag_fee_info" style="display:none;margin-top:8px;font-size:.85rem;color:var(--orange);font-weight:600"></div>
+          </div>
+          <!-- 見積用の作業対象 -->
+          <div class="card" style="margin-bottom:12px">
+            <div style="font-weight:700;font-size:.95rem;margin-bottom:8px;color:var(--blue)">🔧 見積書の作業対象</div>
+            <select id="est_chk_equipment" style="width:100%;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:1rem" onchange="onEstChkEquipChange()">
+              <option value="ルームエアコン">ルームエアコン</option>
+              <option value="業務用エアコン">業務用エアコン</option>
+              <option value="その他">その他</option>
+            </select>
+            <div style="font-size:.75rem;color:var(--text-sub);margin-top:4px">※完工分と異なる機器の見積書を作成する場合に変更してください</div>
+          </div>
+          <!-- オレンジ枠：後日見積全体 -->
+          <div style="border:2px solid var(--orange);border-radius:12px;padding:14px;margin-top:10px;background:#fffaf5">
+<div class="field" id="est_subject_field"><label>件名</label>
+<select id="est_subject_sel" onchange="onEstSubjectChange('est')"><option>空調機器修理作業</option><option>空調機器入れ替え作業</option><option value="__other__">その他</option></select>
+<input type="text" id="est_subject_other" maxlength="40" placeholder="作業名を入力" style="display:none;margin-top:6px"></div>
+            <div class="field">
+              <label>見積り有効期限</label>
+              <input type="date" id="est_expiry">
+            </div>
+            <div class="field">
+              <label>見積り備考</label>
+              <textarea id="est_note" rows="2" placeholder="例：室外機の基板交換が必要。部品取寄せ1週間。"></textarea>
+            </div>
+
+            <!-- 追加条件 -->
+            <div id="est_add_conditions_section">
+              <div class="section-title" style="margin-top:10px">📋 追加条件</div>
+              <div class="card">
+                <div style="font-size:.82rem;color:var(--text-sub);margin-bottom:10px">該当する項目に金額を入力してください</div>
+                <div id="est_inv_options_area">
+                  <div class="est-inv-row" data-inv-name="高所危険作業"
+                    style="display:flex;justify-content:space-between;align-items:center;
+                           background:#fff;border:1px solid var(--border);border-radius:8px;
+                           padding:10px 12px;margin-bottom:6px">
+                    <span style="font-size:.9rem;font-weight:600;flex:1">高所危険作業</span>
+                    <input type="number" class="est-inv-price" placeholder="金額（税抜）" inputmode="numeric"
+                      style="width:130px;padding:8px;border:2px solid var(--border);
+                             border-radius:8px;font-size:.95rem;text-align:right"
+                      oninput="recalc()">
+                  </div>
+                  <div class="est-inv-row" data-inv-name="室外機特殊設置"
+                    style="display:flex;justify-content:space-between;align-items:center;
+                           background:#fff;border:1px solid var(--border);border-radius:8px;
+                           padding:10px 12px;margin-bottom:6px">
+                    <span style="font-size:.9rem;font-weight:600;flex:1">室外機特殊設置</span>
+                    <input type="number" class="est-inv-price" placeholder="金額（税抜）" inputmode="numeric"
+                      style="width:130px;padding:8px;border:2px solid var(--border);
+                             border-radius:8px;font-size:.95rem;text-align:right"
+                      oninput="recalc()">
+                  </div>
+                  <div class="est-inv-row" data-inv-name="電気系統調査"
+                    style="display:flex;justify-content:space-between;align-items:center;
+                           background:#fff;border:1px solid var(--border);border-radius:8px;
+                           padding:10px 12px;margin-bottom:6px">
+                    <span style="font-size:.9rem;font-weight:600;flex:1">電気系統調査</span>
+                    <input type="number" class="est-inv-price" placeholder="金額（税抜）" inputmode="numeric"
+                      style="width:130px;padding:8px;border:2px solid var(--border);
+                             border-radius:8px;font-size:.95rem;text-align:right"
+                      oninput="recalc()">
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 追加作業（修理メニュー） -->
+            <div id="estimate_repairs"><!-- JSで生成 --></div>
+
+            <!-- 追加項目（自由入力） -->
+            <div class="section-title" style="margin-top:10px">✏️ 追加項目（自由入力）</div>
+            <div class="card">
+              <div id="est_custom_items_area">
+                <div class="est-custom-row"
+                  style="display:flex;gap:6px;margin-bottom:6px;align-items:center;flex-wrap:wrap">
+                  <input type="text" class="est-custom-name" placeholder="項目名"
+                    style="flex:2;min-width:100px;padding:10px;border:2px solid var(--border);
+                           border-radius:8px;font-size:.95rem"
+                    oninput="recalc()">
+                  <input type="number" class="est-custom-price" placeholder="金額（税抜）" inputmode="numeric"
+                    style="flex:1;min-width:90px;padding:10px;border:2px solid var(--border);
+                           border-radius:8px;font-size:.95rem"
+                    oninput="recalc()">
+                  <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
+                    <button type="button" onclick="estCustomQtyChange(this,-1)"
+                      style="width:28px;height:28px;border-radius:50%;border:none;
+                             font-size:1rem;cursor:pointer;background:#eee;color:#555">-</button>
+                    <span class="est-custom-qty" style="font-weight:700;width:20px;text-align:center">1</span>
+                    <button type="button" onclick="estCustomQtyChange(this,1)"
+                      style="width:28px;height:28px;border-radius:50%;border:none;
+                             font-size:1rem;cursor:pointer;background:var(--blue);color:#fff">+</button>
+                  </div>
+                </div>
+              </div>
+              <button type="button" onclick="addEstCustomItem()"
+                style="background:#eee;border:1px solid #ccc;border-radius:8px;
+                       padding:8px 16px;font-size:.85rem;cursor:pointer;margin-top:4px">
+                ＋ 項目を追加
+              </button>
+            </div>
+
+            <!-- クーポン（後日見積分） -->
+            <div class="section-title" style="margin-top:10px">🏷 クーポン / 紹介コード</div>
+            <div class="card">
+              <div style="display:flex;gap:8px;align-items:center">
+                <input type="text" id="est_chk_coupon_code" placeholder="コードを入力" style="flex:1;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:1rem">
+                <button type="button" onclick="applyEstCoupon2()" style="padding:10px 18px;background:var(--blue);color:#fff;border:none;border-radius:8px;font-size:.95rem;font-weight:700;cursor:pointer">適用</button>
+              </div>
+              <div id="est_chk_coupon_result" style="font-size:.85rem;margin-top:5px;font-weight:bold"></div>
+            </div>
+
+            <!-- 合計ボックス -->
+            <div class="estimate-total-box" style="margin-top:12px">
+              <div id="est_breakdown_area" style="margin-bottom:8px"></div>
+              <div style="display:flex;justify-content:space-between;font-size:.85rem;color:#a05000;margin-bottom:4px">
+                <span>合計（税抜）</span><span id="est_subtotal_ex">¥0</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:.85rem;color:#a05000;padding-bottom:8px;margin-bottom:8px;border-bottom:1px solid rgba(0,0,0,.1)">
+                <span>消費税（<span id="est_tax_rate_label">10</span>%）</span><span id="est_tax_amount">¥0</span>
+              </div>
+              <div class="estimate-total-label">見積り合計（税込）</div>
+              <div class="estimate-total-amount" id="est_total">¥0</div>
+            </div>
+          </div><!-- /オレンジ枠 -->
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 予約（見積あり）セクション ===== -->
+    <div id="section_reserve_est" class="hidden">
+      <div class="section-title">📄 見積書の作成</div>
+      <!-- 見積種別選択 -->
+      <div class="card" style="margin-bottom:12px" id="res_est_type_card">
+        <div style="font-weight:700;font-size:.95rem;margin-bottom:8px;color:var(--orange)">📝 見積書の種別</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <label id="res_est_type_diag"
+            style="border:2px solid var(--border);border-radius:10px;padding:12px 8px;
+                   text-align:center;font-size:.9rem;font-weight:700;cursor:pointer;
+                   background:#fff;transition:all .2s">
+            <input type="radio" name="res_est_doc_type" value="診断見積書"
+              onchange="onResEstTypeChange()" style="display:none">
+            📋 故障診断
+          </label>
+          <label id="res_est_type_repair"
+            style="border:2px solid var(--orange);border-radius:10px;padding:12px 8px;
+                   text-align:center;font-size:.9rem;font-weight:700;cursor:pointer;
+                   background:var(--orange-bg);transition:all .2s">
+            <input type="radio" name="res_est_doc_type" value="見積書" checked
+              onchange="onResEstTypeChange()" style="display:none">
+            🔧 修理
+          </label>
+        </div>
+        <div id="res_est_diag_fee_info" style="display:none;margin-top:8px;font-size:.85rem;color:var(--orange);font-weight:600"></div>
+      </div>
+      <!-- オレンジ枠：予約見積全体 -->
+      <div style="border:2px solid var(--orange);border-radius:12px;padding:14px;background:#fffaf5">
+<div class="field" id="res_est_subject_field"><label>件名</label>
+<select id="res_est_subject_sel" onchange="onEstSubjectChange('res_est')"><option>空調機器修理作業</option><option>空調機器入れ替え作業</option><option value="__other__">その他</option></select>
+<input type="text" id="res_est_subject_other" maxlength="40" placeholder="作業名を入力" style="display:none;margin-top:6px"></div>
+        <div class="field" id="res_est_expiry_field">
+          <label>見積り有効期限</label>
+          <input type="date" id="res_est_expiry">
+        </div>
+        <div class="field" id="res_est_note_field">
+          <label>見積り備考</label>
+          <textarea id="res_est_note" rows="2" placeholder="例：室外機の基板交換が必要。部品取寄せ1週間。"></textarea>
+        </div>
+
+        <!-- 追加条件 -->
+        <div id="res_add_conditions_section">
+          <div class="section-title" style="margin-top:10px">📋 追加条件</div>
+          <div class="card">
+            <div style="font-size:.82rem;color:var(--text-sub);margin-bottom:10px">該当する項目に金額を入力してください</div>
+            <div id="res_inv_options_area">
+              <div class="res-inv-row" data-inv-name="高所危険作業"
+                style="display:flex;justify-content:space-between;align-items:center;
+                       background:#fff;border:1px solid var(--border);border-radius:8px;
+                       padding:10px 12px;margin-bottom:6px">
+                <span style="font-size:.9rem;font-weight:600;flex:1">高所危険作業</span>
+                <input type="number" class="res-inv-price" placeholder="金額（税抜）" inputmode="numeric"
+                  style="width:130px;padding:8px;border:2px solid var(--border);
+                         border-radius:8px;font-size:.95rem;text-align:right"
+                  oninput="recalc()">
+              </div>
+              <div class="res-inv-row" data-inv-name="室外機特殊設置"
+                style="display:flex;justify-content:space-between;align-items:center;
+                       background:#fff;border:1px solid var(--border);border-radius:8px;
+                       padding:10px 12px;margin-bottom:6px">
+                <span style="font-size:.9rem;font-weight:600;flex:1">室外機特殊設置</span>
+                <input type="number" class="res-inv-price" placeholder="金額（税抜）" inputmode="numeric"
+                  style="width:130px;padding:8px;border:2px solid var(--border);
+                         border-radius:8px;font-size:.95rem;text-align:right"
+                  oninput="recalc()">
+              </div>
+              <div class="res-inv-row" data-inv-name="電気系統調査"
+                style="display:flex;justify-content:space-between;align-items:center;
+                       background:#fff;border:1px solid var(--border);border-radius:8px;
+                       padding:10px 12px;margin-bottom:6px">
+                <span style="font-size:.9rem;font-weight:600;flex:1">電気系統調査</span>
+                <input type="number" class="res-inv-price" placeholder="金額（税抜）" inputmode="numeric"
+                  style="width:130px;padding:8px;border:2px solid var(--border);
+                         border-radius:8px;font-size:.95rem;text-align:right"
+                  oninput="recalc()">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="reserve_est_repairs"><!-- JSで生成 --></div>
+
+        <!-- 追加項目（自由入力） -->
+        <div class="section-title" style="margin-top:10px">✏️ 追加項目（自由入力）</div>
+        <div class="card">
+          <div id="res_custom_items_area">
+            <div class="res-custom-row"
+              style="display:flex;gap:6px;margin-bottom:6px;align-items:center;flex-wrap:wrap">
+              <input type="text" class="res-custom-name" placeholder="項目名"
+                style="flex:2;min-width:100px;padding:10px;border:2px solid var(--border);
+                       border-radius:8px;font-size:.95rem"
+                oninput="recalc()">
+              <input type="number" class="res-custom-price" placeholder="金額（税抜）" inputmode="numeric"
+                style="flex:1;min-width:90px;padding:10px;border:2px solid var(--border);
+                       border-radius:8px;font-size:.95rem"
+                oninput="recalc()">
+              <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
+                <button type="button" onclick="resCustomQtyChange(this,-1)"
+                  style="width:28px;height:28px;border-radius:50%;border:none;
+                         font-size:1rem;cursor:pointer;background:#eee;color:#555">-</button>
+                <span class="res-custom-qty" style="font-weight:700;width:20px;text-align:center">1</span>
+                <button type="button" onclick="resCustomQtyChange(this,1)"
+                  style="width:28px;height:28px;border-radius:50%;border:none;
+                         font-size:1rem;cursor:pointer;background:var(--blue);color:#fff">+</button>
+              </div>
+            </div>
+          </div>
+          <button type="button" onclick="addResCustomItem()"
+            style="background:#eee;border:1px solid #ccc;border-radius:8px;
+                   padding:8px 16px;font-size:.85rem;cursor:pointer;margin-top:4px">
+            ＋ 項目を追加
+          </button>
+        </div>
+
+        <!-- クーポン -->
+        <div class="section-title" style="margin-top:10px">🏷 クーポン / 紹介コード</div>
+        <div class="card">
+          <div style="display:flex;gap:8px;align-items:center">
+            <input type="text" id="res_est_coupon_code" placeholder="コードを入力" style="flex:1;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:1rem">
+            <button type="button" onclick="applyResCoupon()" style="padding:10px 18px;background:var(--blue);color:#fff;border:none;border-radius:8px;font-size:.95rem;font-weight:700;cursor:pointer">適用</button>
+          </div>
+          <div id="res_est_coupon_result" style="font-size:.85rem;margin-top:5px;font-weight:bold"></div>
+        </div>
+
+        <div class="estimate-total-box" style="margin-top:12px">
+          <div id="res_est_breakdown_area" style="margin-bottom:8px"></div>
+          <div style="display:flex;justify-content:space-between;font-size:.85rem;color:#a05000;margin-bottom:4px">
+            <span>合計（税抜）</span><span id="res_est_subtotal_ex">¥0</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:.85rem;color:#a05000;padding-bottom:8px;margin-bottom:8px;border-bottom:1px solid rgba(0,0,0,.1)">
+            <span>消費税（<span id="res_est_tax_rate_label">10</span>%）</span><span id="res_est_tax_amount">¥0</span>
+          </div>
+          <div class="estimate-total-label" id="res_est_total_label">見積り合計（税込）</div>
+          <div class="estimate-total-amount" id="res_est_total">¥0</div>
+        </div>
+      </div><!-- /オレンジ枠 -->
+    </div>
+
+    <!-- 失注・キャンセル理由 -->
+    <div id="section_reason" class="hidden">
+      <div class="card">
+        <div class="field">
+          <label>理由・備考</label>
+          <textarea id="loss_reason" rows="3" placeholder="失注・キャンセルの理由を入力"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- 送信ボタン -->
+    <button class="btn-submit btn-primary" id="btn_submit" onclick="submitReport()">
+      報告を送信
+    </button>
+    <div class="field-hint" style="text-align:center;margin-top:8px" id="submit_hint">
+      ※送信後、売上管理シートに自動記録されます
+    </div>
+  </div>
+
+  <!-- ===== 送信前プレビュー（固定オーバーレイ） ===== -->
+  <div id="preview_view" class="hidden" style="position:fixed;inset:0;background:var(--bg,#f5f7fa);z-index:9998;display:none;overflow-y:auto;padding:15px 20px">
+    <div style="max-width:500px;margin:0 auto">
+      <div style="background:#fff;border-radius:14px;box-shadow:0 2px 8px rgba(0,0,0,.06);padding:18px;border:2px solid #c62828">
+        <div style="font-weight:700;color:#c62828;text-align:center;font-size:1.1rem;margin-bottom:14px">📋 送信内容を確認</div>
+        <div id="preview_body" style="font-size:.9rem"></div>
+        <div style="display:flex;gap:10px;margin-top:16px">
+          <button class="btn-submit" onclick="hidePreview()" style="flex:1;background:#78909c;color:#fff">戻って修正</button>
+          <button class="btn-submit btn-primary" id="btn_confirm_send" onclick="confirmSend()" style="flex:1">送信する</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 送信完了画面（固定オーバーレイ） ===== -->
+  <div id="done_view" class="hidden" style="position:fixed;inset:0;background:var(--bg,#f5f7fa);z-index:9999;display:none;align-items:center;justify-content:center;padding:20px">
+    <div class="complete-msg" id="done_msg" style="font-size:1.4rem;font-weight:700;text-align:center;color:#2e7d32">
+      ✅ 業務報告を送信しました
+    </div>
+  </div>
+
+</div>
+
+<script src="./shared-gas-call.js?v=20260914-read-v1"></script>
+<script src="./write-async-status.js?v=20260902-v1"></script>
+<script>
+// ================================
+// ★ GAS WebアプリのURLをここに貼る ★
+// ================================
+const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbyvjri6i0fe11hzfoqfhSxWCsn1aP2WyT9ELZOzNMrVyEOx-ZsKqlhJQONzlaFLmPw/exec';
+const CASE_ID_INVALID_MESSAGE = '案件番号が正しくありません　確認してください';
+
+// ローカル時刻（=ブラウザTZ、JST想定）で YYYY-MM-DD を返す。toISOString はUTCで1日ずれるため使わない。
+function toLocalYMD(d) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+// === 業務報告の提出anchor（ack喪失後の再送でも同じXを使う） ===
+// 未完了payloadは案件単位で最大48時間だけ保持し、sync ok後にだけ消す。
+var REPORT_PENDING_STORAGE_PREFIX_ = 'ecopita_report_pending_v1:';
+var REPORT_PENDING_MAX_AGE_MS_ = 48 * 60 * 60 * 1000;
+var REPORT_SUBMISSION_STAMP_RE_ = /^\d{14}$/;
+var REPORT_SUBMISSION_TOKEN_RE_ = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+window._reportPendingSubmissionMemory = window._reportPendingSubmissionMemory || {};
+
+function reportPendingStorageKey_(caseId) {
+  return REPORT_PENDING_STORAGE_PREFIX_ + String(caseId || '').trim();
+}
+
+function reportSubmissionJstStamp_(value) {
+  var source = value instanceof Date ? value : new Date(value == null ? Date.now() : value);
+  var jst = new Date(source.getTime() + 9 * 60 * 60 * 1000);
+  return String(jst.getUTCFullYear())
+    + String(jst.getUTCMonth() + 1).padStart(2, '0')
+    + String(jst.getUTCDate()).padStart(2, '0')
+    + String(jst.getUTCHours()).padStart(2, '0')
+    + String(jst.getUTCMinutes()).padStart(2, '0')
+    + String(jst.getUTCSeconds()).padStart(2, '0');
+}
+
+function reportSubmissionUuid_() {
+  if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+    return window.crypto.randomUUID();
+  }
+  var bytes = new Uint8Array(16);
+  if (window.crypto && typeof window.crypto.getRandomValues === 'function') {
+    window.crypto.getRandomValues(bytes);
+  } else {
+    for (var i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
+  }
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  var hex = Array.prototype.map.call(bytes, function(byte) {
+    return ('0' + byte.toString(16)).slice(-2);
+  }).join('');
+  return hex.slice(0, 8) + '-' + hex.slice(8, 12) + '-' + hex.slice(12, 16) + '-'
+    + hex.slice(16, 20) + '-' + hex.slice(20);
+}
+
+function reportPendingEnvelopeValid_(envelope, caseId, nowMs) {
+  if (!envelope || envelope.version !== 1 || !envelope.payload) return false;
+  if (String(envelope.case_id || '').trim() !== String(caseId || '').trim()) return false;
+  var savedAt = Number(envelope.saved_at_ms || 0);
+  if (!isFinite(savedAt) || savedAt <= 0 || nowMs - savedAt < 0 || nowMs - savedAt > REPORT_PENDING_MAX_AGE_MS_) return false;
+  var at = String(envelope.payload.report_submission_at || '');
+  var token = String(envelope.payload.report_submission_token || '');
+  var scopedCaseId = String(envelope.payload.report_submission_case_id || '').trim();
+  return scopedCaseId === String(caseId || '').trim()
+    && REPORT_SUBMISSION_STAMP_RE_.test(at) && REPORT_SUBMISSION_TOKEN_RE_.test(token);
+}
+
+function reportReadPendingSubmission_(caseId, nowMs) {
+  var key = reportPendingStorageKey_(caseId);
+  var envelope = window._reportPendingSubmissionMemory[key] || null;
+  try {
+    var raw = localStorage.getItem(key);
+    if (raw) envelope = JSON.parse(raw);
+  } catch (e) {}
+  if (reportPendingEnvelopeValid_(envelope, caseId, nowMs)) return envelope;
+  delete window._reportPendingSubmissionMemory[key];
+  try { localStorage.removeItem(key); } catch (e2) {}
+  return null;
+}
+
+function reportPreparePendingSubmission_(payload, nowMs) {
+  var currentMs = Number(nowMs == null ? Date.now() : nowMs);
+  var caseId = String((payload && payload.case_id) || '').trim();
+  if (!payload || !caseId) return payload;
+  var existing = reportReadPendingSubmission_(caseId, currentMs);
+  if (existing) {
+    payload.report_submission_at = existing.payload.report_submission_at;
+    payload.report_submission_token = existing.payload.report_submission_token;
+  } else {
+    payload.report_submission_at = reportSubmissionJstStamp_(currentMs);
+    payload.report_submission_token = reportSubmissionUuid_();
+  }
+  payload.report_submission_case_id = caseId;
+  var envelope = {
+    version: 1,
+    case_id: caseId,
+    saved_at_ms: existing ? existing.saved_at_ms : currentMs,
+    payload: payload
+  };
+  var key = reportPendingStorageKey_(caseId);
+  window._reportPendingSubmissionMemory[key] = envelope;
+  try { localStorage.setItem(key, JSON.stringify(envelope)); } catch (e) {}
+  return payload;
+}
+
+function reportClearPendingSubmission_(payload, nowMs) {
+  var caseId = String((payload && payload.case_id) || '').trim();
+  if (!caseId) return false;
+  var key = reportPendingStorageKey_(caseId);
+  var current = reportReadPendingSubmission_(caseId, Number(nowMs == null ? Date.now() : nowMs));
+  if (!current) return false;
+  if (String(current.payload.report_submission_at || '') !== String(payload.report_submission_at || '')
+      || String(current.payload.report_submission_token || '') !== String(payload.report_submission_token || '')) {
+    return false;
+  }
+  delete window._reportPendingSubmissionMemory[key];
+  try { localStorage.removeItem(key); } catch (e) {}
+  return true;
+}
+
+function isCleanCaseIdClient_(v) {
+  return /^(?:YA-[A-Z]?\d+|HM-\d+|CP-\d+|CPD-\d+|CPM-\d+|EC-\d+|HC-\d+|RM-\d+)$/.test(String(v || '').trim());
+}
+
+function normalizeCleanCaseIdClient_(v) {
+  const s = String(v || '').trim();
+  return isCleanCaseIdClient_(s) ? s : '';
+}
+
+// === 修理メニュー定義 ===
+const TAX_RATE = 0.10;
+let _lookupTimer = null; // ★ デバウンスタイマー
+let coupons = [];
+let couponDiscount = 0;
+let resCoupons = [];
+let resCouponDiscount = 0;
+let estCoupons = [];
+let estCouponDiscount = 0;
+let currentIsHC = false;
+let currentIsEC = false;
+
+// ★ 内訳表示ヘルパー
+function fmtBreakdownPrice(unitPrice, qty) {
+  if (qty > 1) {
+    return '\u00a5' + unitPrice.toLocaleString('ja-JP') + ' \u00d7 ' + qty + ' \uff1d \u00a5' + (unitPrice * qty).toLocaleString('ja-JP') + '\uff08\u7a0e\u629c\uff09';
+  }
+  return '\u00a5' + unitPrice.toLocaleString('ja-JP') + '\uff08\u7a0e\u629c\uff09';
+}
+
+// === クーポンタグ表示ヘルパー ===
+function renderCouponTags_(arr, elId, removeFuncName) {
+  var el = document.getElementById(elId);
+  if (!arr || arr.length === 0) { el.innerHTML = ''; return; }
+  var totalEx = arr.reduce(function(s, c) { return s + c.discount; }, 0);
+  var totalInc = Math.round(totalEx * (1 + TAX_RATE));
+  var html = '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">' + arr.map(function(c, i) {
+    return '<span style="display:inline-flex;align-items:center;gap:4px;background:#e8f5e9;border:1px solid #4caf50;border-radius:8px;padding:5px 10px;font-size:.85rem;font-weight:600">'
+      + c.code + ' (-\u00a5' + c.discount.toLocaleString() + ')'
+      + '<button type="button" onclick="' + removeFuncName + '(' + i + ')" style="background:none;border:none;color:#c62828;font-weight:700;cursor:pointer;font-size:1.1rem;padding:0 2px;line-height:1">\u00d7</button></span>';
+  }).join('') + '</div>';
+  html += '<div style="font-size:.82rem;color:#2e7d32;margin-top:4px">\u5408\u8a08 -\u00a5' + totalEx.toLocaleString() + '\uff08\u7a0e\u629c\uff09/ -\u00a5' + totalInc.toLocaleString() + '\uff08\u7a0e\u8fbc\uff09</div>';
+  el.innerHTML = html;
+}
+function removeEstCoupon(idx) {
+  coupons.splice(idx, 1);
+  couponDiscount = coupons.reduce(function(s, c) { return s + c.discount; }, 0);
+  renderCouponTags_(coupons, 'est_coupon_result', 'removeEstCoupon');
+  recalc();
+}
+function removeResCoupon(idx) {
+  resCoupons.splice(idx, 1);
+  resCouponDiscount = resCoupons.reduce(function(s, c) { return s + c.discount; }, 0);
+  renderCouponTags_(resCoupons, 'res_est_coupon_result', 'removeResCoupon');
+  recalc();
+}
+function removeEstCoupon2(idx) {
+  estCoupons.splice(idx, 1);
+  estCouponDiscount = estCoupons.reduce(function(s, c) { return s + c.discount; }, 0);
+  renderCouponTags_(estCoupons, 'est_chk_coupon_result', 'removeEstCoupon2');
+  recalc();
+}
+
+const REPAIR_MENU = [
+  { name: '冷媒ガス注入（500gまで）', price: 27000 },
+  { name: '冷媒ガス追加（100g）', price: 3000 },
+  { name: '真空引き', price: 16000 },
+  { name: 'フレア加工・バルブコア交換', price: 16000 },
+  { name: '水漏れ修復', price: 26000 },
+  { name: '四方弁動作不良解消', price: 24000 },
+  { name: '電源部再接続', price: 24000 },
+];
+
+// === URLパラメータから情報取得 ===
+const params = new URLSearchParams(location.search);
+const initialCaseId = normalizeCleanCaseIdClient_(params.get('case_id') || params.get('c') || '');
+const P = {
+  contract_id: params.get('contract_id')||'', report_id: params.get('report_id')||'',
+  case_id: initialCaseId, name: params.get('name')||'',
+  email: params.get('email')||'', tel: params.get('tel')||'', address: params.get('address')||'',
+  initial_fee: parseInt(params.get('initial_fee'))||9000, equipment: params.get('equipment')||'',
+  staff_id: params.get('staff_id')||'', payment_method: params.get('payment_method')||'',
+  transfer_deadline: params.get('transfer_deadline')||'', transfer_name: params.get('transfer_name')||'',
+  order_items: [], is_repair: false,
+  customer_type: '個人', company_name: '', contact_name: '',
+  quote_ver: params.get('quote_ver')||'', quote_type: (params.get('quote_type')==='diag')?'診断見積書':(params.get('quote_type')==='est'?'見積書':params.get('quote_type')||''),
+  _selectedVerItems: null
+};
+
+function applyRepairMode() {
+  if (!P.order_items || P.order_items.length === 0) return;
+
+  P.order_items.forEach(function(item) {
+    if (P.is_repair) {
+      const idx = REPAIR_MENU.findIndex(function(m) { return m.name === item.name || m.name.indexOf(item.name) > -1 || item.name.indexOf(m.name) > -1; });
+      if (idx >= 0) {
+        const qty = parseInt(item.qty) || 1;
+        const span = document.getElementById('today_qty_' + idx);
+        if (span) {
+          span.textContent = qty;
+          const row = document.getElementById('today_row_' + idx);
+          if (row) row.classList.add('active');
+        }
+        return;
+      }
+    }
+
+    let foundInv = false;
+    document.querySelectorAll('#inv_options_area .inv-est-row').forEach(function(row) {
+      if (row.dataset.invName === item.name && item.price) {
+        const input = row.querySelector('.inv-est-price');
+        if (input) { input.value = item.price; foundInv = true; }
+      }
+    });
+    if (foundInv) return;
+
+    const area = document.getElementById('custom_est_items_area');
+    let targetRow = null;
+    area.querySelectorAll('.custom-est-row').forEach(function(row) {
+      const nameInput = row.querySelector('.custom-est-name');
+      if (!targetRow && nameInput && !nameInput.value.trim()) targetRow = row;
+    });
+    if (!targetRow) {
+      addCustomEstItem();
+      const rows = area.querySelectorAll('.custom-est-row');
+      targetRow = rows[rows.length - 1];
+    }
+    if (targetRow) {
+      const nameInput = targetRow.querySelector('.custom-est-name');
+      const priceInput = targetRow.querySelector('.custom-est-price');
+      const qtySpan = targetRow.querySelector('.custom-est-qty');
+      if (nameInput) nameInput.value = item.name;
+      if (priceInput) priceInput.value = item.price;
+      if (qtySpan) qtySpan.textContent = parseInt(item.qty) || 1;
+    }
+  });
+
+  recalc();
+}
+
+function getDiagFee(equipment) {
+  var sel = document.getElementById('est_custom_diag_fee');
+  var custom = sel ? (parseInt(sel.value) || 0) : 0;
+  if (custom > 0) return custom;
+  if (!equipment) return 9000;
+  if (equipment.includes('業務用')) return 15000;
+  return 9000;
+}
+
+function updateEquipOptions(prefix, currentVal) {
+  const sel = document.getElementById('manual_equipment');
+  if (!sel) return;
+  let opts = [];
+  if (prefix === 'EC') {
+    opts = ['エコキュート', 'ガス給湯器'];
+  } else if (prefix === 'HC') {
+    opts = ['ハウスクリーニング'];
+  } else {
+    opts = ['ルームエアコン', '業務用エアコン'];
+  }
+  const prev = currentVal || sel.value;
+  sel.innerHTML = '<option value="">-- 選択してください --</option>';
+  opts.forEach(o => {
+    const el = document.createElement('option');
+    el.value = o; el.textContent = o;
+    if (o === prev) el.selected = true;
+    sel.appendChild(el);
+  });
+  if (prev && !opts.includes(prev)) sel.value = '';
+}
+
+function updateEstChkEquipOptions(prefix, currentVal) {
+  var sel = document.getElementById('est_chk_equipment');
+  if (!sel) return;
+  var opts = [];
+  if (prefix === 'EC') { opts = ['エコキュート', 'ガス給湯器']; }
+  else if (prefix === 'HC') { opts = ['ハウスクリーニング']; }
+  else { opts = ['ルームエアコン', '業務用エアコン']; }
+  var prev = currentVal || sel.value || (document.getElementById('manual_equipment') ? document.getElementById('manual_equipment').value : '') || P.equipment;
+  sel.innerHTML = '';
+  opts.forEach(function(o) {
+    var el = document.createElement('option');
+    el.value = o; el.textContent = o;
+    if (o === prev) el.selected = true;
+    sel.appendChild(el);
+  });
+  if (prev && !opts.includes(prev)) sel.value = opts[0] || '';
+}
+
+function getEquipValue() {
+  return document.getElementById('manual_equipment').value;
+}
+
+function onEstEquipChange() {
+  const equip = getEquipValue();
+  P.equipment = equip;
+  const workType = document.querySelector('input[name="manual_work_type"]:checked');
+  if (!workType || workType.value !== '修理') {
+    P.initial_fee = getDiagFee(equip);
+  }
+  onResEstTypeChange();
+  onEstChkTypeChange();
+  recalc();
+}
+
+function initUI() {
+  document.getElementById('h_case_id').textContent = P.case_id || '未設定';
+  document.getElementById('h_name').textContent = P.name || '未設定';
+  if (P.staff_id) {
+    let sid = String(P.staff_id);
+    while (sid.length > 0 && sid.length < 4) sid = '0' + sid;
+    document.getElementById('staff_id').value = sid;
+  }
+  const hasData = P.case_id || P.name;
+  document.getElementById('customer_input_section').style.display = hasData ? 'none' : 'block';
+
+  var _reportEmailSec = document.getElementById('report_email_section');
+  if (_reportEmailSec) {
+    _reportEmailSec.style.display = hasData ? '' : 'none';
+    if (hasData && P.email) document.getElementById('report_email').value = P.email;
+  }
+
+  if (hasData) {
+    var _optRes = document.getElementById('opt_reserve');
+    if (_optRes) _optRes.style.display = 'none';
+    document.getElementById('opt_loss').style.display = 'none';
+    document.getElementById('opt_denwa_loss').style.display = 'none';
+    document.getElementById('opt_cancel').style.display = 'none';
+    document.getElementById('opt_hold').style.display = 'none';
+    document.getElementById('status_grid').style.gridTemplateColumns = '1fr 1fr';
+  } else {
+    document.getElementById('status_grid').style.gridTemplateColumns = '1fr 1fr 1fr';
+  }
+  if (P.case_id) document.getElementById('manual_case_id').value = P.case_id;
+  if (P.name)    document.getElementById('manual_name').value = P.name;
+  if (P.tel)     document.getElementById('manual_tel').value = P.tel;
+  if (P.email)   document.getElementById('manual_email').value = P.email;
+  if (P.address) document.getElementById('manual_address').value = P.address;
+
+  const casePrefix = (P.case_id || '').split('-')[0].toUpperCase();
+  updateEquipOptions(casePrefix, P.equipment);
+  updateEstChkEquipOptions(casePrefix, P.equipment);
+  applyPrefixUI(casePrefix);
+
+  if (P.is_repair) {
+    document.getElementById('today_repairs_section').style.display = '';
+  }
+
+  recalc();
+  onStatusChange();
+}
+
+function resetRepairMenuQty(prefix) {
+  var prefixes = prefix ? [prefix] : ['today', 'est', 'resest'];
+  prefixes.forEach(function(pf) {
+    REPAIR_MENU.forEach(function(_, i) {
+      var sp = document.getElementById(pf + '_qty_' + i);
+      if (sp) sp.textContent = '0';
+      var row = document.getElementById(pf + '_row_' + i);
+      if (row) row.classList.remove('active');
+    });
+  });
+}
+
+function resetAddConditions(areaId) {
+  document.querySelectorAll('#' + areaId + ' input[type="number"]').forEach(function(inp) {
+    inp.value = '';
+  });
+}
+
+function resetCustomArea(areaId, rowClass, nameClass, priceClass, qtyClass, qtyFnName) {
+  var area = document.getElementById(areaId);
+  if (!area) return;
+  area.innerHTML =
+      '<div class="' + rowClass + '"'
+    +   ' style="display:flex;gap:6px;margin-bottom:6px;align-items:center;flex-wrap:wrap">'
+    +   '<input type="text" class="' + nameClass + '" placeholder="項目名"'
+    +     ' style="flex:2;min-width:100px;padding:10px;border:2px solid var(--border);'
+    +            'border-radius:8px;font-size:.95rem"'
+    +     ' oninput="recalc()">'
+    +   '<input type="number" class="' + priceClass + '" placeholder="金額（税抜）" inputmode="numeric"'
+    +     ' style="flex:1;min-width:90px;padding:10px;border:2px solid var(--border);'
+    +            'border-radius:8px;font-size:.95rem"'
+    +     ' oninput="recalc()">'
+    +   '<div style="display:flex;align-items:center;gap:4px;flex-shrink:0">'
+    +     '<button type="button" onclick="' + qtyFnName + '(this,-1)"'
+    +       ' style="width:28px;height:28px;border-radius:50%;border:none;'
+    +              'font-size:1rem;cursor:pointer;background:#eee;color:#555">-</button>'
+    +     '<span class="' + qtyClass + '" style="font-weight:700;width:20px;text-align:center">1</span>'
+    +     '<button type="button" onclick="' + qtyFnName + '(this,1)"'
+    +       ' style="width:28px;height:28px;border-radius:50%;border:none;'
+    +              'font-size:1rem;cursor:pointer;background:var(--blue);color:#fff">+</button>'
+    +   '</div>'
+    +   '<button type="button" onclick="this.closest(\'.' + rowClass + '\').remove();recalc()"'
+    +     ' style="background:#ff5252;color:#fff;border:none;border-radius:50%;'
+    +            'width:28px;height:28px;cursor:pointer;font-size:1rem;flex-shrink:0">×</button>'
+    + '</div>';
+}
+
+function resetPaymentMethod() {
+  const first = document.querySelector('input[name="payment"]');
+  if (first) {
+    document.querySelectorAll('input[name="payment"]').forEach(function(r) { r.checked = false; });
+    first.checked = true;
+  }
+  var deadlineArea = document.getElementById('est_transfer_deadline_area');
+  if (deadlineArea) deadlineArea.style.display = 'none';
+  var nameArea = document.getElementById('est_transfer_name_area');
+  if (nameArea) nameArea.style.display = 'none';
+  var splitArea = document.getElementById('split_payment_area');
+  if (splitArea) splitArea.style.display = 'none';
+}
+
+// === 案件番号：プレフィックス切替 ===
+function onPrefixChange() {
+  const prefix = document.getElementById('case_prefix').value;
+  const alphaEl = document.getElementById('case_alpha');
+  alphaEl.style.display = (prefix === 'YA') ? '' : 'none';
+  if (prefix !== 'YA') alphaEl.value = '';
+  updateCaseIdPreview();
+
+  document.getElementById('manual_equipment').value = '';
+  P.equipment = '';
+  P.initial_fee = (prefix === 'HC') ? 0 : getDiagFee('');
+  P.is_repair = false;
+
+  resetRepairMenuQty('');
+  resetAddConditions('inv_options_area');
+  resetAddConditions('est_inv_options_area');
+  resetAddConditions('res_inv_options_area');
+
+  coupons = []; couponDiscount = 0;
+  resCoupons = []; resCouponDiscount = 0;
+  estCoupons = []; estCouponDiscount = 0;
+  var _cpRes = document.getElementById('est_coupon_result');
+  if (_cpRes) _cpRes.textContent = '';
+  var _cpRes2 = document.getElementById('res_est_coupon_result');
+  if (_cpRes2) _cpRes2.textContent = '';
+  var _cpRes3 = document.getElementById('est_chk_coupon_result');
+  if (_cpRes3) _cpRes3.textContent = '';
+
+  var _statusRadio = document.querySelector('input[name="contract_status"][value="完工"]');
+  if (_statusRadio) _statusRadio.checked = true;
+
+  var _workRadio = document.querySelector('input[name="manual_work_type"][value="診断"]');
+  if (_workRadio) _workRadio.checked = true;
+
+  var _chkEst = document.getElementById('chk_estimate');
+  var _estArea = document.getElementById('estimate_area');
+  if (_chkEst) _chkEst.checked = false;
+  if (_estArea) _estArea.style.display = 'none';
+
+  var _resDocRadio = document.querySelector('input[name="res_est_doc_type"][value="見積書"]');
+  if (_resDocRadio) _resDocRadio.checked = true;
+  var _estChkDocRadio = document.querySelector('input[name="est_chk_doc_type"][value="見積書"]');
+  if (_estChkDocRadio) _estChkDocRadio.checked = true;
+
+  resetCustomArea('custom_est_items_area', 'custom-est-row', 'custom-est-name', 'custom-est-price', 'custom-est-qty', 'customEstQtyChange');
+  resetCustomArea('est_custom_items_area', 'est-custom-row', 'est-custom-name', 'est-custom-price', 'est-custom-qty', 'estCustomQtyChange');
+  var _resCustom = document.getElementById('res_custom_items_area');
+  if (_resCustom) {
+    _resCustom.innerHTML =
+        '<div class="res-custom-row"'
+      +   ' style="display:flex;gap:6px;margin-bottom:6px;align-items:center;flex-wrap:wrap">'
+      +   '<input type="text" class="res-custom-name" placeholder="項目名"'
+      +     ' style="flex:2;min-width:100px;padding:10px;border:2px solid var(--border);'
+      +            'border-radius:8px;font-size:.95rem"'
+      +     ' oninput="recalc()">'
+      +   '<input type="number" class="res-custom-price" placeholder="金額（税抜）" inputmode="numeric"'
+      +     ' style="flex:1;min-width:90px;padding:10px;border:2px solid var(--border);'
+      +            'border-radius:8px;font-size:.95rem"'
+      +     ' oninput="recalc()">'
+      +   '<div style="display:flex;align-items:center;gap:4px;flex-shrink:0">'
+      +     '<button type="button" onclick="resCustomQtyChange(this,-1)"'
+      +       ' style="width:28px;height:28px;border-radius:50%;border:none;'
+      +              'font-size:1rem;cursor:pointer;background:#eee;color:#555">-</button>'
+      +     '<span class="res-custom-qty" style="font-weight:700;width:20px;text-align:center">1</span>'
+      +     '<button type="button" onclick="resCustomQtyChange(this,1)"'
+      +       ' style="width:28px;height:28px;border-radius:50%;border:none;'
+      +              'font-size:1rem;cursor:pointer;background:var(--blue);color:#fff">+</button>'
+      +   '</div>'
+      + '</div>';
+  }
+
+  var _memo = document.getElementById('staff_memo');
+  if (_memo) _memo.value = '';
+  var _reserveDate = document.getElementById('reserve_date');
+  if (_reserveDate) _reserveDate.value = '';
+
+  updateEquipOptions(prefix);
+  updateEstChkEquipOptions(prefix);
+  applyPrefixUI(prefix);
+  if (typeof _updateEstCustomDiagFeeVisibility_ === 'function') _updateEstCustomDiagFeeVisibility_();
+  // ★ プレフィックス変更時もクリア＋再検索
+  clearEstCustomerFields();
+  clearEstCaseIdError();
+  lookupByCaseIdEst(true);
+}
+
+function applyPrefixUI(prefix) {
+  const isEC = (prefix === 'EC');
+  const isHC = (prefix === 'HC');
+  currentIsHC = isHC;
+  currentIsEC = isEC;
+
+  const _workType = document.querySelector('input[name="manual_work_type"]:checked');
+  const _isDiag = !_workType || _workType.value !== '修理';
+  document.getElementById('today_repairs_section').style.display = (isEC || isHC || _isDiag) ? 'none' : '';
+  document.getElementById('reserve_est_repairs').style.display = (isEC || isHC) ? 'none' : '';
+  const _estRepairs = document.getElementById('estimate_repairs');
+  if (_estRepairs) _estRepairs.style.display = (isEC || isHC) ? 'none' : '';
+  const _estAddCond2 = document.getElementById('est_add_conditions_section');
+  if (_estAddCond2) _estAddCond2.style.display = isHC ? 'none' : '';
+  document.getElementById('add_conditions_section').style.display = isHC ? 'none' : '';
+  const _estAddCond = document.getElementById('est_add_conditions_section');
+  if (_estAddCond) _estAddCond.style.display = isHC ? 'none' : '';
+  const _resAddCond = document.getElementById('res_add_conditions_section');
+  if (_resAddCond) _resAddCond.style.display = isHC ? 'none' : '';
+  var _resEstTypeCard = document.getElementById('res_est_type_repair');
+  if (_resEstTypeCard) _resEstTypeCard.parentElement.parentElement.style.display = isHC ? 'none' : '';
+  var _estChkTypeCard = document.getElementById('est_chk_type_repair');
+  if (_estChkTypeCard) _estChkTypeCard.parentElement.parentElement.style.display = isHC ? 'none' : '';
+  if (isHC) {
+    var _resDocRadio = document.querySelector('input[name="res_est_doc_type"][value="見積書"]');
+    if (_resDocRadio) _resDocRadio.checked = true;
+    var _estChkDocRadio = document.querySelector('input[name="est_chk_doc_type"][value="見積書"]');
+    if (_estChkDocRadio) _estChkDocRadio.checked = true;
+  }
+  const _diagAddCond = document.getElementById('diag_add_conditions_section');
+  if (_diagAddCond) _diagAddCond.style.display = isHC ? 'none' : '';
+
+  const toggle = document.getElementById('work_type_toggle');
+  const toggleFixed = document.getElementById('work_type_fixed_hc');
+  if (isHC) {
+    if (toggle) toggle.style.display = 'none';
+    if (toggleFixed) toggleFixed.style.display = 'block';
+    P.initial_fee = 0;
+    P.is_repair = false;
+    recalc();
+  } else {
+    if (toggleFixed) toggleFixed.style.display = 'none';
+    P.is_repair = false;
+    P.initial_fee = getDiagFee(document.getElementById('manual_equipment').value || P.equipment);
+    onStatusChange();
+    recalc();
+  }
+}
+
+function buildCaseId() {
+  const prefix = document.getElementById('case_prefix').value;
+  const alpha  = document.getElementById('case_alpha').value;
+  const num    = document.getElementById('case_number').value.trim();
+  if (!num || !/^\d+$/.test(num)) return '';
+  if (prefix === 'YA') {
+    return alpha ? 'YA-' + alpha + num : 'YA-' + num;
+  }
+  return prefix + '-' + num;
+}
+
+function updateCaseIdPreview() {
+  const id = buildCaseId();
+  document.getElementById('case_id_preview_val').textContent = id || '---';
+  document.getElementById('manual_case_id').value = id;
+}
+
+function isEstCaseIdCompleteForError() {
+  const num = document.getElementById('case_number').value.trim();
+  return num.length >= 8;
+}
+
+function clearEstCaseIdError() {
+  const err = document.getElementById('manual_case_id_error');
+  if (err) {
+    err.textContent = CASE_ID_INVALID_MESSAGE;
+    err.classList.remove('active');
+  }
+  const preview = document.getElementById('case_id_preview_val');
+  if (preview) preview.style.color = 'var(--blue)';
+}
+
+function showEstCaseIdInvalid(preview) {
+  const err = document.getElementById('manual_case_id_error');
+  if (err) {
+    err.textContent = CASE_ID_INVALID_MESSAGE;
+    err.classList.add('active');
+  }
+  if (preview) {
+    preview.textContent = buildCaseId() || '---';
+    preview.style.color = 'var(--red)';
+  }
+}
+
+function syncManualInputs() {
+  const sec = document.getElementById('customer_input_section');
+  if (sec.style.display === 'none') return;
+  updateCaseIdPreview();
+  const mid = buildCaseId();
+  if (mid && isCleanCaseIdClient_(mid)) P.case_id = mid;
+  var estCustType = (document.querySelector('input[name="est_customer_type"]:checked') || {}).value || '個人';
+  P.customer_type = estCustType;
+  P.company_name  = estCustType === '法人・団体' ? (document.getElementById('est_company_name').value.trim() || '') : '';
+  P.company_kana  = estCustType === '法人・団体' ? (document.getElementById('est_company_kana').value.trim() || '') : '';
+  P.contact_name  = estCustType === '法人・団体' ? (document.getElementById('manual_name').value.trim() || '') : '';
+  P.name          = document.getElementById('manual_name').value.trim() || P.name;
+  P.tel       = document.getElementById('manual_tel').value.trim() || P.tel;
+  P.email     = document.getElementById('manual_email').value.trim() || P.email;
+  P.address   = document.getElementById('manual_address').value.trim() || P.address;
+  P.equipment = document.getElementById('manual_equipment').value || P.equipment;
+  document.getElementById('h_case_id').textContent = P.case_id || '未設定';
+  document.getElementById('h_name').textContent = P.name || '未設定';
+}
+
+// URLにcontract_idがある場合はそちらを優先してlookup
+(async function() {
+  // shared-auth.js（ページ末尾で読み込み）が fetch に sessionToken 注入ラッパーを入れ終えるまで待つ。
+  // これより前に lookup を送るとトークン空で「再ログインしてください」になる（?c=…&name無し で開いた時）。
+  await new Promise(function(res){
+    if (document.readyState !== 'loading') return res();
+    document.addEventListener('DOMContentLoaded', res);
+  });
+  var verPromise = Promise.resolve(null);
+  var initialLookupError = '';
+  
+  if ((P.contract_id || P.case_id) && !params.get('name') && !params.get('initial_fee')) {
+    try {
+      document.getElementById('h_case_id').textContent = (P.case_id || P.contract_id) + '（読込中...）';
+      const lookupBody = P.contract_id
+        ? { form_type: 'lookup', contract_id: P.contract_id, case_id: P.case_id, p1_sf: 'p1_sf_v1' }
+        : { form_type: 'lookup', case_id: P.case_id, p1_sf: 'p1_sf_v1' };
+       const r = await gasCall(lookupBody, {
+         mode: 'lookup',
+         url: GAS_API_URL,
+         onStatus: function(status) {
+           document.getElementById('h_case_id').textContent =
+             (P.case_id || P.contract_id) + '（' + status + '）';
+         }
+       });
+      if (r && !r.error) {
+        if (r.case_id && isCleanCaseIdClient_(r.case_id)) {
+          P.case_id = r.case_id;
+        } else if (r.case_id) {
+          P.case_id = '';
+          throw new Error(CASE_ID_INVALID_MESSAGE);
+        }
+        P.name = r.name || P.name;
+        P.email = (r.email || '').split(',')[0] || P.email;
+        P.cc_emails = r.cc_emails || []; 
+        if (r.cc_emails && r.cc_emails.length > 0) {
+          var _repSec = document.getElementById('report_email_section');
+          var _ccKey = (_repSec && _repSec.style.display !== 'none') ? 'report' : 'manual';
+          var _ccEl = document.getElementById('cc_email_area_' + _ccKey);
+          if (_ccEl) _ccEl.innerHTML = '';
+          r.cc_emails.forEach(function(e) { if (e) addCcEmail(_ccKey, e); });
+        }
+        P.tel = r.tel || P.tel;
+        P.address = (r.address||'') + ' ' + (r.banchi||'');
+        P.equipment = r.equipment || P.equipment;
+        const diagItem = (r.order_items || []).find(function(it) { return it.name && it.name.startsWith('故障診断'); });
+        if (diagItem) {
+          P.initial_fee = diagItem.price || 0;
+        } else {
+          P.initial_fee = parseInt(r.initial_fee) || P.initial_fee;
+        }
+        P.staff_id = r.staff_id || P.staff_id;
+        P.payment_method = r.payment_method || '';
+        P.transfer_deadline = r.transfer_deadline || '';
+        P.transfer_name = r.transfer_name || '';
+        if (r.customer_type) P.customer_type = r.customer_type;
+        if (r.company_name)  P.company_name  = r.company_name;
+        if (r.contact_name)  P.contact_name  = r.contact_name;
+
+        const pfx = (r.case_id || P.case_id || '').split('-')[0].toUpperCase();
+        const hasDiagFee = (r.order_items || []).some(function(it) {
+          return it.name && it.name.startsWith('故障診断');
+        });
+        coupons = [];
+        (r.order_items || []).forEach(function(it) {
+          if (it.name && it.name.startsWith('クーポン割引') && it.price < 0) {
+            const m = it.name.match(/（(.+)）/);
+            const code = m ? m[1] : 'クーポン';
+            coupons.push({ code: code, discount: Math.abs(it.price) });
+          }
+        });
+        couponDiscount = coupons.reduce(function(s, c) { return s + c.discount; }, 0);
+        if (coupons.length > 0) {
+          renderCouponTags_(coupons, 'est_coupon_result', 'removeEstCoupon');
+        }
+
+        const repairItems = (r.order_items || []).filter(function(it) {
+          return it.name && !it.name.startsWith('故障診断') && !it.name.startsWith('クーポン');
+        });
+        if (repairItems.length > 0) {
+          P.order_items = repairItems;
+          if (pfx !== 'HC' && pfx !== 'EC' && !hasDiagFee) {
+            P.is_repair = true;
+            P.initial_fee = 0;
+          }
+        }
+
+        P.order_type = r.order_type || '';
+        
+        if (P.staff_id && params.get('mode') !== 'invoice') {
+          try {
+            var staffResp = await gasReadFetch(GAS_API_URL, {
+              method: 'POST', body: JSON.stringify({ form_type: 'staff_lookup', staff_id: P.staff_id })
+            }, { onStatus: gasReadStatusTarget('staff_name_display') });
+            var staffR = await staffResp.json();
+            if (staffR.ok) {
+              var disp = document.getElementById('staff_name_display');
+              if (disp) { disp.textContent = '担当：' + staffR.staff_name; disp.style.color = '#2e7d32'; }
+            }
+          } catch(se) {}
+        }
+
+        if (r.payment_method) {
+          const radios = document.querySelectorAll('input[name="payment"]');
+          radios.forEach(rb => {
+            if (rb.value === r.payment_method) {
+              rb.checked = true;
+              rb.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+          });
+          if (r.payment_method === '銀行振り込み' && r.transfer_deadline) {
+            document.getElementById('est_transfer_deadline').value = r.transfer_deadline;
+          }
+          if (r.payment_method === '銀行振り込み' && r.transfer_name) {
+            document.getElementById('est_transfer_name').value = r.transfer_name;
+          }
+        }
+      } else if (r && r.code === 'busy_caseid_check') {
+        initialLookupError = r.error || GAS_P1_SF_HONEST_MESSAGE;
+      }
+    } catch(e) {
+      initialLookupError = gasCallErrorMessage(e);
+      console.log('lookup error', e);
+    }
+    document.getElementById('h_case_id').textContent =
+      initialLookupError || P.case_id || '未設定';
+    document.getElementById('h_name').textContent = P.name || '未設定';
+  }
+  initUI();
+
+  if (P.order_type && P.order_type.indexOf('修理') > -1) {
+    P.is_repair = true;
+    P.initial_fee = 0;
+    var repairRadio = document.querySelector('input[name="manual_work_type"][value="修理"]');
+    if (repairRadio) repairRadio.checked = true;
+    document.getElementById('today_repairs_section').style.display = '';
+  }
+
+  applyRepairMode();
+  recalc();
+
+})();
+
+// 案件取得日デフォルト：今日
+document.getElementById('visit_date').value = toLocalYMD(new Date());
+
+// 見積り有効期限デフォルト（30日後）
+const d30 = new Date(); d30.setDate(d30.getDate() + 30);
+document.getElementById('est_expiry').value = toLocalYMD(d30);
+document.getElementById('res_est_expiry').value = toLocalYMD(d30);
+
+// === 修理メニューHTML生成 ===
+function buildRepairMenu(containerId, prefix) {
+  const container = document.getElementById(containerId);
+  container.innerHTML = REPAIR_MENU.map((item, i) => `
+    <div class="repair-item" id="${prefix}_row_${i}" data-price="${item.price}">
+      <div>
+        <div class="repair-name">${item.name}</div>
+        <span class="repair-price-tag">¥${item.price.toLocaleString()}</span>
+      </div>
+      <div class="counter">
+        <button class="minus" onclick="changeQty('${prefix}',${i},-1)">-</button>
+        <span class="num" id="${prefix}_qty_${i}">0</span>
+        <button class="plus" onclick="changeQty('${prefix}',${i},1)">+</button>
+      </div>
+    </div>
+  `).join('');
+}
+buildRepairMenu('today_repairs', 'today');
+buildRepairMenu('estimate_repairs', 'est');
+buildRepairMenu('reserve_est_repairs', 'resest');
+
+function changeQty(prefix, idx, delta) {
+  const span = document.getElementById(prefix + '_qty_' + idx);
+  let n = parseInt(span.textContent) + delta;
+  if (n < 0) n = 0;
+  span.textContent = n;
+  const row = document.getElementById(prefix + '_row_' + idx);
+  row.classList.toggle('active', n > 0);
+  recalc();
+}
+
+function customEstQtyChange(btn, delta) {
+  const span = btn.parentElement.querySelector('.custom-est-qty');
+  let n = parseInt(span.textContent) + delta;
+  if (n < 1) n = 1;
+  span.textContent = n;
+  recalc();
+}
+
+function getCustomEstItems() {
+  const items = [];
+  document.querySelectorAll('#custom_est_items_area .custom-est-row').forEach(function(row) {
+    const name = row.querySelector('.custom-est-name').value.trim();
+    const price = parseInt(row.querySelector('.custom-est-price').value) || 0;
+    const qty = parseInt(row.querySelector('.custom-est-qty').textContent) || 1;
+    if (name && price !== 0) { items.push({ name: name, price: price, qty: qty, subtotal: price * qty }); }
+  });
+  return items;
+}
+
+function addCustomEstItem() {
+  const area = document.getElementById('custom_est_items_area');
+  const div = document.createElement('div');
+  div.className = 'custom-est-row';
+  div.style = 'display:flex;gap:6px;margin-bottom:6px;align-items:center;flex-wrap:wrap';
+  div.innerHTML =
+      '<input type="text" class="custom-est-name" placeholder="項目名"'
+    +   ' style="flex:2;min-width:100px;padding:10px;border:2px solid var(--border);'
+    +          'border-radius:8px;font-size:.95rem"'
+    +   ' oninput="recalc()">'
+    + '<input type="number" class="custom-est-price" placeholder="金額（税抜）" inputmode="numeric"'
+    +   ' style="flex:1;min-width:90px;padding:10px;border:2px solid var(--border);'
+    +          'border-radius:8px;font-size:.95rem"'
+    +   ' oninput="recalc()">'
+    + '<div style="display:flex;align-items:center;gap:4px;flex-shrink:0">'
+    +   '<button type="button" onclick="customEstQtyChange(this,-1)"'
+    +     ' style="width:28px;height:28px;border-radius:50%;border:none;'
+    +            'font-size:1rem;cursor:pointer;background:#eee;color:#555">-</button>'
+    +   '<span class="custom-est-qty" style="font-weight:700;width:20px;text-align:center">1</span>'
+    +   '<button type="button" onclick="customEstQtyChange(this,1)"'
+    +     ' style="width:28px;height:28px;border-radius:50%;border:none;'
+    +            'font-size:1rem;cursor:pointer;background:var(--blue);color:#fff">+</button>'
+    + '</div>'
+    + '<button type="button" onclick="this.closest(\'.custom-est-row\').remove();recalc()"'
+    +   ' style="background:#ff5252;color:#fff;border:none;border-radius:50%;'
+    +          'width:28px;height:28px;cursor:pointer;font-size:1rem;flex-shrink:0">×</button>';
+  area.appendChild(div);
+}
+
+function resestCustomQtyChange(btn, delta) {
+  const span = btn.parentElement.querySelector('.resest-custom-qty');
+  let n = parseInt(span.textContent) + delta;
+  if (n < 1) n = 1;
+  span.textContent = n;
+  recalc();
+}
+
+function addResestCustomItem() {
+  const area = document.getElementById('resest_custom_items_area');
+  const div = document.createElement('div');
+  div.className = 'custom-est-row';
+  div.style = 'display:flex;gap:6px;margin-bottom:6px;align-items:center;flex-wrap:wrap';
+  div.innerHTML = '<input type="text" class="resest-custom-name" placeholder="項目名" style="flex:2;min-width:100px;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:.95rem" oninput="recalc()">'
+    + '<input type="number" class="resest-custom-price" placeholder="金額（税抜）" inputmode="numeric" style="flex:1;min-width:90px;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:.95rem" oninput="recalc()">'
+    + '<div style="display:flex;align-items:center;gap:4px;flex-shrink:0">'
+    + '<button type="button" onclick="resestCustomQtyChange(this,-1)" style="width:28px;height:28px;border-radius:50%;border:none;font-size:1rem;cursor:pointer;background:#eee;color:#555">-</button>'
+    + '<span class="resest-custom-qty" style="font-weight:700;width:20px;text-align:center">1</span>'
+    + '<button type="button" onclick="resestCustomQtyChange(this,1)" style="width:28px;height:28px;border-radius:50%;border:none;font-size:1rem;cursor:pointer;background:var(--blue);color:#fff">+</button>'
+    + '</div>'
+    + '<button type="button" onclick="this.closest(\'.custom-est-row\').remove();recalc()" style="background:#ff5252;color:#fff;border:none;border-radius:50%;width:28px;height:28px;cursor:pointer;font-size:1rem;flex-shrink:0">×</button>';
+  area.appendChild(div);
+}
+
+function getResestCustomItems() {
+  const items = [];
+  document.querySelectorAll('#resest_custom_items_area .custom-est-row').forEach(function(row) {
+    const name = row.querySelector('.resest-custom-name').value.trim();
+    const price = parseInt(row.querySelector('.resest-custom-price').value) || 0;
+    const qty = parseInt(row.querySelector('.resest-custom-qty').textContent) || 1;
+    if (name && price > 0) { items.push({ name: name, price: price, qty: qty, subtotal: price * qty }); }
+  });
+  return items;
+}
+
+async function applyEstCoupon() {
+  const code = document.getElementById('est_coupon_code').value.trim();
+  const res = document.getElementById('est_coupon_result');
+  if (!code) { res.textContent = 'コードを入力してください'; res.style.color = 'var(--red)'; return; }
+  res.textContent = '確認中...'; res.style.color = '#999';
+  try {
+    const r = await gasReadFetch(GAS_API_URL, { method: 'POST', body: JSON.stringify({ form_type: 'coupon_lookup', code: code }) }, { onStatus: gasReadStatusTarget(res) });
+    const data = await r.json();
+    if (data.ok) {
+      const newDiscount = Number(data.discount) || 0;
+      const newCode = document.getElementById('est_coupon_code').value.trim();
+      const existIdx = coupons.findIndex(function(c) { return c.code === newCode; });
+      if (existIdx >= 0) { coupons[existIdx].discount = newDiscount; } else { coupons.push({ code: newCode, discount: newDiscount }); }
+      couponDiscount = coupons.reduce(function(s, c) { return s + c.discount; }, 0);
+      renderCouponTags_(coupons, 'est_coupon_result', 'removeEstCoupon');
+    } else {
+      couponDiscount = 0;
+      res.textContent = data.error || '無効なコードです';
+      res.style.color = 'var(--red)';
+    }
+  } catch(e) {
+    couponDiscount = 0;
+    res.textContent = GAS_READ_FINAL_MESSAGE;
+    res.style.color = 'var(--red)';
+  }
+  recalc();
+}
+
+async function applyEstCoupon2() {
+  const code = document.getElementById('est_chk_coupon_code').value.trim();
+  const res = document.getElementById('est_chk_coupon_result');
+  if (!code) { res.textContent = 'コードを入力してください'; res.style.color = 'var(--red)'; return; }
+  res.textContent = '確認中...'; res.style.color = '#999';
+  try {
+    const r = await gasReadFetch(GAS_API_URL, { method: 'POST', body: JSON.stringify({ form_type: 'coupon_lookup', code: code }) }, { onStatus: gasReadStatusTarget(res) });
+    const data = await r.json();
+    if (data.ok) {
+      const newDiscount = Number(data.discount) || 0;
+      const existIdx = estCoupons.findIndex(function(c) { return c.code === code; });
+      if (existIdx >= 0) { estCoupons[existIdx].discount = newDiscount; } else { estCoupons.push({ code: code, discount: newDiscount }); }
+      estCouponDiscount = estCoupons.reduce(function(s, c) { return s + c.discount; }, 0);
+      renderCouponTags_(estCoupons, 'est_chk_coupon_result', 'removeEstCoupon2');
+    } else {
+      res.textContent = data.error || '無効なコードです';
+      res.style.color = 'var(--red)';
+    }
+  } catch(e) {
+    res.textContent = GAS_READ_FINAL_MESSAGE;
+    res.style.color = 'var(--red)';
+  }
+  recalc();
+}
+
+function getEstCustomItems() {
+  const items = [];
+  document.querySelectorAll('#est_custom_items_area .est-custom-row').forEach(function(row) {
+    const n = row.querySelector('.est-custom-name').value.trim();
+    const p = parseInt(row.querySelector('.est-custom-price').value) || 0;
+    const q = parseInt((row.querySelector('.est-custom-qty') || {}).textContent) || 1;
+    if (n && p !== 0) items.push({ name: n, price: p, qty: q, subtotal: p * q });
+  });
+  return items;
+}
+function addEstCustomItem() {
+  const area = document.getElementById('est_custom_items_area');
+  const div = document.createElement('div');
+  div.className = 'est-custom-row';
+  div.style.cssText = 'display:flex;gap:6px;margin-bottom:6px;align-items:center;flex-wrap:wrap';
+  div.innerHTML =
+      '<input type="text" class="est-custom-name" placeholder="項目名"'
+    +   ' style="flex:2;min-width:100px;padding:10px;border:2px solid var(--border);'
+    +          'border-radius:8px;font-size:.95rem"'
+    +   ' oninput="recalc()">'
+    + '<input type="number" class="est-custom-price" placeholder="金額（税抜）" inputmode="numeric"'
+    +   ' style="flex:1;min-width:90px;padding:10px;border:2px solid var(--border);'
+    +          'border-radius:8px;font-size:.95rem"'
+    +   ' oninput="recalc()">'
+    + '<div style="display:flex;align-items:center;gap:4px;flex-shrink:0">'
+    +   '<button type="button" onclick="estCustomQtyChange(this,-1)"'
+    +     ' style="width:28px;height:28px;border-radius:50%;border:none;'
+    +            'font-size:1rem;cursor:pointer;background:#eee;color:#555">-</button>'
+    +   '<span class="est-custom-qty" style="font-weight:700;width:20px;text-align:center">1</span>'
+    +   '<button type="button" onclick="estCustomQtyChange(this,1)"'
+    +     ' style="width:28px;height:28px;border-radius:50%;border:none;'
+    +            'font-size:1rem;cursor:pointer;background:var(--blue);color:#fff">+</button>'
+    + '</div>';
+  area.appendChild(div);
+}
+function estCustomQtyChange(btn, delta) {
+  const span = btn.parentElement.querySelector('.est-custom-qty');
+  const v = Math.max(1, (parseInt(span.textContent) || 1) + delta);
+  span.textContent = v;
+  recalc();
+}
+
+function getResCustomItems() {
+  const items = [];
+  document.querySelectorAll('#res_custom_items_area .res-custom-row').forEach(function(row) {
+    const n = row.querySelector('.res-custom-name').value.trim();
+    const p = parseInt(row.querySelector('.res-custom-price').value) || 0;
+    const q = parseInt((row.querySelector('.res-custom-qty') || {}).textContent) || 1;
+    if (n && p !== 0) items.push({ name: n, price: p, qty: q, subtotal: p * q });
+  });
+  return items;
+}
+function addResCustomItem() {
+  const area = document.getElementById('res_custom_items_area');
+  const div = document.createElement('div');
+  div.className = 'res-custom-row';
+  div.style.cssText = 'display:flex;gap:6px;margin-bottom:6px;align-items:center;flex-wrap:wrap';
+  div.innerHTML =
+      '<input type="text" class="res-custom-name" placeholder="項目名"'
+    +   ' style="flex:2;min-width:100px;padding:10px;border:2px solid var(--border);'
+    +          'border-radius:8px;font-size:.95rem"'
+    +   ' oninput="recalc()">'
+    + '<input type="number" class="res-custom-price" placeholder="金額（税抜）" inputmode="numeric"'
+    +   ' style="flex:1;min-width:90px;padding:10px;border:2px solid var(--border);'
+    +          'border-radius:8px;font-size:.95rem"'
+    +   ' oninput="recalc()">'
+    + '<div style="display:flex;align-items:center;gap:4px;flex-shrink:0">'
+    +   '<button type="button" onclick="resCustomQtyChange(this,-1)"'
+    +     ' style="width:28px;height:28px;border-radius:50%;border:none;'
+    +            'font-size:1rem;cursor:pointer;background:#eee;color:#555">-</button>'
+    +   '<span class="res-custom-qty" style="font-weight:700;width:20px;text-align:center">1</span>'
+    +   '<button type="button" onclick="resCustomQtyChange(this,1)"'
+    +     ' style="width:28px;height:28px;border-radius:50%;border:none;'
+    +            'font-size:1rem;cursor:pointer;background:var(--blue);color:#fff">+</button>'
+    + '</div>';
+  area.appendChild(div);
+}
+function resCustomQtyChange(btn, delta) {
+  const span = btn.parentElement.querySelector('.res-custom-qty');
+  const v = Math.max(1, (parseInt(span.textContent) || 1) + delta);
+  span.textContent = v;
+  recalc();
+}
+
+async function applyResCoupon() {
+  const code = document.getElementById('res_est_coupon_code').value.trim();
+  const res = document.getElementById('res_est_coupon_result');
+  if (!code) { res.textContent = 'コードを入力してください'; res.style.color = 'var(--red)'; return; }
+  res.textContent = '確認中...'; res.style.color = '#999';
+  try {
+    const r = await gasReadFetch(GAS_API_URL, { method: 'POST', body: JSON.stringify({ form_type: 'coupon_lookup', code: code }) }, { onStatus: gasReadStatusTarget(res) });
+    const data = await r.json();
+    if (data.ok) {
+      const newDiscount = Number(data.discount) || 0;
+      const existIdx = resCoupons.findIndex(function(c) { return c.code === code; });
+      if (existIdx >= 0) { resCoupons[existIdx].discount = newDiscount; } else { resCoupons.push({ code: code, discount: newDiscount }); }
+      resCouponDiscount = resCoupons.reduce(function(s, c) { return s + c.discount; }, 0);
+      renderCouponTags_(resCoupons, 'res_est_coupon_result', 'removeResCoupon');
+    } else {
+      res.textContent = data.error || '無効なコードです';
+      res.style.color = 'var(--red)';
+    }
+  } catch(e) {
+    res.textContent = GAS_READ_FINAL_MESSAGE;
+    res.style.color = 'var(--red)';
+  }
+  recalc();
+}
+
+function addCcEmail(areaKey, val) {
+  var area = document.getElementById('cc_email_area_' + areaKey);
+  if (!area) return;
+  var div = document.createElement('div');
+  div.style = 'display:flex;gap:6px;margin-top:6px;align-items:center';
+  div.innerHTML =
+      '<input type="email" class="cc-email-input-' + areaKey + '" inputmode="email"'
+    +   ' placeholder="CCメールアドレス"'
+    +   ' style="flex:1;padding:10px;border:2px solid var(--border);'
+    +          'border-radius:8px;font-size:.95rem"'
+    +   ' value="' + (val||'') + '">'
+    + '<button type="button" onclick="this.parentElement.remove()"'
+    +   ' style="background:#ff5252;color:#fff;border:none;border-radius:50%;'
+    +          'width:30px;height:30px;cursor:pointer;font-size:1rem;flex-shrink:0">×</button>';
+  area.appendChild(div);
+}
+
+function getCcEmails(areaKey) {
+  return Array.from(document.querySelectorAll('.cc-email-input-' + areaKey))
+    .map(function(el) { return el.value.trim(); }).filter(function(v) { return v && v.includes('@'); });
+}
+
+// === 合計再計算 ===
+function recalc() {
+  let invSubEx = 0;
+  const _addCondVisible = document.getElementById('add_conditions_section') &&
+    document.getElementById('add_conditions_section').style.display !== 'none';
+  if (_addCondVisible) {
+    document.querySelectorAll('#inv_options_area .inv-est-price').forEach(function(input) {
+      invSubEx += parseInt(input.value) || 0;
+    });
+  }
+
+  let repairSubEx = 0;
+  REPAIR_MENU.forEach((item, i) => {
+    const el = document.getElementById('today_qty_' + i);
+    if (!el) return;
+    repairSubEx += item.price * (parseInt(el.textContent) || 0);
+  });
+
+  let customSubEx = 0;
+  getCustomEstItems().forEach(it => { customSubEx += it.subtotal; });
+
+  const _statusNow = getEffectiveStatus();
+  const _isReserveEstNow = (_statusNow === '予約（見積あり）' || _statusNow === '予約（請求書あり）');
+  const todaySubEx = _isReserveEstNow ? 0 : Math.max(0,
+    P.initial_fee + repairSubEx + invSubEx + customSubEx - (couponDiscount || 0)
+  );
+  const todayTaxAmt = Math.round(todaySubEx * TAX_RATE);
+  const todayTotal = todaySubEx + todayTaxAmt;
+  document.getElementById('today_subtotal_ex').textContent = fmtYen(todaySubEx);
+  document.getElementById('today_tax_amount').textContent = fmtYen(todayTaxAmt);
+  document.getElementById('today_tax_rate_label').textContent = Math.round(TAX_RATE * 100);
+  document.getElementById('today_total').textContent = fmtYen(todayTotal);
+
+  const _todayBreakEl = document.getElementById('today_breakdown_area');
+  if (_todayBreakEl) {
+    if (todaySubEx === 0) {
+      _todayBreakEl.innerHTML = '';
+    } else {
+    const _rowStyle = 'display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(0,0,0,.08);font-size:.9rem;color:#555;';
+    let _tbHtml = '';
+    if (!_isReserveEstNow && P.initial_fee > 0) {
+      const _equip2 = document.getElementById('manual_equipment') ? document.getElementById('manual_equipment').value || P.equipment : P.equipment;
+      _tbHtml += '<div style="' + _rowStyle + '"><span>故障診断（' + (_equip2||'') + '）</span><span>¥' + P.initial_fee.toLocaleString('ja-JP') + '（税抜）</span></div>';
+    }
+    REPAIR_MENU.forEach(function(item, i) {
+      const el = document.getElementById('today_qty_' + i);
+      if (!el) return;
+      const qty = parseInt(el.textContent) || 0;
+      if (qty > 0) _tbHtml += '<div style="' + _rowStyle + '"><span>' + item.name + '</span><span>' + fmtBreakdownPrice(item.price, qty) + '</span></div>';
+    });
+    if (_addCondVisible) {
+      document.querySelectorAll('#inv_options_area .inv-est-row').forEach(function(row) {
+        const p = parseInt(row.querySelector('.inv-est-price').value) || 0;
+        if (p > 0) _tbHtml += '<div style="' + _rowStyle + '"><span>' + row.dataset.invName + '</span><span>¥' + p.toLocaleString('ja-JP') + '（税抜）</span></div>';
+      });
+    }
+    document.querySelectorAll('#custom_est_items_area .custom-est-row').forEach(function(row) {
+      const n = row.querySelector('.custom-est-name').value.trim();
+      const p = parseInt(row.querySelector('.custom-est-price').value) || 0;
+      var q = parseInt(row.querySelector('.custom-est-qty').textContent) || 1;
+      if (n && p !== 0) {
+        var _tc = p < 0 ? 'color:#c62828;' : '';
+        _tbHtml += '<div style="' + _rowStyle + _tc + '"><span>' + n + '</span><span>' + fmtBreakdownPrice(p, q) + '</span></div>';
+      }
+    });
+    coupons.forEach(function(cp) {
+      _tbHtml += '<div style="' + _rowStyle + ';color:#e65100"><span>クーポン（' + cp.code + '）</span><span>-¥' + cp.discount.toLocaleString('ja-JP') + '（税抜）</span></div>';
+    });
+    _todayBreakEl.innerHTML = _tbHtml;
+    }
+  }
+
+  const _chkEstEl = document.getElementById('chk_estimate');
+  const _estAreaEl = document.getElementById('estimate_area');
+  const _isEstActive = _chkEstEl && _chkEstEl.checked &&
+    _estAreaEl && _estAreaEl.style.display !== 'none';
+  let estTotal = 0;
+  if (_isEstActive) {
+    var _estChkDocType = (document.querySelector('input[name="est_chk_doc_type"]:checked') || {}).value || '見積書';
+    if (_estChkDocType === '診断見積書') {
+      var _estDiagEquip = document.getElementById('est_chk_equipment') ? document.getElementById('est_chk_equipment').value || P.equipment : P.equipment;
+      estTotal += getDiagFee(_estDiagEquip);
+    }
+    REPAIR_MENU.forEach((item, i) => {
+      const el = document.getElementById('est_qty_' + i);
+      if (!el) return;
+      const qty = parseInt(el.textContent) || 0;
+      estTotal += item.price * qty;
+    });
+    const _estAddCondEl = document.getElementById('est_add_conditions_section');
+    const _estAddCondVisible = _estAddCondEl && _estAddCondEl.style.display !== 'none';
+    if (_estAddCondVisible) {
+      document.querySelectorAll('#est_inv_options_area .est-inv-row').forEach(function(row) {
+        estTotal += parseInt(row.querySelector('.est-inv-price').value) || 0;
+      });
+    }
+    getEstCustomItems().forEach(function(it) { estTotal += it.subtotal; });
+  }
+  const estSubEx = Math.max(0, estTotal - estCouponDiscount);
+  const estTaxAmt = Math.round(estSubEx * TAX_RATE);
+  const estTotalInc = estSubEx + estTaxAmt;
+  document.getElementById('est_subtotal_ex').textContent = fmtYen(estSubEx);
+  document.getElementById('est_tax_amount').textContent = fmtYen(estTaxAmt);
+  document.getElementById('est_tax_rate_label').textContent = Math.round(TAX_RATE * 100);
+  document.getElementById('est_total').textContent = fmtYen(estTotalInc);
+  const _estBreakEl = document.getElementById('est_breakdown_area');
+  if (_estBreakEl && !_isEstActive) { _estBreakEl.innerHTML = ''; }
+  if (_estBreakEl && _isEstActive) {
+    const _rowStyle = 'display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:.9rem;';
+    let _bHtml = '';
+    if (_estChkDocType === '診断見積書') {
+      var _estDiagEquip2 = document.getElementById('est_chk_equipment') ? document.getElementById('est_chk_equipment').value || P.equipment : P.equipment;
+      var _estDiagFee = getDiagFee(_estDiagEquip2);
+      _bHtml += '<div style="' + _rowStyle + ';font-weight:600"><span>故障診断（' + (_estDiagEquip2||'') + '）</span><span>¥' + _estDiagFee.toLocaleString('ja-JP') + '（税抜）</span></div>';
+    }
+    REPAIR_MENU.forEach(function(item, i) {
+      const el = document.getElementById('est_qty_' + i);
+      if (!el) return;
+      const qty = parseInt(el.textContent) || 0;
+      if (qty > 0) _bHtml += '<div style="' + _rowStyle + '"><span>' + item.name + '</span><span>' + fmtBreakdownPrice(item.price, qty) + '</span></div>';
+    });
+    document.querySelectorAll('#est_inv_options_area .est-inv-row').forEach(function(row) {
+      const p = parseInt(row.querySelector('.est-inv-price').value) || 0;
+      if (p > 0) _bHtml += '<div style="' + _rowStyle + '"><span>' + row.dataset.invName + '</span><span>¥' + p.toLocaleString('ja-JP') + '（税抜）</span></div>';
+    });
+    getEstCustomItems().forEach(function(it) {
+    var _ec = it.price < 0 ? 'color:#c62828;' : '';
+      _bHtml += '<div style="' + _rowStyle + _ec + '"><span>' + it.name + '</span><span>' + fmtBreakdownPrice(it.price, it.qty) + '</span></div>';
+    });
+    estCoupons.forEach(function(cp) {
+      _bHtml += '<div style="' + _rowStyle + ';color:#e65100"><span>クーポン（' + cp.code + '）</span><span>-¥' + cp.discount.toLocaleString('ja-JP') + '（税抜）</span></div>';
+    });
+    _estBreakEl.innerHTML = _bHtml;
+  }
+
+  let resEstRepairEx = 0;
+  var _resEstDocType = (document.querySelector('input[name="res_est_doc_type"]:checked') || {}).value || '見積書';
+  if (_resEstDocType === '診断見積書') {
+    var _resDiagEquip = document.getElementById('manual_equipment') ? document.getElementById('manual_equipment').value || P.equipment : P.equipment;
+    resEstRepairEx += getDiagFee(_resDiagEquip);
+  }
+  REPAIR_MENU.forEach((item, i) => {
+    const el = document.getElementById('resest_qty_' + i);
+    if (!el) return;
+    const qty = parseInt(el.textContent) || 0;
+    resEstRepairEx += item.price * qty;
+  });
+  getResCustomItems().forEach(it => { resEstRepairEx += it.subtotal; });
+  let resEstInvEx = 0;
+  const _resAddCondEl = document.getElementById('res_add_conditions_section');
+  const _resAddCondVisible = _resAddCondEl && _resAddCondEl.style.display !== 'none';
+  if (_resAddCondVisible) {
+    document.querySelectorAll('#res_inv_options_area .res-inv-row').forEach(function(row) {
+      resEstInvEx += parseInt(row.querySelector('.res-inv-price').value) || 0;
+    });
+  }
+  const resEstSubEx = resEstRepairEx + resEstInvEx - resCouponDiscount;
+  const resEstTotal = Math.max(0, resEstSubEx);
+  const resEstTaxAmt = Math.round(resEstTotal * TAX_RATE);
+  const resEstTotalInc = resEstTotal + resEstTaxAmt;
+  document.getElementById('res_est_subtotal_ex').textContent = fmtYen(resEstTotal);
+  document.getElementById('res_est_tax_amount').textContent = fmtYen(resEstTaxAmt);
+  document.getElementById('res_est_tax_rate_label').textContent = Math.round(TAX_RATE * 100);
+  document.getElementById('res_est_total').textContent = fmtYen(resEstTotalInc);
+
+  const _resEstStatus = getEffectiveStatus();
+  const _isResEstNow = (_resEstStatus === '予約（見積あり）' || _resEstStatus === '予約（請求書あり）');
+  const _resBreakEl = document.getElementById('res_est_breakdown_area');
+  if (_resBreakEl && !_isResEstNow) { _resBreakEl.innerHTML = ''; }
+  if (_resBreakEl && _isResEstNow) {
+    const _rowStyle = 'display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:.9rem;';
+    let _html = '';
+    if (_resEstDocType === '診断見積書') {
+      var _resDiagEquip2 = document.getElementById('manual_equipment') ? document.getElementById('manual_equipment').value || P.equipment : P.equipment;
+      var _resDiagFee = getDiagFee(_resDiagEquip2);
+      _html += '<div style="' + _rowStyle + ';font-weight:600"><span>故障診断（' + (_resDiagEquip2||'') + '）</span><span>¥' + _resDiagFee.toLocaleString('ja-JP') + '（税抜）</span></div>';
+    }
+    REPAIR_MENU.forEach(function(item, i) {
+      const el = document.getElementById('resest_qty_' + i);
+      if (!el) return;
+      const qty = parseInt(el.textContent) || 0;
+      if (qty > 0) {
+        _html += '<div style="' + _rowStyle + '"><span>' + item.name + '</span><span>' + fmtBreakdownPrice(item.price, qty) + '</span></div>';
+      }
+    });
+    getResCustomItems().forEach(function(it) {
+      var _rc2 = it.price < 0 ? 'color:#c62828;' : '';
+      _html += '<div style="' + _rowStyle + _rc2 + '"><span>' + it.name + '</span><span>' + fmtBreakdownPrice(it.price, it.qty) + '</span></div>';
+    });
+    if (_resAddCondVisible) {
+      document.querySelectorAll('#res_inv_options_area .res-inv-row').forEach(function(row) {
+        const p = parseInt(row.querySelector('.res-inv-price').value) || 0;
+        if (p > 0) _html += '<div style="' + _rowStyle + '"><span>' + row.dataset.invName + '</span><span>¥' + p.toLocaleString('ja-JP') + '（税抜）</span></div>';
+      });
+    }
+    resCoupons.forEach(function(cp) {
+      _html += '<div style="' + _rowStyle + ';color:#e65100"><span>クーポン（' + cp.code + '）</span><span>-¥' + cp.discount.toLocaleString('ja-JP') + '（税抜）</span></div>';
+    });
+    _resBreakEl.innerHTML = _html;
+  }
+}
+  
+function toggleEstimate() {
+  document.getElementById('estimate_area').style.display =
+    document.getElementById('chk_estimate').checked ? 'block' : 'none';
+}
+
+// ===== 分割（ご相談）UI =====
+var splitDiffName = false;
+function initSplitRows() {
+  document.getElementById('split_rows_container').innerHTML = '';
+  addSplitRow(); addSplitRow();
+}
+function addSplitRow() {
+  const container = document.getElementById('split_rows_container');
+  const div = document.createElement('div');
+  div.className = 'split-row';
+  div.innerHTML =
+    '<div class="split-row-header">売掛金 ' + (container.children.length + 1) + '</div>' +
+    '<input type="number" class="split-amount-ex" placeholder="金額（税抜）" inputmode="numeric">' +
+    '<div class="split-inc">税込: ¥0</div>' +
+    '<select class="split-method" onchange="onSplitMethodChange(this)">' +
+      '<option value="">支払方法を選択</option>' +
+      '<option value="現金">現金</option>' +
+      '<option value="クレジットカード">クレジットカード</option>' +
+      '<option value="銀行振り込み">銀行振り込み</option>' +
+    '</select>' +
+    '<div class="split-deadline">' +
+      '<label style="font-size:.8rem;color:var(--text-sub);font-weight:600;display:block;margin-bottom:4px">振込期限 <span style="color:red">※必須</span></label>' +
+      '<input type="date" class="split-deadline-input">' +
+    '</div>' +
+    '<div class="split-transfer-name-row">' +
+      '<label style="font-size:.8rem;color:var(--text-sub);font-weight:600;display:block;margin-bottom:4px">振込名義</label>' +
+      '<input type="text" class="split-transfer-name-input" placeholder="例：ヤマダ タロウ">' +
+    '</div>' +
+    '<button class="split-remove-btn" onclick="removeSplitRow(this)" type="button">×</button>';
+  container.appendChild(div);
+  div.querySelector('.split-amount-ex').addEventListener('input', function() {
+    const ex = parseInt(this.value) || 0, inc = ex + Math.round(ex * TAX_RATE);
+    div.querySelector('.split-inc').textContent = '税込: ¥' + inc.toLocaleString('ja-JP');
+    updateSplitTotal();
+  });
+  updateSplitRowHeaders();
+  updateSplitTotal();
+}
+function removeSplitRow(btn) {
+  const c = document.getElementById('split_rows_container');
+  if (c.children.length <= 1) { alert('最低1つは必要です'); return; }
+  btn.closest('.split-row').remove();
+  updateSplitRowHeaders();
+  updateSplitTotal();
+}
+function updateSplitRowHeaders() {
+  document.querySelectorAll('.split-row').forEach(function(row, i) {
+    row.querySelector('.split-row-header').textContent = '売掛金 ' + (i + 1);
+  });
+}
+function onSplitMethodChange(sel) {
+  const row = sel.closest('.split-row'), isT = sel.value === '銀行振り込み';
+  row.querySelector('.split-deadline').style.display = isT ? 'block' : 'none';
+  if (isT && !row.querySelector('.split-deadline-input').value) {
+    var d3 = new Date(); d3.setDate(d3.getDate() + 3);
+    row.querySelector('.split-deadline-input').value = toLocalYMD(d3);
+  }
+  if (splitDiffName) row.querySelector('.split-transfer-name-row').style.display = isT ? 'block' : 'none';
+  updateSplitTotal();
+}
+function toggleSplitDiffName() {
+  splitDiffName = document.getElementById('split_diff_name_check').checked;
+  document.getElementById('split_common_name_area').style.display = splitDiffName ? 'none' : 'block';
+  document.getElementById('split_diff_name_hint').style.display = splitDiffName ? 'block' : 'none';
+  document.querySelectorAll('.split-row').forEach(function(row) {
+    const isT = row.querySelector('.split-method').value === '銀行振り込み';
+    row.querySelector('.split-transfer-name-row').style.display = (splitDiffName && isT) ? 'block' : 'none';
+  });
+}
+function getCurrentTotalInc_() {
+  var txt = (document.getElementById('today_total') || {}).textContent || '';
+  return parseInt(txt.replace(/[^\d]/g, '')) || 0;
+}
+function updateSplitTotal() {
+  let total = 0;
+  document.querySelectorAll('.split-row').forEach(function(row) {
+    const ex = parseInt(row.querySelector('.split-amount-ex').value) || 0;
+    total += ex + Math.round(ex * TAX_RATE);
+  });
+  const valEl = document.getElementById('split_total_display');
+  const areaEl = document.getElementById('split_total_area');
+  const diffMsg = document.getElementById('split_diff_msg');
+  valEl.textContent = fmtYen(total);
+  var currentTotalInc = getCurrentTotalInc_();
+  if (currentTotalInc > 0) {
+    if (total === currentTotalInc) {
+      valEl.className = 'split-total-val match';
+      areaEl.className = 'split-total-area match';
+      diffMsg.textContent = '✓ 請求合計と一致しています';
+      diffMsg.style.color = 'var(--green)';
+    } else {
+      valEl.className = 'split-total-val';
+      areaEl.className = 'split-total-area';
+      const diff = total - currentTotalInc;
+      diffMsg.textContent = '請求合計（¥' + currentTotalInc.toLocaleString('ja-JP') + '）と' +
+        (diff > 0 ? fmtYen(diff) + ' 超過' : fmtYen(Math.abs(diff)) + ' 不足');
+      diffMsg.style.color = 'var(--red)';
+    }
+  } else {
+    diffMsg.textContent = '';
+  }
+  var hasTransferInSplit = false;
+  document.querySelectorAll('.split-row .split-method').forEach(function(sel) {
+    if (sel.value === '銀行振り込み') hasTransferInSplit = true;
+  });
+  document.getElementById('split_common_name_area').style.display = (hasTransferInSplit && !splitDiffName) ? 'block' : 'none';
+  document.getElementById('split_diff_name_check').parentElement.style.display = hasTransferInSplit ? '' : 'none';
+  document.getElementById('split_diff_name_hint').style.display = (hasTransferInSplit && splitDiffName) ? 'block' : 'none';
+}
+function getSplitPayments() {
+  const splits = [];
+  document.querySelectorAll('.split-row').forEach(function(row) {
+    const amountEx = parseInt(row.querySelector('.split-amount-ex').value) || 0;
+    const amountInc = amountEx + Math.round(amountEx * TAX_RATE);
+    const method = row.querySelector('.split-method').value;
+    const deadline = row.querySelector('.split-deadline-input').value;
+    const isTransfer = method === '銀行振り込み';
+    const transferName = isTransfer
+      ? (splitDiffName
+          ? row.querySelector('.split-transfer-name-input').value.trim()
+          : document.getElementById('split_transfer_name_common').value.trim())
+      : '';
+    splits.push({ amount_ex: amountEx, amount_inc: amountInc, method: method, deadline: deadline, transfer_name: transferName });
+  });
+  return splits;
+}
+function isSplitPayment_() {
+  var sel = document.querySelector('input[name="payment"]:checked');
+  return !!(sel && sel.value === 'ご相談');
+}
+
+document.querySelectorAll('input[name="payment"]').forEach(radio => {
+  radio.addEventListener('change', () => {
+    const area = document.getElementById('est_transfer_deadline_area');
+    const nameArea = document.getElementById('est_transfer_name_area');
+    const splitArea = document.getElementById('split_payment_area');
+    const v = document.querySelector('input[name="payment"]:checked').value;
+    if (v === '銀行振り込み') {
+      area.style.display = 'block';
+      nameArea.style.display = 'block';
+      splitArea.style.display = 'none';
+      if (!document.getElementById('est_transfer_deadline').value) {
+        var d3 = new Date(); d3.setDate(d3.getDate() + 3);
+        document.getElementById('est_transfer_deadline').value = toLocalYMD(d3);
+      }
+    } else if (v === 'ご相談') {
+      area.style.display = 'none';
+      nameArea.style.display = 'none';
+      splitArea.style.display = 'block';
+      splitDiffName = false;
+      document.getElementById('split_diff_name_check').checked = false;
+      document.getElementById('split_common_name_area').style.display = 'none';
+      document.getElementById('split_diff_name_hint').style.display = 'none';
+      document.getElementById('split_diff_name_check').parentElement.style.display = 'none';
+      document.getElementById('split_transfer_name_common').value = '';
+      initSplitRows();
+      updateSplitTotal();
+    } else {
+      area.style.display = 'none';
+      nameArea.style.display = 'none';
+      splitArea.style.display = 'none';
+    }
+  });
+});
+
+function onWorkTypeChange() {
+  const val = document.querySelector('input[name="manual_work_type"]:checked').value;
+  resetRepairMenuQty('');
+  const _prefix = (P.case_id || '').split('-')[0].toUpperCase();
+  const _isEC = _prefix === 'EC' || (document.getElementById('case_prefix') && document.getElementById('case_prefix').value === 'EC');
+  if (val === '修理') {
+    P.is_repair = true;
+    P.initial_fee = 0;
+    document.getElementById('today_repairs_section').style.display = _isEC ? 'none' : '';
+  } else {
+    P.is_repair = false;
+    P.initial_fee = getDiagFee(document.getElementById('manual_equipment').value || P.equipment);
+    document.getElementById('today_repairs_section').style.display = 'none';
+  }
+  if (typeof _updateEstCustomDiagFeeVisibility_ === 'function') _updateEstCustomDiagFeeVisibility_();
+  recalc();
+}
+
+// 予約/完工の実際のステータス（サブ選択後にセット）
+var reserveSubStatus = '';
+var kankouSubStatus = '';
+
+function onReserveClick() {
+  document.querySelector('#opt_reserve input').checked = true;
+  document.getElementById('reserve_sub_panel').classList.remove('hidden');
+  document.getElementById('kankou_sub_panel').classList.add('hidden');
+  reserveSubStatus = '';
+  kankouSubStatus = '';
+  document.querySelectorAll('.btn-reserve-sub').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.btn-kankou-sub').forEach(b => b.classList.remove('active'));
+  onStatusChange();
+}
+
+function selectReserveSub(sub, btn) {
+  reserveSubStatus = sub;
+  document.querySelectorAll('.btn-reserve-sub').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  onStatusChange();
+}
+
+function onKankouClick() {
+  document.querySelector('#opt_kankou input').checked = true;
+  document.getElementById('kankou_sub_panel').classList.remove('hidden');
+  document.getElementById('reserve_sub_panel').classList.add('hidden');
+  reserveSubStatus = '';
+  kankouSubStatus = '';  // ラジオ再クリック時も内部状態をリセット
+  document.querySelectorAll('.btn-kankou-sub').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.btn-reserve-sub').forEach(b => b.classList.remove('active'));
+  onStatusChange();
+}
+
+function selectKankouSub(sub, btn) {
+  kankouSubStatus = sub;
+  document.querySelectorAll('.btn-kankou-sub').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  onStatusChange();
+}
+
+function getEffectiveStatus() {
+  var raw = document.querySelector('input[name="contract_status"]:checked').value;
+  if (raw === '予約' && reserveSubStatus) return reserveSubStatus;
+  if (raw === '完工') return kankouSubStatus || '完工';  // サブ未選択は '完工' 扱い
+  return raw;
+}
+
+function onStatusChange() {
+  setTimeout(() => {
+    const status = getEffectiveStatus();
+    const isKankouPlain = (status === '完工');
+    const isKankouInv = (status === '完工（請求書あり）');
+    const isKankou = isKankouPlain || isKankouInv;
+    const isLoss = (status === '失注' || status === '電話失注');
+    const isDenwaLoss = (status === '電話失注');
+    const isCancel = (status === 'キャンセル');
+    const isReserveEst = (status === '予約（見積あり）');
+    const isReserveNo = (status === '予約（見積なし）');
+    const isReserveInv = (status === '予約（請求書あり）');
+    const isHold = (status === '不通・保留');
+    const isDiagEst = false;
+    const isReserve = isReserveEst || isReserveNo || isReserveInv;
+    const rawRadio = document.querySelector('input[name="contract_status"]:checked').value;
+    // サブパネル表示制御
+    if (rawRadio !== '予約') {
+      document.getElementById('reserve_sub_panel').classList.add('hidden');
+      reserveSubStatus = '';
+    }
+    if (rawRadio !== '完工') {
+      document.getElementById('kankou_sub_panel').classList.add('hidden');
+      kankouSubStatus = '';
+    }
+
+    // 完工（請求書あり）は今日作業セクションではなく請求書入力セクションを使う
+    const isInvoiceMode = isKankouInv || isReserveInv;
+    // 完工（請求書あり）は section_kankou の payment_section だけ必要なので親は表示
+    document.getElementById('section_kankou').classList.toggle('hidden', !(isKankouPlain || isDiagEst || isReserveEst || isKankouInv));
+    document.getElementById('section_reserve_est').classList.toggle('hidden', !(isReserveEst || isReserveInv || isKankouInv));
+    // セクションタイトル・見積専用フィールドの表示制御
+    var _resEstTitle = document.querySelector('#section_reserve_est > .section-title');
+    if (_resEstTitle) _resEstTitle.textContent = isInvoiceMode ? '📑 請求書の内容' : '📄 見積書の作成';
+    // 種別カード: 請求書ありでも表示（ラベルだけ変更）、HCは非表示
+    var _typeCard = document.getElementById('res_est_type_card');
+    if (_typeCard) {
+      _typeCard.style.display = currentIsHC ? 'none' : '';
+      var _typeLabel = _typeCard.querySelector('div[style*="font-weight"]');
+      if (_typeLabel) _typeLabel.textContent = isInvoiceMode ? '📝 請求書の種別' : '📝 見積書の種別';
+    }
+    var _subjectF = document.getElementById('res_est_subject_field');
+    if (_subjectF) _subjectF.style.display = isInvoiceMode ? 'none' : '';
+    var _expiryF = document.getElementById('res_est_expiry_field');
+    if (_expiryF) _expiryF.style.display = isInvoiceMode ? 'none' : '';
+    var _noteF = document.getElementById('res_est_note_field');
+    if (_noteF) _noteF.style.display = isInvoiceMode ? 'none' : '';
+    var _totalLbl = document.getElementById('res_est_total_label');
+    if (_totalLbl) _totalLbl.textContent = isInvoiceMode ? '請求金額（税込）' : '見積り合計（税込）';
+    // 見積/請求書モード切替時にHC/EC条件を反映
+    if (isReserveEst || isReserveInv || isKankouInv) {
+      if (typeof onResEstTypeChange === 'function') onResEstTypeChange();
+    }
+    document.getElementById('toggle_estimate_box').style.display = (isReserveEst || isDiagEst) ? 'none' : '';
+    const _isResOrDiag = isReserveEst || isDiagEst || isKankouInv;
+    document.getElementById('add_conditions_section').style.display = (currentIsHC || _isResOrDiag) ? 'none' : '';
+    const _workTypeNow = (document.querySelector('input[name="manual_work_type"]:checked') || {}).value;
+    const _isWorkTypeDiag = (_workTypeNow !== '修理');
+    document.getElementById('today_repairs_section').style.display = (_isResOrDiag || _isWorkTypeDiag || currentIsHC || currentIsEC) ? 'none' : '';
+    document.getElementById('kankou_custom_section').style.display = _isResOrDiag ? 'none' : '';
+    document.getElementById('kankou_coupon_section').style.display = _isResOrDiag ? 'none' : '';
+    document.getElementById('kankou_total_section').style.display = _isResOrDiag ? 'none' : '';
+    document.getElementById('payment_section').style.display = isKankouInv ? 'block' : (_isResOrDiag ? 'none' : '');
+    // 完工（請求書あり）は銀行振込固定
+    if (isKankouInv) {
+      var _bankRadio = document.querySelector('input[name="payment"][value="銀行振り込み"]');
+      if (_bankRadio) {
+        _bankRadio.checked = true;
+        _bankRadio.dispatchEvent(new Event('change'));  // 常にdispatchして transfer areas を表示
+      }
+      // 他の選択肢を非表示（銀行振込のみ表示）
+      document.querySelectorAll('input[name="payment"]').forEach(function(r) {
+        var lbl = r.closest('.pay-label');
+        if (lbl) lbl.style.display = (r.value === '銀行振り込み') ? '' : 'none';
+      });
+      // transfer areas を明示的に表示（change event で反映されない場合の保険）
+      var _tda = document.getElementById('est_transfer_deadline_area');
+      if (_tda) _tda.style.display = 'block';
+      var _tna = document.getElementById('est_transfer_name_area');
+      if (_tna) _tna.style.display = 'block';
+      var _spA = document.getElementById('split_payment_area');
+      if (_spA) _spA.style.display = 'none';
+      if (!document.getElementById('est_transfer_deadline').value) {
+        var _d3 = new Date(); _d3.setDate(_d3.getDate() + 3);
+        document.getElementById('est_transfer_deadline').value = toLocalYMD(_d3);
+      }
+    } else {
+      document.querySelectorAll('input[name="payment"]').forEach(function(r) {
+        var lbl = r.closest('.pay-label');
+        if (lbl) lbl.style.display = '';
+      });
+    }
+    document.getElementById('section_reason').classList.toggle('hidden', !(isLoss || isCancel));
+    document.getElementById('section_reserve_datetime').classList.toggle('hidden', !isReserve);
+
+    const casePrefix = (P.case_id || '').split('-')[0].toUpperCase();
+    const isHCPrefix = casePrefix === 'HC' ||
+      (document.getElementById('case_prefix') && document.getElementById('case_prefix').value === 'HC');
+    const isECPrefix = casePrefix === 'EC' ||
+      (document.getElementById('case_prefix') && document.getElementById('case_prefix').value === 'EC');
+    const toggle = document.getElementById('work_type_toggle');
+    // 完工（請求書あり）は「請求書の種別」で代替するので作業種別は非表示
+    if (toggle) toggle.style.display = (isKankouPlain && !isHCPrefix) ? 'block' : 'none';
+
+    document.getElementById('notice_loss').classList.toggle('hidden', !isLoss);
+    document.getElementById('notice_denwa_loss').classList.toggle('hidden', !isDenwaLoss);
+    document.getElementById('notice_cancel').classList.toggle('hidden', !isCancel);
+    document.getElementById('notice_reserve_est').classList.toggle('hidden', !isReserveEst);
+    document.getElementById('notice_reserve_no').classList.toggle('hidden', !isReserveNo);
+    document.getElementById('notice_reserve_inv').classList.toggle('hidden', !isReserveInv);
+    document.getElementById('notice_kankou_inv').classList.toggle('hidden', !isKankouInv);
+    document.getElementById('notice_hold').classList.toggle('hidden', !isHold);
+
+    if (!isKankou) {
+      resetPaymentMethod();
+    }
+
+    // ステータス切替時のクリーンアップ
+    // 予約（見積あり）以外に変えたら見積チェックをリセット
+    if (!isReserveEst) {
+      var _chkEstClear = document.getElementById('chk_estimate');
+      if (_chkEstClear && _chkEstClear.checked && !isKankou) {
+        _chkEstClear.checked = false;
+        if (typeof toggleEstimate === 'function') toggleEstimate();
+      }
+      // 予約見積のアイテム数量をリセット
+      if (typeof resetRepairMenuQty === 'function') resetRepairMenuQty('resest');
+    }
+    // 完工以外に変えたら当日修理アイテムをリセット
+    if (!isKankou) {
+      if (typeof resetRepairMenuQty === 'function') resetRepairMenuQty('today');
+    }
+    // 予約以外に変えたら予約日をリセット
+    if (!isReserve) {
+      var _rdEl = document.getElementById('reserve_date');
+      if (_rdEl) _rdEl.value = '';
+      document.getElementById('reserve_undecided_note').classList.add('hidden');
+    }
+
+    if (typeof _updateEstCustomDiagFeeVisibility_ === 'function') _updateEstCustomDiagFeeVisibility_();
+
+    const btn = document.getElementById('btn_submit');
+    btn.className = 'btn-submit';
+    if (isKankouInv) { btn.classList.add('btn-primary'); btn.textContent = '完工＋請求書を発行して送信'; }
+    else if (isKankouPlain) { btn.classList.add('btn-primary'); btn.textContent = '完了報告を送信'; }
+    else if (isDenwaLoss) { btn.classList.add('btn-loss'); btn.textContent = '電話失注として報告'; }
+    else if (isLoss) { btn.classList.add('btn-loss'); btn.textContent = '失注として報告'; }
+    else if (isCancel) { btn.classList.add('btn-cancel'); btn.textContent = 'キャンセルとして報告'; }
+    else if (isReserveEst) { btn.classList.add('btn-reserve'); btn.textContent = '予約＋見積書を送信'; }
+    else if (isReserveInv) { btn.classList.add('btn-reserve'); btn.textContent = '予約＋請求書ありで報告'; }
+    else if (isReserveNo) { btn.classList.add('btn-reserve'); btn.textContent = '予約として報告'; }
+    else if (isHold) { btn.classList.add('btn-hold'); btn.textContent = '不通・保留として報告'; }
+
+    recalc();
+  }, 10);
+}
+
+function getSelectedItems(prefix) {
+  const items = [];
+  REPAIR_MENU.forEach((item, i) => {
+    const qty = parseInt(document.getElementById(prefix + '_qty_' + i).textContent);
+    if (qty > 0) {
+      items.push({ name: item.name, price: item.price, qty: qty, subtotal: item.price * qty });
+    }
+  });
+  return items;
+}
+
+async function submitReport() {
+  syncManualInputs();
+
+  const isManualMode = document.getElementById('customer_input_section').style.display !== 'none';
+  const p1SfCaseId = isManualMode ? buildCaseId() : P.case_id;
+  if (gasP1SfGuard('lookup', p1SfCaseId, function(message) { alert(message); })) return;
+  if (isManualMode) {
+    const manualCaseId = buildCaseId();
+    if (!manualCaseId || !isCleanCaseIdClient_(manualCaseId)) {
+      showEstCaseIdInvalid(document.getElementById('case_id_preview_val'));
+      alert(CASE_ID_INVALID_MESSAGE);
+      document.getElementById('case_number').focus();
+      return;
+    }
+    if (!document.getElementById('manual_name').value.trim()) {
+      alert('お客様名を入力してください');
+      document.getElementById('manual_name').focus();
+      return;
+    }
+    if (!document.getElementById('manual_tel').value.trim()) {
+      alert('電話番号を入力してください');
+      document.getElementById('manual_tel').focus();
+      return;
+    }
+    if (!document.getElementById('manual_address').value.trim()) {
+      alert('住所を入力してください');
+      document.getElementById('manual_address').focus();
+      return;
+    }
+    if (!document.getElementById('manual_equipment').value) {
+      alert('対象機器を選択してください');
+      document.getElementById('manual_equipment').focus();
+      return;
+    }
+  }
+
+  if (!P.name) {
+    alert('お客様名を入力してください');
+    return;
+  }
+
+  let staffId = (window.ECOPITA_SESSION ? window.ECOPITA_SESSION.staffId : document.getElementById("staff_id").value.trim());
+  if (!staffId) { alert("ログインしてください"); return; }
+  while (staffId.length > 0 && staffId.length < 4) staffId = '0' + staffId;
+
+  const btn = document.getElementById('btn_submit');
+  btn.disabled = true;
+  btn.textContent = '送信中...';
+
+  const status = getEffectiveStatus();
+  const isKankouPlain = (status === '完工');
+  const isKankouInv = (status === '完工（請求書あり）');
+  const isKankou = isKankouPlain || isKankouInv;
+  const isReserveEst = (status === '予約（見積あり）');
+  const isReserveNo = (status === '予約（見積なし）');
+  const isReserveInv = (status === '予約（請求書あり）');
+  const isDiagEst = false;
+  const isReserve = isReserveEst || isReserveNo || isReserveInv;
+
+  // 予約サブ未選択チェック
+  if (document.querySelector('input[name="contract_status"]:checked').value === '予約' && !reserveSubStatus) {
+    alert('予約の種類（なし/見積書あり）を選択してください');
+    btn.disabled = false;
+    btn.textContent = '予約の種類を選択してください';
+    return;
+  }
+
+  if (document.querySelector('input[name="payment"]:checked').value === '銀行振り込み') {
+    const tDeadline = document.getElementById('est_transfer_deadline').value;
+    if (!tDeadline) {
+      alert('銀行振り込みの場合は振込期限を入力してください');
+      document.getElementById('est_transfer_deadline').focus();
+      btn.disabled = false;
+      btn.textContent = isKankou ? '完了報告を送信' : isReserveEst ? '予約＋見積書を送信' : '予約として報告';
+      return;
+    }
+  }
+
+  if (isKankou && document.querySelector('input[name="payment"]:checked').value === '銀行振り込み') {
+    const tName = document.getElementById('est_transfer_name').value.trim();
+    if (!tName) {
+      alert('銀行振り込みの場合は振込名義を入力してください');
+      document.getElementById('est_transfer_name').focus();
+      btn.disabled = false;
+      btn.textContent = '完了報告を送信';
+      return;
+    }
+  }
+
+  // 「ご相談」（分割）バリデーション
+  if (isKankou && isSplitPayment_()) {
+    const splits = getSplitPayments();
+    if (splits.length === 0) {
+      alert('売掛金を1件以上入力してください');
+      btn.disabled = false; btn.textContent = '完了報告を送信'; return;
+    }
+    const totalSplit = splits.reduce(function(s, sp) { return s + sp.amount_inc; }, 0);
+    const totalExpected = getCurrentTotalInc_();
+    if (totalSplit !== totalExpected) {
+      alert('売掛金合計（¥' + totalSplit.toLocaleString('ja-JP') + '）が請求合計（¥' + totalExpected.toLocaleString('ja-JP') + '）と一致しません');
+      btn.disabled = false; btn.textContent = '完了報告を送信'; return;
+    }
+    for (var si = 0; si < splits.length; si++) {
+      var sp = splits[si];
+      if (!sp.method) { alert('売掛金' + (si+1) + 'の支払方法を選択してください'); btn.disabled = false; btn.textContent = '完了報告を送信'; return; }
+      if (sp.amount_ex <= 0) { alert('売掛金' + (si+1) + 'の金額を入力してください'); btn.disabled = false; btn.textContent = '完了報告を送信'; return; }
+      if (sp.method === '銀行振り込み') {
+        if (!sp.deadline) { alert('売掛金' + (si+1) + '（銀行振り込み）の振込期限を入力してください'); btn.disabled = false; btn.textContent = '完了報告を送信'; return; }
+        if (!sp.transfer_name) { alert('売掛金' + (si+1) + '（銀行振り込み）の振込名義を入力してください'); btn.disabled = false; btn.textContent = '完了報告を送信'; return; }
+      }
+    }
+  }
+
+  const todayItems = isKankou ? getSelectedItems('today') : [];
+  let todayRepairTotal = 0;
+  todayItems.forEach(it => todayRepairTotal += it.subtotal);
+
+  const _condVisK = document.getElementById('add_conditions_section') &&
+    document.getElementById('add_conditions_section').style.display !== 'none';
+  if (isKankou) {
+    if (_condVisK) {
+      document.querySelectorAll('#inv_options_area .inv-est-row').forEach(function(row) {
+        const priceEx = parseInt(row.querySelector('.inv-est-price').value) || 0;
+        if (priceEx > 0) {
+          todayItems.push({ name: row.dataset.invName, price: priceEx, qty: 1, subtotal: priceEx });
+          todayRepairTotal += priceEx;
+        }
+      });
+    }
+    getCustomEstItems().forEach(function(item) {
+      todayItems.push(item);
+      todayRepairTotal += item.subtotal;
+    });
+    coupons.forEach(function(cp) {
+      todayItems.push({ name: 'クーポン割引（' + cp.code + '）', price: -cp.discount, qty: 1, subtotal: -cp.discount });
+    });
+  }
+
+  if (isKankou && (P.is_repair || currentIsHC)) {
+    var realTodayItems = todayItems.filter(function(it) { return !it.name.startsWith('クーポン'); });
+    if (realTodayItems.length === 0) {
+      alert('作業項目を1つ以上入力してください');
+      btn.disabled = false;
+      btn.textContent = '完了報告を送信';
+      return;
+    }
+  }
+
+  let hasEstimate = false;
+  let estItems = [];
+  let estTotal = 0;
+  let estExpiry = '';
+  let estNote = '';
+  let estSubject = '';
+
+  if (isKankou && document.getElementById('chk_estimate').checked) {
+    hasEstimate = true;
+    var _estChkDocTypeSub = (document.querySelector('input[name="est_chk_doc_type"]:checked') || {}).value || '見積書';
+    if (_estChkDocTypeSub === '診断見積書') {
+      var _eDiagEquip = document.getElementById('est_chk_equipment') ? document.getElementById('est_chk_equipment').value || P.equipment : P.equipment;
+      var _eDiagFee = getDiagFee(_eDiagEquip);
+      estItems.push({ name: '故障診断（' + (_eDiagEquip||'') + '）', price: _eDiagFee, qty: 1, subtotal: _eDiagFee });
+    }
+    estItems = estItems.concat(getSelectedItems('est'));
+    document.querySelectorAll('#est_inv_options_area .est-inv-row').forEach(function(row) {
+      const p = parseInt(row.querySelector('.est-inv-price').value) || 0;
+      if (p > 0) estItems.push({ name: row.dataset.invName, price: p, qty: 1, subtotal: p });
+    });
+    getEstCustomItems().forEach(function(item) { estItems.push(item); });
+    estCoupons.forEach(function(cp) {
+      estItems.push({ name: 'クーポン割引（' + cp.code + '）', price: -cp.discount, qty: 1, subtotal: -cp.discount });
+    });
+    estItems.forEach(it => estTotal += it.subtotal);
+    estTotal = Math.max(0, estTotal);
+    estExpiry = document.getElementById('est_expiry').value;
+    estNote = document.getElementById('est_note').value;
+    estSubject = getEstSubject('est');
+    if (!estSubject) { alert('見積書の件名を入力してください'); btn.disabled = false; btn.textContent = '完了報告を送信'; return; }
+    var realEstItemsChk = estItems.filter(function(it) { return !it.name.startsWith('クーポン'); });
+    if (realEstItemsChk.length === 0) {
+      alert('後日見積りの項目を1つ以上入力してください');
+      btn.disabled = false;
+      btn.textContent = '完了報告を送信';
+      return;
+    }
+  } else if (isReserveEst) {
+    hasEstimate = true;
+    var _resEstDocTypeSub = (document.querySelector('input[name="res_est_doc_type"]:checked') || {}).value || '見積書';
+    if (_resEstDocTypeSub === '診断見積書') {
+      var _rDiagEquip = document.getElementById('manual_equipment') ? document.getElementById('manual_equipment').value || P.equipment : P.equipment;
+      var _rDiagFee = getDiagFee(_rDiagEquip);
+      estItems.push({ name: '故障診断（' + (_rDiagEquip||'') + '）', price: _rDiagFee, qty: 1, subtotal: _rDiagFee });
+    }
+    estItems = estItems.concat(getSelectedItems('resest'));
+    const _resAddCond2 = document.getElementById('res_add_conditions_section');
+    if (_resAddCond2 && _resAddCond2.style.display !== 'none') {
+      document.querySelectorAll('#res_inv_options_area .res-inv-row').forEach(function(row) {
+        const p = parseInt(row.querySelector('.res-inv-price').value) || 0;
+        if (p > 0) estItems.push({ name: row.dataset.invName, price: p, qty: 1, subtotal: p });
+      });
+    }
+    getResCustomItems().forEach(function(item) { estItems.push(item); });
+    resCoupons.forEach(function(cp) {
+      estItems.push({ name: 'クーポン割引（' + cp.code + '）', price: -cp.discount, qty: 1, subtotal: -cp.discount });
+    });
+    estItems.forEach(it => estTotal += it.subtotal);
+    estTotal = Math.max(0, estTotal);
+    estExpiry = document.getElementById('res_est_expiry').value;
+    estNote = document.getElementById('res_est_note').value;
+    estSubject = getEstSubject('res_est');
+    if (!estSubject) { alert('見積書の件名を入力してください'); btn.disabled = false; btn.textContent = '予約＋見積書を送信'; return; }
+    var realEstItems = estItems.filter(function(it) { return !it.name.startsWith('クーポン'); });
+    if (realEstItems.length === 0) {
+      alert('見積り項目を1つ以上入力してください');
+      btn.disabled = false;
+      btn.textContent = '予約＋見積書を送信';
+      return;
+    }
+  } else if (isReserveInv || isKankouInv) {
+    // 請求書モード: resestのアイテムを請求書用として取得（予約時/完工時共通）
+    hasEstimate = false; // 見積書ではない
+    var _invDocTypeSub = (document.querySelector('input[name="res_est_doc_type"]:checked') || {}).value || '見積書';
+    if (_invDocTypeSub === '診断見積書') {
+      var _iDiagEquip = document.getElementById('manual_equipment') ? document.getElementById('manual_equipment').value || P.equipment : P.equipment;
+      var _iDiagFee = getDiagFee(_iDiagEquip);
+      estItems.push({ name: '故障診断（' + (_iDiagEquip||'') + '）', price: _iDiagFee, qty: 1, subtotal: _iDiagFee });
+    }
+    estItems = estItems.concat(getSelectedItems('resest'));
+    const _resAddCond3 = document.getElementById('res_add_conditions_section');
+    if (_resAddCond3 && _resAddCond3.style.display !== 'none') {
+      document.querySelectorAll('#res_inv_options_area .res-inv-row').forEach(function(row) {
+        const p = parseInt(row.querySelector('.res-inv-price').value) || 0;
+        if (p > 0) estItems.push({ name: row.dataset.invName, price: p, qty: 1, subtotal: p });
+      });
+    }
+    getResCustomItems().forEach(function(item) { estItems.push(item); });
+    resCoupons.forEach(function(cp) {
+      estItems.push({ name: 'クーポン割引（' + cp.code + '）', price: -cp.discount, qty: 1, subtotal: -cp.discount });
+    });
+    estItems.forEach(it => estTotal += it.subtotal);
+    estTotal = Math.max(0, estTotal);
+    var realInvItems = estItems.filter(function(it) { return !it.name.startsWith('クーポン'); });
+    if (realInvItems.length === 0) {
+      alert('請求書の項目を1つ以上入力してください');
+      btn.disabled = false;
+      btn.textContent = isKankouInv ? '完工＋請求書を発行して送信' : '予約＋請求書ありで報告';
+      return;
+    }
+  }
+
+  const diagFeeEx = P.is_repair ? 0 : (isKankou ? P.initial_fee : 0);
+
+  var _reportEmailEl = document.getElementById('report_email');
+  var _manualEmailEl = document.getElementById('manual_email');
+  var _sendEmail = (_reportEmailEl && _reportEmailEl.value.trim()) ? _reportEmailEl.value.trim()
+    : (_manualEmailEl && _manualEmailEl.value.trim()) ? _manualEmailEl.value.trim() : P.email;
+  P.email = _sendEmail;
+
+  const payload = {
+    form_type: 'estimate',
+    contract_status: status,
+    case_id: P.case_id,
+    name: P.name,
+    email: _sendEmail,
+    cc_emails: getCcEmails(document.getElementById('report_email_section').style.display !== 'none' ? 'report' : 'manual'),
+    tel: P.tel,
+    address: P.address,
+    equipment: (typeof getEquipValue === 'function' ? getEquipValue() : P.equipment) || P.equipment,
+    staff_id: staffId,
+    customer_type: P.customer_type || '個人',
+    company_name:  P.company_name  || '',
+    company_kana:  P.company_kana  || '',
+    contact_name:  P.contact_name  || '',
+    visit_date: document.getElementById('visit_date').value,
+
+    diag_fee: diagFeeEx,
+    today_repairs: todayItems,
+    today_repair_total: todayRepairTotal,
+    coupon_discount: couponDiscount || 0,
+    coupon_codes: (function() {
+      var allCodes = coupons.concat(resCoupons).concat(estCoupons).map(function(c){ return c.code; });
+      return allCodes.filter(function(v, i, a){ return a.indexOf(v) === i; }).join(',');
+    })(),
+    today_total: isKankouInv
+      ? Math.round(estTotal * (1 + TAX_RATE))
+      : (isKankou ? Math.round(Math.max(0, diagFeeEx + todayRepairTotal - (couponDiscount||0)) * (1 + TAX_RATE)) : 0),
+    auto_issue_invoice: isKankouInv,
+    payment_method: isKankou ? document.querySelector('input[name="payment"]:checked').value : '',
+    payment_splits: (isKankou && isSplitPayment_()) ? getSplitPayments() : null,
+    transfer_deadline: (() => {
+      if (!isKankou || document.querySelector('input[name="payment"]:checked').value !== '銀行振り込み') return '';
+      const v = document.getElementById('est_transfer_deadline').value;
+      if (v) return v;
+      const d3 = new Date(); d3.setDate(d3.getDate() + 3);
+      return toLocalYMD(d3);
+    })(),
+    transfer_name: (isKankou && document.querySelector('input[name="payment"]:checked').value === '銀行振り込み') ? document.getElementById('est_transfer_name').value.trim() : '',
+
+    has_estimate: hasEstimate,
+    estimate_doc_type: isReserveEst
+      ? ((document.querySelector('input[name="res_est_doc_type"]:checked') || {}).value || '見積書')
+      : (isKankou
+          && document.getElementById('chk_estimate')
+          && document.getElementById('chk_estimate').checked
+        ? ((document.querySelector('input[name="est_chk_doc_type"]:checked') || {}).value || '見積書')
+        : '見積書'),
+    estimate_repairs: estItems,
+    estimate_total: estTotal,
+    estimate_expiry: estExpiry,
+    estimate_note: estNote,
+    estimate_subject: estSubject,
+
+    has_diag_estimate: false,
+    diag_estimate_fee: 0,
+    diag_estimate_extra: [],
+
+    staff_memo: document.getElementById('staff_memo').value,
+    cancel_reason: document.getElementById('loss_reason') ? document.getElementById('loss_reason').value : '',
+
+    reserve_date: isReserve ? (document.getElementById('reserve_date').value || '未定') : '',
+    reserve_time_start: document.getElementById('reserve_time_start').value || '',
+    reserve_time_end: document.getElementById('reserve_time_end').value || '',
+  };
+
+  // この提出操作がsync okになるまで、再押下・再読込でも同じanchor/tokenを使う。
+  reportPreparePendingSubmission_(payload);
+
+  // プレビュー表示
+  window._pendingPayload = payload;
+  window._pendingStatus = status;
+  window._pendingFlags = { isKankou, isKankouPlain, isKankouInv, isReserveEst, isReserveNo, isReserveInv, isDiagEst, hasEstimate, isReserve };
+  showSubmitPreview(payload, status);
+  return;
+}
+
+function showSubmitPreview(p, status) {
+  var h = '';
+  var sLabel = status;
+  var sColor = '#2196F3';
+  if (status === '完工') sColor = '#2e7d32';
+  else if (status.indexOf('予約') > -1) sColor = '#ff9800';
+  else if (status === '失注' || status === '電話失注') sColor = '#c62828';
+  else if (status === 'キャンセル') sColor = '#666';
+
+  h += '<div style="text-align:center;padding:8px;background:' + sColor + '15;border-radius:8px;margin-bottom:12px"><span style="font-weight:700;color:' + sColor + ';font-size:1.1rem">' + sLabel + '</span></div>';
+
+  h += '<div style="padding:8px 0;border-bottom:1px solid #eee"><b>案件番号:</b> ' + (p.case_id||'') + '</div>';
+  var isCorpEst = p.customer_type === '法人・団体' && p.company_name;
+  var custLabelEst = isCorpEst
+    ? p.company_name + ' 御中<br><span style="margin-left:1em;color:#5f6368">担当 ' + (p.contact_name || p.name || '') + '</span>'
+    : (p.name || '');
+  h += '<div style="padding:8px 0;border-bottom:1px solid #eee"><b>お客様名:</b> ' + custLabelEst + '</div>';
+  if (p.email) h += '<div style="padding:8px 0;border-bottom:1px solid #eee"><b>メール:</b> ' + p.email + '</div>';
+  if (p.equipment) h += '<div style="padding:8px 0;border-bottom:1px solid #eee"><b>機器:</b> ' + p.equipment + '</div>';
+  if (p.visit_date) h += '<div style="padding:8px 0;border-bottom:1px solid #eee"><b>案件取得日:</b> ' + p.visit_date + '</div>';
+
+  if (status === '完工') {
+    h += '<div style="padding:8px 0;border-bottom:1px solid #eee"><b>売上（税込）:</b> <span style="color:#2e7d32;font-weight:700">' + fmtYen(p.today_total) + '</span></div>';
+    h += '<div style="padding:8px 0;border-bottom:1px solid #eee"><b>支払方法:</b> ' + (p.payment_method||'') + '</div>';
+    if (p.payment_method === '銀行振り込み') {
+      h += '<div style="padding:8px 0;border-bottom:1px solid #eee"><b>振込期限:</b> ' + (p.transfer_deadline||'') + '</div>';
+      h += '<div style="padding:8px 0;border-bottom:1px solid #eee"><b>振込名義:</b> ' + (p.transfer_name||'') + '</div>';
+    }
+    if (p.today_repairs && p.today_repairs.length > 0) {
+      h += '<div style="padding:8px 0"><b>当日修理:</b></div>';
+      p.today_repairs.forEach(function(r) { h += '<div style="padding:2px 12px;font-size:.85rem">・' + r.name + ' ×' + r.qty + ' ' + fmtYen(r.subtotal) + '</div>'; });
+    }
+  }
+
+  if (p.has_estimate && p.estimate_repairs && p.estimate_repairs.length > 0) {
+    h += '<div style="padding:8px 0"><b>' + (p.estimate_doc_type||'見積書') + ':</b></div>';
+    if (p.estimate_subject) h += '<div style="padding:4px 12px"><b>件名:</b> ' + escHtml_(p.estimate_subject) + '</div>';
+    p.estimate_repairs.forEach(function(r) { h += '<div style="padding:2px 12px;font-size:.85rem">・' + r.name + ' ×' + r.qty + ' ' + fmtYen(r.subtotal) + '</div>'; });
+    h += '<div style="padding:4px 12px;font-weight:700;color:#5c2d91">見積合計（税込）: ' + fmtYen(Math.round(p.estimate_total * 1.1)) + '</div>';
+  }
+
+  if ((status === '予約（請求書あり）' || status === '完工（請求書あり）') && p.estimate_repairs && p.estimate_repairs.length > 0) {
+    h += '<div style="padding:8px 0"><b>📑 請求書の内容:</b></div>';
+    p.estimate_repairs.forEach(function(r) { h += '<div style="padding:2px 12px;font-size:.85rem">・' + r.name + ' ×' + r.qty + ' ' + fmtYen(r.subtotal) + '</div>'; });
+    var invTaxInc = Math.round(p.estimate_total * 1.1);
+    h += '<div style="padding:4px 12px;font-weight:700;color:#00796b">請求金額（税込）: ' + fmtYen(invTaxInc) + '</div>';
+    if (status === '完工（請求書あり）') {
+      h += '<div style="padding:8px 0;border-top:1px solid #eee;margin-top:8px"><b>振込期限:</b> ' + (p.transfer_deadline || '') + '</div>';
+      h += '<div style="padding:8px 0"><b>振込名義:</b> ' + (p.transfer_name || '') + '</div>';
+      h += '<div style="padding:8px 0;background:#e3f2fd;border-radius:4px;color:#1565c0;font-size:.85rem">※ 送信と同時に請求書を自動発行してお客様にメール送信します</div>';
+    }
+  }
+
+  if (p.reserve_date) h += '<div style="padding:8px 0;border-bottom:1px solid #eee"><b>予約日:</b> ' + p.reserve_date + (p.reserve_time_start ? ' ' + p.reserve_time_start + '～' + (p.reserve_time_end||'') : '') + '</div>';
+  if (p.staff_memo) h += '<div style="padding:8px 0"><b>メモ:</b> ' + p.staff_memo + '</div>';
+
+  document.getElementById('preview_body').innerHTML = h;
+  document.getElementById('main_view').classList.add('hidden');
+  var _pv = document.getElementById('preview_view');
+  _pv.classList.remove('hidden');
+  _pv.style.display = 'block';
+  window.scrollTo(0, 0);
+
+  // ボタンを元に戻す
+  var btn = document.getElementById('btn_submit');
+  btn.disabled = false;
+  var fs = window._pendingFlags;
+  if (fs.isKankou) btn.textContent = '完了報告を送信';
+  else if (fs.isReserveEst) btn.textContent = '予約＋見積書を送信';
+  else if (fs.isReserveInv) btn.textContent = '予約＋請求書ありで報告';
+  else if (fs.isReserveNo) btn.textContent = '予約として報告';
+  else btn.textContent = '報告を送信';
+}
+
+function hidePreview() {
+  var _pv = document.getElementById('preview_view');
+  _pv.classList.add('hidden');
+  _pv.style.display = 'none';
+  document.getElementById('main_view').classList.remove('hidden');
+  window.scrollTo(0, 0);
+}
+
+function _showRecentReportChoice_(recent, windowMinutes) {
+  return new Promise(function(resolve) {
+    var old = document.getElementById('recent_report_choice_overlay');
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+
+    var overlay = document.createElement('div');
+    overlay.id = 'recent_report_choice_overlay';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:18px;';
+
+    var panel = document.createElement('div');
+    panel.style.cssText = 'width:min(520px,100%);background:#fff;border-radius:14px;padding:22px;box-shadow:0 12px 36px rgba(0,0,0,.3);color:#222;';
+    var title = document.createElement('h2');
+    title.textContent = '同じ内容の報告を確認してください';
+    title.style.cssText = 'font-size:20px;margin:0 0 12px;color:#7a5200;';
+    var message = document.createElement('p');
+    var minutes = Number(windowMinutes);
+    if (!isFinite(minutes) || minutes <= 0) minutes = 10;
+    message.textContent = 'すでに同じ案件・同じ金額の報告が ' + minutes + ' 分以内にあります。別施工の2件目ですか？';
+    message.style.cssText = 'margin:0 0 12px;line-height:1.65;';
+    var detail = document.createElement('div');
+    detail.style.cssText = 'background:#fff8e1;border:1px solid #f0d58b;border-radius:8px;padding:12px;margin-bottom:16px;line-height:1.65;white-space:pre-wrap;';
+    detail.textContent = [
+      '金額: ¥' + Number((recent && recent.amount) || 0).toLocaleString(),
+      '登録日時: ' + String((recent && recent.date) || ''),
+      '状況: ' + String((recent && recent.status) || ''),
+      '支払方法: ' + String((recent && recent.payment_method) || '')
+    ].join('\n');
+    var buttons = document.createElement('div');
+    buttons.style.cssText = 'display:grid;gap:10px;';
+    var continueButton = document.createElement('button');
+    continueButton.type = 'button';
+    continueButton.textContent = 'これは別の施工です（続けて登録）';
+    continueButton.style.cssText = 'padding:13px;border:0;border-radius:8px;background:#1565c0;color:#fff;font-weight:700;font-size:16px;cursor:pointer;';
+    var stopButton = document.createElement('button');
+    stopButton.type = 'button';
+    stopButton.textContent = 'やめる';
+    stopButton.style.cssText = 'padding:13px;border:1px solid #666;border-radius:8px;background:#fff;color:#444;font-weight:700;font-size:16px;cursor:pointer;';
+    function finish(choice) {
+      if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+      resolve(choice);
+    }
+    continueButton.onclick = function() { finish('continue'); };
+    stopButton.onclick = function() { finish('stop'); };
+    buttons.appendChild(continueButton);
+    buttons.appendChild(stopButton);
+    panel.appendChild(title);
+    panel.appendChild(message);
+    panel.appendChild(detail);
+    panel.appendChild(buttons);
+    overlay.appendChild(panel);
+    document.body.appendChild(overlay);
+    continueButton.focus();
+  });
+}
+
+async function confirmSend() {
+  var btnC = document.getElementById('btn_confirm_send');
+  btnC.disabled = true; btnC.textContent = '送信中...';
+
+  var payload = window._pendingPayload;
+  var status = window._pendingStatus;
+  var fs = window._pendingFlags;
+  var isKankou = fs.isKankou, isReserveEst = fs.isReserveEst, isDiagEst = fs.isDiagEst, hasEstimate = fs.hasEstimate;
+
+  // Phase 1: スプレッドシート書き込み（同期）
+  var syncResult = {};
+  try {
+    var resp = await fetch(GAS_API_URL, { method: 'POST', body: JSON.stringify(payload) });
+    syncResult = await resp.json();
+    if (syncResult && syncResult.ok === false && syncResult.reason === 'recent_report_exists' && syncResult.recent) {
+      btnC.textContent = '確認してください';
+      var recentChoice = await _showRecentReportChoice_(syncResult.recent, syncResult.window_minutes);
+      if (recentChoice !== 'continue') {
+        btnC.disabled = false; btnC.textContent = '送信する';
+        return;
+      }
+      payload.confirm_new_report = true;
+      btnC.textContent = '登録中...';
+      resp = await fetch(GAS_API_URL, { method: 'POST', body: JSON.stringify(payload) });
+      syncResult = await resp.json();
+    }
+    if (!syncResult.ok) {
+      btnC.disabled = false; btnC.textContent = '送信する';
+      alert('送信エラー: ' + (syncResult.error || '送信に失敗しました'));
+      return;
+    }
+    // サーバがsync成功をackした提出だけ消す。別タブの新しい未完了操作はtoken照合で消さない。
+    reportClearPendingSubmission_(payload);
+  } catch(e) {
+    btnC.disabled = false; btnC.textContent = '送信する';
+    alert('通信エラー: ネットワーク接続を確認してください');
+    return;
+  }
+
+  // 完了画面を全画面オーバーレイ表示
+  var _pvHide = document.getElementById('preview_view');
+  _pvHide.classList.add('hidden');
+  _pvHide.style.display = 'none';
+  var doneView = document.getElementById('done_view');
+  doneView.classList.remove('hidden');
+  doneView.style.display = 'flex';
+  window.scrollTo(0, 0);
+
+  var doneMsg = document.getElementById('done_msg');
+  var asyncAcceptance = syncResult && syncResult.write_async_status;
+  if (asyncAcceptance && asyncAcceptance.enabled === true) {
+    if (window.WriteAsyncStatusV1) {
+      window.WriteAsyncStatusV1.start({
+        acceptance: asyncAcceptance,
+        target: doneMsg,
+        pendingMessage: window.WriteAsyncStatusV1.COPY.reportPending,
+        callStatus: function(operationIds) {
+          return window.WriteAsyncStatusV1.callGasStatus(GAS_API_URL, operationIds);
+        }
+      });
+    } else {
+      doneMsg.textContent = '反映の状況が確認できませんでした。もう一度確認してください。';
+      var statusRetry = document.createElement('button');
+      statusRetry.type = 'button';
+      statusRetry.textContent = 'もう一度確認';
+      statusRetry.onclick = function() { location.reload(); };
+      statusRetry.style.cssText = 'display:block;margin:12px auto 0;padding:8px 14px;border:0;border-radius:8px;background:#546e7a;color:#fff;font-weight:700';
+      doneMsg.appendChild(statusRetry);
+    }
+  } else {
+    doneMsg.innerHTML = '✅ 業務報告を送信しました';
+    var sentEmail = String(payload.email || '').trim();
+    if (sentEmail) {
+      var sentEmailLine = document.createElement('div');
+      sentEmailLine.style.cssText = 'font-size:.9rem;margin-top:8px;color:#333;word-break:break-all';
+      sentEmailLine.textContent = sentEmail + ' に書類を送信しました。';
+      doneMsg.appendChild(sentEmailLine);
+    }
+    if (syncResult.uriage_error) {
+      doneMsg.innerHTML += '<br><span style="color:red;font-size:.85rem">⚠ 売上管理: ' + syncResult.uriage_error + '</span>';
+    }
+  }
+
+  // Phase 2: PDF/メール/LWメッセージ（バックグラウンド）
+  var asyncPayload = Object.assign({}, payload, {
+    form_type: 'estimate_async',
+    async_report_id: syncResult.report_id || '',
+    async_uriage_error: syncResult.uriage_error || ''
+  });
+  fetch(GAS_API_URL, { method: 'POST', body: JSON.stringify(asyncPayload) }).catch(function(){});
+  window._submittedPayload = payload;
+
+  window._submittedPayload = payload;
+}
+
+async function generateDoc(type) {
+  const btn = document.getElementById('btn_' + type);
+
+  if (type === 'invoice') {
+    var invDL = document.getElementById('inv_transfer_deadline');
+    var invNM = document.getElementById('inv_transfer_name');
+    if (invDL && !invDL.value) {
+      alert('振込期限を入力してください');
+      invDL.focus();
+      return;
+    }
+    if (invNM && !invNM.value.trim()) {
+      alert('振込名義を入力してください');
+      invNM.focus();
+      return;
+    }
+  }
+
+  btn.textContent = '発行中...';
+  btn.disabled = true;
+
+  const sp = window._submittedPayload || {};
+
+  let docItems = [];
+  // ★ 版選択UIで選んだ見積書のitemsを優先使用
+  if (P._selectedVerItems && P._selectedVerItems.length > 0) {
+    docItems = P._selectedVerItems.map(r => ({
+      name: r.name, price: r.price||0, qty: r.qty||1, subtotal: r.subtotal || (r.price||0) * (r.qty||1)
+    }));
+  } else if (sp.has_estimate && sp.estimate_repairs && sp.estimate_repairs.length > 0) {
+    docItems = sp.estimate_repairs.map(r => ({
+      name: r.name, price: r.price, qty: r.qty, subtotal: r.subtotal || r.price * r.qty
+    }));
+  } else if (sp.today_repairs && sp.today_repairs.length > 0) {
+    if (sp.diag_fee) {
+      const diagName = '故障診断' + (P.equipment ? '（' + P.equipment + '）' : '');
+      docItems.push({ name: diagName, price: sp.diag_fee, qty: 1, subtotal: sp.diag_fee });
+    }
+    sp.today_repairs.forEach(r => {
+      docItems.push({ name: r.name, price: r.price, qty: r.qty, subtotal: r.subtotal || r.price * r.qty });
+    });
+  }
+  let docTotal = 0;
+  if (P._selectedVerItems && P._selectedVerItems.length > 0) {
+    const subEx = docItems.reduce((sum, r) => sum + (r.subtotal || 0), 0);
+    docTotal = subEx + Math.round(subEx * 0.1);
+  } else if (sp.has_estimate) {
+    docTotal = sp.estimate_total || 0;
+  } else if (sp.today_total) {
+    docTotal = sp.today_total;
+  } else if (docItems.length > 0) {
+    const subEx = docItems.reduce((sum, r) => sum + (r.subtotal || 0), 0);
+    docTotal = subEx + Math.round(subEx * 0.1);
+  }
+
+  var _docEmailEl = document.getElementById('doc_email');
+  var _docSendEmail = (_docEmailEl && _docEmailEl.value.trim()) ? _docEmailEl.value.trim() : P.email;
+
+  const payload = {
+    form_type: 'generate_doc',
+    doc_type: type,
+    case_id: P.case_id,
+    contract_id: P.contract_id || '',
+    report_id: P.report_id || '',
+    name: P.name,
+    email: _docSendEmail,
+    cc_emails: getCcEmails('doc'),
+    tel: P.tel,
+    items: docItems,
+    total: docTotal,
+    staff_id: P.staff_id || sp.staff_id || '',
+    customer_type: P.customer_type || sp.customer_type || '個人',
+    company_name:  P.company_name  || sp.company_name  || '',
+    contact_name:  P.contact_name  || sp.contact_name  || '',
+    payment_method: (type === 'invoice') ? '銀行振り込み' : (sp.payment_method || P.payment_method || ''),
+    transfer_deadline: (type === 'invoice' && document.getElementById('inv_transfer_deadline'))
+      ? document.getElementById('inv_transfer_deadline').value
+      : (sp.transfer_deadline || P.transfer_deadline || ''),
+    transfer_name: (type === 'invoice' && document.getElementById('inv_transfer_name'))
+      ? document.getElementById('inv_transfer_name').value.trim()
+      : (sp.transfer_name || P.transfer_name || ''),
+    quote_ver: P.quote_ver || '',
+    quote_type: P.quote_type || '',
+  };
+
+  try {
+    const res = await fetch(GAS_API_URL, { method: 'POST', body: JSON.stringify(payload) });
+    const result2 = await res.json();
+    if (!result2.ok) {
+      btn.disabled = false;
+      btn.textContent = '📑 請求書を発行';
+      var _dr = document.getElementById('doc_result');
+      if (_dr) { _dr.textContent = '⚠ エラー: ' + (result2.error || '送信失敗'); _dr.style.color = 'red'; }
+      return;
+    }
+  } catch(e) {
+    btn.disabled = false;
+    btn.textContent = '📑 請求書を発行';
+    var _dr2 = document.getElementById('doc_result');
+    if (_dr2) { _dr2.textContent = '⚠ 通信エラー。再度お試しください。'; _dr2.style.color = 'red'; }
+    return;
+  }
+
+  btn.textContent = '📑 請求書 送信済み ✅';
+  btn.classList.add('done');
+
+  var result = document.getElementById('doc_result');
+  if (result) { result.textContent = '請求書をメールに送信しました'; result.style.color = 'var(--green)'; }
+}
+
+// === 案件番号入力のリアルタイムプレビュー初期化 ===
+(function initCaseIdListeners() {
+  setTimeout(function() {
+    const numEl = document.getElementById('case_number');
+    const alphaEl = document.getElementById('case_alpha');
+    if (numEl) numEl.addEventListener('input', updateCaseIdPreview);
+    // ★ alphaElのchangeにクリア＋再検索を追加
+    if (alphaEl) alphaEl.addEventListener('change', function() {
+      updateCaseIdPreview();
+      clearEstCustomerFields();
+      clearEstCaseIdError();
+      lookupByCaseIdEst(true);
+    });
+    onPrefixChange();
+  }, 100);
+})();
+
+  // ★ お客様情報クリア関数
+  function clearEstCustomerFields() {
+    ['manual_name','manual_tel','manual_email','manual_address',
+   'est_company_name','est_company_kana'].forEach(function(id) {
+      var el = document.getElementById(id); if (el) el.value = '';
+    });
+    var e = document.getElementById('staff_id'); if (e) e.value = '';
+    var d = document.getElementById('staff_name_display'); if (d) d.textContent = '';
+    document.getElementById('h_name').textContent = '未設定';
+  }
+
+  // ===== 二重報告ソフト警告（送信はブロックしない） =====
+  // 表示してよいのは社内案件番号・金額・状況・支払方法・日付・書類種別のみ。
+  // メール/PDF URL/元案件番号は出さない（バックエンドも返さない）。
+  // 連射防止用モジュール変数（2026-07-12）
+  var _inflightLookupCidEst = null;        // 照会進行中の案件番号（in-flightガード）
+  var _lastLookupEst = { cid: '', ts: 0 }; // 直近完了した照会（90秒ガード・このページはキャッシュ無し）
+  var _dupGuardLastCidEst = '';            // 警告表示中の案件番号（同一案件の再照会で消さない）
+  function _dupGuardEsc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+  function _clearDupGuardWarning() {
+    var box = document.getElementById('dup_guard_warning');
+    if (box) { box.innerHTML = ''; box.style.display = 'none'; }
+  }
+  function _dupGuardYen(n) {
+    var v = Math.floor(Number(n) || 0);
+    return '¥' + v.toLocaleString('ja-JP');
+  }
+  // 案件 lookup 成功後に追加で軽量な1コール。失敗時は黙って無視（既存フローに影響させない）。
+  async function _runDupGuard(cid) {
+    if (!cid) { _clearDupGuardWarning(); return; }
+    _dupGuardLastCidEst = cid; // 警告表示中の案件番号を記録（同一案件の再照会で消さないため・2026-07-12）
+    // 同一案件の二重報告チェックは直近3分実行済みなら再照会しない（連射防止・2026-07-12）
+    try {
+      var _dgKey = 'dupguard_ts_' + cid;
+      var _dgTs = sessionStorage.getItem(_dgKey);
+      if (_dgTs && (Date.now() - parseInt(_dgTs, 10)) < 180000) return;
+      sessionStorage.setItem(_dgKey, String(Date.now()));
+    } catch (e) {}
+    _clearDupGuardWarning();
+    var readStatus = gasReadStatusTarget('dup_guard_warning');
+    try {
+      var resp = await gasReadFetch(GAS_API_URL, {
+        method: 'POST',
+        body: JSON.stringify({
+          form_type: 'duplicate_guard_lookup',
+          sessionToken: (window.ECOPITA_SESSION ? window.ECOPITA_SESSION.token : ''),
+          case_id: cid
+        })
+      }, { onStatus: function(message) { if (buildCaseId() === cid) readStatus(message); } });
+      var res = await resp.json();
+      // 案件が切り替わっていたら描画しない（古い応答の取りこぼし防止）
+      if (buildCaseId() !== cid) return;
+      if (!res || res.ok === false || !res.guard) return;
+      var g = res.guard;
+      if (g.has_completed_sale !== true) return;
+      var box = document.getElementById('dup_guard_warning');
+      if (!box) return;
+      // 完工（completed）行の金額・日付を1〜2件だけ簡潔に
+      var detail = '';
+      if (g.sales && g.sales.length) {
+        var done = [];
+        for (var i = 0; i < g.sales.length && done.length < 2; i++) {
+          var s = g.sales[i];
+          if (s && s.completed === true) {
+            var parts = [];
+            if (s.amount != null && s.amount !== '') parts.push(_dupGuardYen(s.amount));
+            if (s.date) parts.push(_dupGuardEsc(s.date));
+            if (parts.length) done.push('（' + parts.join(' / ') + '）');
+          }
+        }
+        if (done.length) detail = done.join(' ');
+      }
+      box.innerHTML =
+        '<span class="dup-guard-title">⚠️ すでにこの案件番号で完工・売上計上された記録があります' +
+          (detail ? '<span class="dup-guard-detail"> ' + detail + '</span>' : '') + '</span>' +
+        '二重報告の可能性があります。本当に別施工の2件目でしょうか？問題なければそのまま進めてください。';
+      box.style.display = 'block';
+    } catch (e) {
+      console.warn('duplicate_guard_lookup failed (ignored)', e);
+    }
+  }
+
+  // ★ 案件番号lookup（全面更新）
+  async function lookupByCaseIdEst(showInvalid) {
+  const cid = buildCaseId();
+  const preview = document.getElementById('case_id_preview_val');
+  // 案件切替時のみ前の警告を消す（同一案件の再照会では保持・連射防止・2026-07-12）
+  if (cid !== _dupGuardLastCidEst) _clearDupGuardWarning();
+  // 入力途中の部分番号でサーバ照会しない（連射防止・2026-07-12）。番号8桁未満は静かに抜ける
+  if (cid && !isEstCaseIdCompleteForError()) return;
+  // in-flight ガード: 同一番号の照会が進行中なら二重発射しない（連射防止・2026-07-12）
+  if (cid && _inflightLookupCidEst === cid) return;
+  // 直近完了ガード: このページはキャッシュ無しのため、同一番号を90秒以内に照会済みなら再照会しない（blur/セレクト連鎖の吸収・2026-07-12）
+  if (cid && _lastLookupEst.cid === cid && (Date.now() - _lastLookupEst.ts) < 90000) return;
+  // ★ 空のときはクリアして終了
+  if (!cid) {
+    clearEstCustomerFields();
+    preview.textContent = '---'; preview.style.color = '';
+    document.getElementById('h_case_id').textContent = '---';
+    const rawNum = document.getElementById('case_number').value.trim();
+    if (rawNum) showEstCaseIdInvalid(preview);
+    else clearEstCaseIdError();
+    return;
+  }
+  clearEstCustomerFields();
+  _inflightLookupCidEst = cid;
+  preview.textContent = '検索中...'; preview.style.color = '#999';
+  try {
+    const r = await gasCall(
+      { form_type: 'lookup', case_id: cid, p1_sf: 'p1_sf_v1' },
+      {
+        mode: 'lookup',
+        url: GAS_API_URL,
+        onStatus: function(status) { preview.textContent = status; }
+      }
+    );
+    if (r && r.code === 'busy_caseid_check') {
+      preview.textContent = r.error || GAS_P1_SF_HONEST_MESSAGE;
+      preview.style.color = 'var(--red)';
+      return;
+    }
+    _lastLookupEst = { cid: cid, ts: Date.now() }; // 照会完了を記録（90秒ガード用・2026-07-12）
+    if (r && r.case_id_valid === false) {
+      if (showInvalid || isEstCaseIdCompleteForError()) {
+        showEstCaseIdInvalid(preview);
+      } else {
+        preview.textContent = cid; preview.style.color = 'var(--blue)';
+      }
+      document.getElementById('h_case_id').textContent = cid;
+      return;
+    }
+    if (r && r.ok !== false && !r.error) {
+      clearEstCaseIdError();
+      if (r.name)    document.getElementById('manual_name').value = r.name;
+      if (r.tel)     document.getElementById('manual_tel').value = r.tel;
+      if (r.email)   document.getElementById('manual_email').value = r.email.split(',')[0];
+      if (r.cc_emails && r.cc_emails.length > 0) {
+        var _ccArea = document.getElementById('cc_email_area_manual');
+        if (_ccArea) _ccArea.innerHTML = '';
+        r.cc_emails.forEach(function(e) { if (e) addCcEmail('manual', e); });
+      }
+      // 変更後
+     var fullAddr = [(r.address||''), (r.banchi||''), (r.building||'')].filter(Boolean).join(' ');
+     if (fullAddr) document.getElementById('manual_address').value = fullAddr;
+      if (r.equipment) {
+        const prefix = document.getElementById('case_prefix').value;
+        updateEquipOptions(prefix, r.equipment);
+        document.getElementById('manual_equipment').value = r.equipment;
+        P.equipment = r.equipment;
+        onEstEquipChange();
+      }
+      if (r.staff_id) {
+        var sid = String(r.staff_id);
+        while (sid.length > 0 && sid.length < 4) sid = '0' + sid;
+        document.getElementById('staff_id').value = sid;
+        lookupStaffName();
+      }
+      if (r.customer_type) {
+        var estRadios = document.querySelectorAll('input[name="est_customer_type"]');
+        estRadios.forEach(function(rb) { if (rb.value === r.customer_type) rb.checked = true; });
+        onEstCustomerTypeChange();
+      }
+      if (r.company_name) document.getElementById('est_company_name').value = r.company_name;
+      if (r.company_kana) document.getElementById('est_company_kana').value = r.company_kana;
+      document.getElementById('h_name').textContent = r.name || '未設定';
+      _runDupGuard(cid); // 二重報告ソフト警告（非ブロッキング）
+    }
+    // ★ 結果あり・なし問わずpreviewとh_case_idを更新
+    preview.textContent = cid; preview.style.color = 'var(--blue)';
+    document.getElementById('h_case_id').textContent = cid;
+  } catch(e) {
+    preview.textContent = gasCallErrorMessage(e); preview.style.color = 'var(--red)';
+    console.log('lookup error', e);
+  } finally {
+    if (_inflightLookupCidEst === cid) _inflightLookupCidEst = null; // in-flight ガード解除（自分の照会分のみ・2026-07-12）
+  }
+}
+
+  // === 担当者名lookup ===
+async function lookupStaffName() {
+  var sid = document.getElementById('staff_id').value.trim();
+  var display = document.getElementById('staff_name_display');
+  if (!sid) { if (display) display.textContent = ''; return; }
+  if (!display) return;
+  while (sid.length > 0 && sid.length < 4) sid = '0' + sid;
+  display.textContent = '検索中...';
+  display.style.color = '#999';
+  try {
+    var resp = await gasReadFetch(GAS_API_URL, {
+      method: 'POST', body: JSON.stringify({ form_type: 'staff_lookup', staff_id: sid })
+    }, { onStatus: gasReadStatusTarget(display) });
+    var r = await resp.json();
+    if (r.ok) {
+      display.textContent = '担当：' + r.staff_name;
+      display.style.color = '#2e7d32';
+    } else {
+      display.textContent = '※該当なし';
+      display.style.color = '#c62828';
+    }
+  } catch(e) {
+    display.textContent = GAS_READ_FINAL_MESSAGE;
+    display.style.color = '#c62828';
+  }
+}
+
+function onEstChkEquipChange() {
+  onEstChkTypeChange();
+}
+
+function onResEstTypeChange() {
+  var dt = (document.querySelector('input[name="res_est_doc_type"]:checked') || {}).value || '見積書';
+  var isDiag = (dt === '診断見積書');
+  if (typeof _updateEstCustomDiagFeeVisibility_ === 'function') _updateEstCustomDiagFeeVisibility_();
+  var repMenu = document.getElementById('reserve_est_repairs');
+  if (repMenu) repMenu.style.display = (isDiag || currentIsHC || currentIsEC) ? 'none' : '';
+  var resAddCond = document.getElementById('res_add_conditions_section');
+  if (resAddCond) resAddCond.style.display = currentIsHC ? 'none' : '';
+  var info = document.getElementById('res_est_diag_fee_info');
+  if (info) {
+    if (isDiag && !currentIsHC) {
+      var eqEl = document.getElementById('manual_equipment');
+      var eq = (eqEl && eqEl.value) ? eqEl.value : P.equipment;
+      var fee = getDiagFee(eq);
+      info.style.display = '';
+      info.textContent = eq ? '故障診断（' + eq + '）: ¥' + fee.toLocaleString('ja-JP') + '（税抜）が自動加算されます' : '※作業対象を選択すると診断費が自動加算されます';
+    } else {
+      info.style.display = 'none';
+    }
+  }
+  var repLabel = document.getElementById('res_est_type_repair');
+  var diagLabel = document.getElementById('res_est_type_diag');
+  if (repLabel) repLabel.style.borderColor = isDiag ? 'var(--border)' : 'var(--orange)';
+  if (repLabel) repLabel.style.background = isDiag ? '#fff' : 'var(--orange-bg)';
+  if (diagLabel) diagLabel.style.borderColor = isDiag ? 'var(--orange)' : 'var(--border)';
+  if (diagLabel) diagLabel.style.background = isDiag ? 'var(--orange-bg)' : '#fff';
+  recalc();
+}
+
+function onEstChkTypeChange() {
+  var dt = (document.querySelector('input[name="est_chk_doc_type"]:checked') || {}).value || '見積書';
+  var isDiag = (dt === '診断見積書');
+  var repMenu = document.getElementById('estimate_repairs');
+  if (repMenu) repMenu.style.display = (isDiag || currentIsHC || currentIsEC) ? 'none' : '';
+  var estAddCond = document.getElementById('est_add_conditions_section');
+  if (estAddCond) estAddCond.style.display = currentIsHC ? 'none' : '';
+  var info = document.getElementById('est_chk_diag_fee_info');
+  if (info) {
+    if (isDiag && !currentIsHC) {
+      var eqEl = document.getElementById('est_chk_equipment');
+      var eq = (eqEl && eqEl.value) ? eqEl.value : P.equipment;
+      var fee = getDiagFee(eq);
+      info.style.display = '';
+      info.textContent = eq ? '故障診断（' + eq + '）: ¥' + fee.toLocaleString('ja-JP') + '（税抜）が自動加算されます' : '※作業対象を選択すると診断費が自動加算されます';
+    } else {
+      info.style.display = 'none';
+    }
+  }
+  var repLabel = document.getElementById('est_chk_type_repair');
+  var diagLabel = document.getElementById('est_chk_type_diag');
+  if (repLabel) repLabel.style.borderColor = isDiag ? 'var(--border)' : 'var(--orange)';
+  if (repLabel) repLabel.style.background = isDiag ? '#fff' : 'var(--orange-bg)';
+  if (diagLabel) diagLabel.style.borderColor = isDiag ? 'var(--orange)' : 'var(--border)';
+  if (diagLabel) diagLabel.style.background = isDiag ? 'var(--orange-bg)' : '#fff';
+  recalc();
+}
+
+function onEstCustomerTypeChange() {
+  var isCorp = (document.querySelector('input[name="est_customer_type"]:checked') || {}).value === '法人・団体';
+  document.getElementById('est_corp_fields').style.display = isCorp ? 'block' : 'none';
+  var lbl = document.getElementById('est_label_name');
+  if (lbl) lbl.innerHTML = (isCorp ? 'ご担当者名' : 'お客様名') + ' <span class="field-required">※必須</span>';
+}
+  
+</script>
+<script src="./shared-auth.js"></script>
+<script src="./shared-nav.js"></script>
+<script src="./shared-email-check.js"></script>
+
+<script>
+
+function fmtYen(n) {
+  var v = Math.floor(Number(n) || 0);
+  if (v < 0) return '-¥' + Math.abs(v).toLocaleString('ja-JP');
+  return '¥' + v.toLocaleString('ja-JP');
+}
+
+(function() {
+  function fixNumericInputs(root) {
+    var inputs = (root || document).querySelectorAll('input[type="number"][inputmode="numeric"]');
+    inputs.forEach(function(el) {
+      el.removeAttribute('inputmode');
+      if (el.dataset.minusFixed) return;
+      el.dataset.minusFixed = '1';
+      el.addEventListener('input', function() {
+        var v = this.value;
+        var clean = v.replace(/[^0-9-]/g, '');
+        if (clean.indexOf('-') > 0) {
+          var first = clean[0];
+          clean = first + clean.slice(1).replace(/-/g, '');
+        }
+        clean = clean.replace(/^-+/, '-');
+        if (v !== clean) this.value = clean;
+      });
+    });
+  }
+  fixNumericInputs();
+  var observer = new MutationObserver(function(mutations) {
+    mutations.forEach(function(m) {
+      m.addedNodes.forEach(function(node) {
+        if (node.nodeType === 1) fixNumericInputs(node.parentElement);
+      });
+    });
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+})();
+
+// 担当者フラグ取得（カスタム診断費ドロップダウン表示）※キャッシュなし
+window._ecopitaHasCustomDiagFee = false;
+function _updateEstCustomDiagFeeVisibility_() {
+  var field = document.getElementById('est_custom_diag_fee_field');
+  if (!field) return;
+  var prefix = (document.getElementById('case_prefix') && document.getElementById('case_prefix').value)
+    || (P && (P.case_id || '').split('-')[0].toUpperCase())
+    || '';
+  var status = (typeof getEffectiveStatus === 'function') ? getEffectiveStatus() : '';
+  var workTypeEl = document.querySelector('input[name="manual_work_type"]:checked');
+  var workType = workTypeEl ? workTypeEl.value : '診断';
+  var isKankou = (status === '完工');
+  var isReserveEst = (status === '予約（見積あり）');
+  var isReserveInv = (status === '予約（請求書あり）');
+  // 予約+見積/予約+請求の書類種別（診断見積書/修理見積書）
+  var resDocEl = document.querySelector('input[name="res_est_doc_type"]:checked');
+  var resDoc = resDocEl ? resDocEl.value : '見積書';
+  var isResDiagEst = (resDoc === '診断見積書');
+  // 表示条件:
+  //   完工+診断モード / (予約+見積 or 予約+請求) かつ 診断見積書タイプ
+  //   HC除外
+  var modeOk = (isKankou && workType !== '修理')
+    || ((isReserveEst || isReserveInv) && isResDiagEst);
+  var canShow = window._ecopitaHasCustomDiagFee && prefix !== 'HC' && modeOk;
+  field.style.display = canShow ? '' : 'none';
+  if (!canShow) {
+    var sel = document.getElementById('est_custom_diag_fee');
+    if (sel && sel.value) { sel.value = ''; if (typeof recalc === 'function') recalc(); }
+  }
+}
+(async function loadStaffFlagsEst_() {
+  try {
+    var session = window.ECOPITA_SESSION || {};
+    if (!session.token || !session.staffId) return;
+    var resp = await gasReadFetch(GAS_API_URL, {
+      method: 'POST',
+      body: JSON.stringify({ form_type: 'staff_flags', sessionToken: session.token })
+    }, { onStatus: gasReadStatusTarget('staff_name_display') });
+    var flags = await resp.json();
+    window._ecopitaHasCustomDiagFee = !!(flags && flags.ok && flags.customDiagFee);
+    _updateEstCustomDiagFeeVisibility_();
+  } catch(e) {}
+})();
+
+// カスタム診断費変更時に P.initial_fee を更新して再計算 + 各種表示テキスト更新
+var _estCdf = document.getElementById('est_custom_diag_fee');
+if (_estCdf) {
+  _estCdf.addEventListener('change', function() {
+    // 手入力モード診断時のみ initial_fee を更新（修理モードは0固定）
+    var workRadio = document.querySelector('input[name="manual_work_type"]:checked');
+    var isDiag = !workRadio || workRadio.value !== '修理';
+    if (isDiag && typeof getDiagFee === 'function') {
+      var equip = (document.getElementById('manual_equipment') && document.getElementById('manual_equipment').value) || (P && P.equipment) || '';
+      P.initial_fee = getDiagFee(equip);
+    }
+    // 診断費用「自動加算されます」メッセージを更新
+    if (typeof onResEstTypeChange === 'function') onResEstTypeChange();
+    if (typeof onEstChkDocChange === 'function') onEstChkDocChange();
+    if (typeof recalc === 'function') recalc();
+  });
+}
+function escHtml_(value) { return String(value == null ? '' : value).replace(/[&<>"']/g, function(c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function onEstSubjectChange(prefix) {
+  var sel = document.getElementById(prefix + '_subject_sel'), other = document.getElementById(prefix + '_subject_other');
+  other.style.display = sel.value === '__other__' ? '' : 'none';
+  if (sel.value === '__other__') other.focus();
+}
+function getEstSubject(prefix) {
+  var value = document.getElementById(prefix + '_subject_sel').value;
+  return (value === '__other__' ? document.getElementById(prefix + '_subject_other').value : value).trim();
+}
+</script>
+</body>
+</html>

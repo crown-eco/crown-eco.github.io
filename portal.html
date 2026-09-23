@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<script src="./shared-site-config.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>業務成績ポータル</title>
+<script src="./shared-auth.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<style>
+:root {
+  --bg: #f5f7fa; --surface: #ffffff; --surface2: #f0f4f8; --border: #dce1e8;
+  --text: #1a1a1a; --text2: #5f6368; --accent: #283593; --accent2: #1a237e;
+  --green: #2e7d32; --green-bg: rgba(46,125,50,.08);
+  --red: #c62828; --red-bg: rgba(198,40,40,.08);
+  --orange: #e65100; --orange-bg: rgba(230,81,0,.08);
+  --purple: #5c2d91; --purple-bg: rgba(92,45,145,.08);
+  --cyan: #00796b; --cyan-bg: rgba(0,121,107,.08);
+  --radius: 12px; --shadow: 0 2px 8px rgba(0,0,0,.06);
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: 'Noto Sans JP', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; -webkit-font-smoothing: antialiased; }
+
+.header { background:linear-gradient(160deg,#283593,#1a237e); color:#fff; padding:24px 20px; text-align:center; }
+.header-left { display: flex; align-items: center; gap: 12px; }
+.header-logo { width: 36px; height: 36px; background: linear-gradient(135deg, var(--accent), var(--purple)); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 16px; color: #fff; }
+.header-title { font-size: 1.4rem; font-weight: 700; color: #fff; }
+.header-user { font-size: 13px; color: var(--text2); background: var(--surface2); padding: 6px 14px; border-radius: 20px; }
+.controls { padding: 16px 24px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.controls label { font-size: 13px; color: var(--text2); }
+.controls input[type="date"] { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 8px 12px; border-radius: 8px; font-family: 'Noto Sans JP', sans-serif; font-size: 14px; outline: none; }
+.controls input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); cursor: pointer; opacity: 0.8; }
+.controls input[type="date"]:focus { border-color: var(--accent); }
+.view-select { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 8px 12px; border-radius: 8px; font-family: 'Noto Sans JP', sans-serif; font-size: 14px; outline: none; cursor: pointer; min-width: 140px; }
+.view-select:focus { border-color: var(--accent); }
+.preview-wrap { display: flex; align-items: center; gap: 8px; }
+.preview-badge { font-size: 12px; color: #7a3e00; background: #fff3e0; border: 1px solid #ffd59a; border-radius: 12px; padding: 4px 10px; font-weight: 600; white-space: nowrap; }
+.date-row { display: flex; align-items: center; gap: 8px; }
+.btn { background: var(--accent); color: #fff; border: none; padding: 8px 20px; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; transition: background .2s; }
+.btn:hover { background: var(--accent2); }
+.btn:disabled { opacity: .4; cursor: not-allowed; }
+.btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--text2); }
+.btn-ghost:hover { border-color: var(--text2); color: var(--text); background: var(--surface2); }
+.kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; padding: 0 24px 16px; }
+.kpi { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; transition: transform .15s, box-shadow .15s; }
+.kpi:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+.kpi-label { font-size: 12px; color: var(--text2); margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+.kpi-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.kpi-value { font-family: 'JetBrains Mono', monospace; font-size: 28px; font-weight: 500; line-height: 1.1; }
+.kpi-unit { font-size: 14px; color: var(--text2); font-family: 'Noto Sans JP', sans-serif; margin-left: 2px; }
+.section { padding: 0 24px 24px; }
+.section-title { font-size: 15px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+.section-title::before { content: ''; width: 3px; height: 16px; background: var(--accent); border-radius: 2px; }
+.table-wrap { overflow: auto; max-height: 70vh; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; white-space: nowrap; }
+.r { text-align: right; }
+thead th { background: var(--surface2); padding: 10px 14px; text-align: left; font-weight: 500; color: var(--text2); font-size: 12px; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 2; }
+.sticky-col { position: sticky; left: 0; background: var(--surface); z-index: 1; }
+thead th.sticky-col { z-index: 3; background: var(--surface2); }
+tbody tr:hover td.sticky-col { background: #f5f8fd; }
+tbody td { padding: 10px 14px; border-bottom: 1px solid var(--border); }
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: rgba(79,140,255,.04); }
+.mono { font-family: 'JetBrains Mono', monospace; font-size: 13px; }
+.badge { display: inline-block; padding: 3px 10px; border-radius: 6px; font-size: 12px; font-weight: 500; }
+.badge-green  { background: var(--green-bg);  color: var(--green); }
+.badge-red    { background: var(--red-bg);    color: var(--red); }
+.badge-orange { background: var(--orange-bg); color: var(--orange); }
+.badge-purple { background: var(--purple-bg); color: var(--purple); }
+.badge-cyan   { background: var(--cyan-bg);   color: var(--cyan); }
+.revenue-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; padding: 0 24px 24px; }
+.revenue-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; }
+.revenue-label { font-size: 12px; color: var(--text2); margin-bottom: 6px; }
+.revenue-value { font-family: 'JetBrains Mono', monospace; font-size: 22px; font-weight: 500; }
+.revenue-value.positive { color: var(--green); }
+.revenue-value.negative { color: var(--red); }
+.state-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh; gap: 16px; color: var(--text2); }
+.spinner { width: 36px; height: 36px; border: 3px solid var(--border); border-top: 3px solid var(--accent); border-radius: 50%; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.auth-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 32px; max-width: 380px; width: 90%; text-align: center; }
+.auth-box h2 { font-size: 18px; margin-bottom: 16px; }
+.auth-input { width: 100%; background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 10px 14px; border-radius: 8px; font-size: 14px; margin-bottom: 12px; outline: none; font-family: 'Noto Sans JP', sans-serif; }
+.auth-input:focus { border-color: var(--accent); }
+.auth-error { color: var(--red); font-size: 13px; margin-bottom: 12px; display: none; }
+.auth-desc { font-size: 13px; color: var(--text2); margin-bottom: 18px; line-height: 1.7; }
+.auth-note { font-size: 12px; color: var(--text2); margin-top: 12px; }
+.auth-note-small { font-size: 11px; color: var(--text2); margin-top: 10px; }
+.otp-wrap { display: flex; align-items: center; justify-content: center; gap: 16px; margin: 16px 0; }
+.otp-input { font-family: 'JetBrains Mono', monospace; font-size: 2rem; letter-spacing: 10px; text-align: center; width: 190px; padding: 10px 8px; background: var(--surface2); border: 2px solid var(--border); color: var(--text); border-radius: 8px; outline: none; }
+.otp-input:focus { border-color: var(--accent); }
+.countdown-ring { position: relative; width: 48px; height: 48px; flex-shrink: 0; }
+.ring-svg { transform: rotate(-90deg); }
+.ring-bg { fill: none; stroke: var(--border); stroke-width: 3; }
+.ring-fill { fill: none; stroke: var(--accent); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 100; stroke-dashoffset: 0; transition: stroke-dashoffset 1s linear, stroke 1s; }
+.countdown-num { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 13px; font-weight: 700; color: var(--text2); }
+.qrcode-box { display: flex; justify-content: center; margin: 16px 0; }
+.qrcode-box canvas, .qrcode-box img { border: 4px solid #fff; border-radius: 4px; }
+.secret-text { font-family: 'JetBrains Mono', monospace; font-size: 11px; word-break: break-all; background: var(--surface2); padding: 4px 8px; border-radius: 6px; display: inline-block; margin-top: 4px; color: var(--text); }
+@media (max-width: 640px) {
+  .header { background:linear-gradient(160deg,#283593,#1a237e); color:#fff; padding:24px 20px; text-align:center; }
+  .controls { padding: 12px 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .controls .view-label { grid-column: 1 / -1; }
+  .controls .view-select { grid-column: 1 / -1; width: fit-content; margin: 0 auto; font-size: 14px; padding: 8px 20px; min-width: 50%; }
+  .preview-wrap { grid-column: 1 / -1; justify-content: center; flex-wrap: wrap; }
+  .controls .date-label { display: none; }
+  .controls .date-row { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; }
+  .controls .date-row input[type="date"] { flex: 1; min-width: 0; }
+  .kpi-grid { padding: 0 16px 12px; grid-template-columns: 1fr 1fr; }
+  .section, .revenue-grid { padding: 0 12px 16px; }
+  .kpi-value { font-size: 22px; }
+}
+.ag-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;}
+.ag-label{font-size:11px;color:var(--text2);margin-bottom:8px;display:flex;align-items:center;gap:6px;}
+.ag-val-lg{font-family:'JetBrains Mono',monospace;font-size:26px;font-weight:500;line-height:1.1;white-space:nowrap;}
+.ag-val-sm{font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:500;white-space:nowrap;}
+.ag-unit{font-size:13px;color:var(--text2);font-family:'Noto Sans JP',sans-serif;margin-left:2px;}
+.ag-val-sm.positive{color:var(--green);}
+.ag-val-sm.negative{color:var(--red);}
+#allGrid{display:grid;grid-template-columns:repeat(6,minmax(140px,1fr));gap:12px;padding:0 24px 24px;}
+@media(max-width:640px){
+  #allGrid{grid-template-columns:repeat(3,minmax(0,1fr));padding:0 12px 16px;gap:8px;}
+  .ag-card{padding:12px 10px;}
+  .ag-val-lg{font-size:20px;}
+  .ag-val-sm{font-size:14px;}
+  .ag-unit{font-size:11px;}
+  .ag-label{font-size:10px;}
+  .controls{flex-wrap:wrap!important;}
+#paymentAlert {
+  grid-column: 1 / -1;
+  justify-self: end;
+  padding: 6px 10px;
+}
+#paymentAlert [style*="font-size:10px"] { font-size: 9px !important; }
+#paymentAlert [style*="font-size:15px"] { font-size: 12px !important; }
+}
+</style>
+<script src="./shared-gas-call.js?v=20260914-read-v1"></script>
+</head>
+<body>
+
+<div class="header">
+  <span class="header-title">業務成績ポータル</span>
+</div>
+
+<p id="portalAccessMessage" role="status" style="display:none;text-align:center;padding:40px 16px"></p>
+<div id="mainScreen">
+<div class="controls" style="justify-content:space-between;flex-wrap:wrap;">
+      <label class="view-label" id="viewAsLabel" style="display:none">対象</label>
+      <select class="view-select" id="viewAsSelect" onchange="onViewAsChange()" style="display:none"></select>
+      <div class="preview-wrap" id="previewWrap" style="display:none">
+        <label>閲覧者として見る</label>
+        <select class="view-select" id="previewAsSelect" onchange="onPreviewAsChange()"></select>
+        <span class="preview-badge" id="previewBadge" style="display:none"></span>
+      </div>
+    <div class="date-row" style="grid-column:1/-1;">
+  <input type="date" id="dateFrom">
+  <span style="color:var(--text2)">〜</span>
+  <input type="date" id="dateTo">
+</div>
+<button class="btn btn-update" onclick="reload()">更新</button>
+<button class="btn btn-ghost btn-reset" onclick="resetDates()">全期間</button>
+    <div id="paymentAlert" style="display:none;position:relative;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:7px 14px;align-items:center;gap:12px;cursor:pointer;flex-shrink:0;" onclick="location.href=window.ECOPITA_SITE.baseUrl + '/cases.html'">
+      <div id="payAlertBadge" style="position:absolute;top:-8px;right:-8px;background:#E24B4A;color:#fff;font-size:11px;font-weight:500;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;"></div>
+      <div>
+        <div style="font-size:10px;color:var(--text2);">期限超過・未入金</div>
+        <div id="payAlertAmount" style="font-size:15px;font-weight:500;color:var(--red);font-family:'JetBrains Mono',monospace;"></div>
+      </div>
+      <div style="font-size:12px;color:var(--accent);white-space:nowrap;">一覧 →</div>
+    </div>
+  </div>
+  <div id="allGrid"></div>
+  
+  <div class="section" id="staffSection" style="display:none">
+    <div class="section-title">下請け別パフォーマンス</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th class="sticky-col" style="text-align:center">担当者</th><th style="text-align:center">受付</th><th style="text-align:center">成約</th><th style="text-align:center">失注</th><th style="text-align:center">電話失注</th><th style="text-align:center">予約</th><th style="text-align:center">成約率</th><th style="text-align:right">売上</th><th style="text-align:right">広告費</th><th style="text-align:right">粗利</th><th style="text-align:right">報酬見込</th></tr></thead>
+        <tbody id="staffBody"></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-title">案件一覧（直近）</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>案件番号</th><th>日付</th><th>ステータス</th><th>お客様</th><th>内容</th><th>売上</th><th>備考</th></tr></thead>
+        <tbody id="caseBody"></tbody>
+      </table>
+      <div id="loadingScreen" style="text-align:center;padding:40px 0;">
+        <div class="spinner" style="margin:0 auto 12px"></div>
+        <span style="color:var(--text2);font-size:14px">データを読み込み中...</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+var GAS_URL = 'https://script.google.com/macros/s/AKfycbyWAsYrvJs4ihH046NL-tIzUBsPM7rOdm0MSdKjptR9KliR6Et0SvS_2z_egd4I7476FQ/exec';
+
+var STATE = { id: '', token: '', data: null, viewAs: '', previewAs: '' };
+
+function savedGroupId_(value) {
+  var groupId = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  return /^[a-z0-9_]+$/.test(groupId) ? groupId : 'main';
+}
+
+function getRewardHidden_() {
+  if (window.ECOPITA_SESSION && window.ECOPITA_SESSION.rewardHidden) return true;
+  try {
+    var raw = localStorage.getItem('ecopita_session');
+    return raw ? !!JSON.parse(raw).rewardHidden : false;
+  } catch (e) {
+    return false;
+  }
+}
+
+var ALL_SCREENS = ['loadingScreen','mainScreen'];
+var F = { redirect: 'follow' }; // 全fetchに共通で渡すオプション
+
+  
+
+function showScreen_(id) {
+  var ls = document.getElementById('loadingScreen');
+  if (ls) ls.style.display = (id === 'loadingScreen') ? 'block' : 'none';
+}
+
+window.addEventListener('DOMContentLoaded', function() {
+  if (window.ECOPITA_SESSION) {
+    STATE.id = window.ECOPITA_SESSION.staffId;
+    STATE.token = window.ECOPITA_SESSION.token;
+    try { STATE.previewAs = sessionStorage.getItem('portal_preview_as') || ''; } catch(e) {}
+    setDatesToday_(); // デフォルト期間=今日（「全期間」ボタンで全件表示に戻る）
+    fetchData();
+  }
+});
+
+function setDatesToday_() {
+  var d = new Date();
+  var s = d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+  document.getElementById('dateFrom').value = s;
+  document.getElementById('dateTo').value = s;
+}
+
+async function doLogin() {
+  var id = document.getElementById('authId').value.trim();
+  var pin = document.getElementById('authToken').value.trim();
+  if (!id || !pin) { showAuthError('IDとPINを入力してください'); return; }
+  showScreen_('loadingScreen');
+  try {
+    var r = await callTotpApi({action:'login', staffId:id, pin:pin, ua:navigator.userAgent||''});
+    if (!r || !r.ok) { showAuthError(r.error || 'ログイン失敗'); return; }
+    handleLoginSuccess_(r, id);
+  } catch(err) { showAuthError('通信エラー: ' + (err.message || err)); }
+}
+
+function handleLoginSuccess_(r, id) {
+  _totpPassToken = r.passToken || '';
+  _totpStaffId   = r.staffId || id || '';
+  if (r.totp_required) {
+    _totpMode = 'login';
+    document.getElementById('totpDesc').textContent = 'Google Authenticatorに表示されている\n6桁のコードを入力してください。';
+    document.getElementById('totpBtn').textContent = 'ログイン';
+    document.getElementById('totpInput').value = '';
+    document.getElementById('totpError').style.display = 'none';
+    showScreen_('screen-totp');
+    startCountdown();
+  } else if (r.totp_setup_required) {
+    _totpMode = 'setup';
+    sendLwOtc_();
+  } else {
+    finishLoginWithOtc_(r, id);
+  }
+}
+
+async function finishLoginWithOtc_(r, id) {
+  try {
+    var otcJson = await callTotpApi({action:'exchangeOTC', otc:r.otc});
+    if (!otcJson.ok) { showAuthError(otcJson.error || '認証エラー'); return; }
+    if (window.ECOPITA_SITE_NOTICE(otcJson)) return;
+    STATE.id = id; STATE.token = otcJson.token; STATE.viewAs = ''; STATE.previewAs = '';
+    localStorage.setItem('ecopita_session', JSON.stringify({
+      token: STATE.token,
+      staffId: STATE.id,
+      displayName: r.displayName || STATE.id,
+      rewardHidden: !!r.rewardHidden,
+      canUseRm: otcJson.canUseRm === true,
+      groupId: savedGroupId_(otcJson.groupId),
+      groupAdmin: otcJson.groupAdmin === true,
+      groupSiteUrl: window.ECOPITA_SITE_URL(otcJson.groupSiteUrl),
+      role: otcJson.role || '',
+      casePrefixes: otcJson.casePrefixes || r.casePrefixes || []
+    }));
+    fetchData();
+  } catch(err) { showAuthError('通信エラー: ' + (err.message || err)); }
+}
+
+async function sendLwOtc_() {
+  showScreen_('screen-lw-otc');
+  document.getElementById('lwOtcInput').value = '';
+  document.getElementById('lwOtcError').style.display = 'none';
+  try {
+    var json = await callTotpApi({action:'totp_send_otc', staffId:_totpStaffId, passToken:_totpPassToken});
+    if (!json.ok) { showTotpErr_('lwOtcError', 'コードの送信に失敗しました（' + json.reason + '）'); return; }
+    _totpPassToken = json.passToken || _totpPassToken;
+    document.getElementById('lwOtcInput').focus();
+  } catch(e) { showTotpErr_('lwOtcError', '通信エラーが発生しました。'); }
+}
+
+async function submitLwOtc() {
+  var code = document.getElementById('lwOtcInput').value.trim();
+  if (code.length !== 6) { showTotpErr_('lwOtcError', '6桁のコードを入力してください。'); return; }
+  document.getElementById('lwOtcBtn').disabled = true;
+  document.getElementById('lwOtcBtn').textContent = '送信中...';
+  try {
+    var json = await callTotpApi({action:'totp_verify_otc', staffId:_totpStaffId, passToken:_totpPassToken, code:code});
+    document.getElementById('lwOtcBtn').disabled = false;
+    document.getElementById('lwOtcBtn').textContent = '確認';
+    _totpPassToken = json.passToken || _totpPassToken;
+    if (!json.ok) {
+      var msg = json.reason === 'expired' ? 'コードの有効期限が切れました。再度ログインしてください。'
+        : json.reason === 'mismatch' ? 'コードが違います。LINE WORKSを確認してください。'
+        : json.reason === 'invalid_pass_token' ? 'もう一度ログインしてください。'
+        : 'エラーが発生しました（' + json.reason + '）';
+      showTotpErr_('lwOtcError', msg); return;
+    }
+    showQrCode_(json.otpauth);
+  } catch(e) {
+    document.getElementById('lwOtcBtn').disabled = false;
+    document.getElementById('lwOtcBtn').textContent = '確認';
+    showTotpErr_('lwOtcError', '通信エラーが発生しました。');
+  }
+}
+
+function showQrCode_(otpauth) {
+  showScreen_('screen-qr');
+  var container = document.getElementById('qrcode-container');
+  container.innerHTML = '';
+  new QRCode(container, { text: otpauth, width: 200, height: 200, correctLevel: QRCode.CorrectLevel.M });
+  var secret = (otpauth.match(/secret=([A-Z2-7]+)/i) || [])[1] || '';
+  document.getElementById('secretText').textContent = secret;
+}
+
+function showTotpConfirm() {
+  showScreen_('screen-totp');
+  startCountdown();
+  document.getElementById('totpDesc').textContent = 'Google Authenticatorに表示されている\n6桁のコードを入力して登録を完了してください。';
+  document.getElementById('totpBtn').textContent = '登録完了';
+  document.getElementById('totpInput').value = '';
+  document.getElementById('totpError').style.display = 'none';
+}
+
+async function submitTotp() {
+  var code = document.getElementById('totpInput').value.trim();
+  if (code.length !== 6) { showTotpErr_('totpError', '6桁のコードを入力してください。'); return; }
+  document.getElementById('totpBtn').disabled = true;
+  document.getElementById('totpBtn').textContent = '送信中...';
+  var action = (_totpMode === 'login') ? 'totp_verify_login' : 'totp_confirm_setup';
+  try {
+    var json = await callTotpApi({action:action, staffId:_totpStaffId, passToken:_totpPassToken, code:code});
+    document.getElementById('totpBtn').disabled = false;
+    document.getElementById('totpBtn').textContent = (_totpMode === 'login') ? 'ログイン' : '登録完了';
+    if (!json.ok) {
+      _totpPassToken = json.passToken || _totpPassToken;
+      var msg = json.reason === 'busy' ? (json.error || 'ただいま混雑しています。しばらく待ってからもう一度お試しください。')
+        : json.reason === 'locked' ? 'ロックされました。' + (json.remainMin || 10) + '分後にお試しください。'
+        : json.reason === 'invalid' ? 'コードが違います。残り' + (json.remainTry || '?') + '回入力できます。'
+        : json.reason === 'invalid_pass_token' ? 'もう一度ログインしてください。'
+        : 'エラーが発生しました（' + json.reason + '）';
+      showTotpErr_('totpError', msg);
+      document.getElementById('totpInput').value = '';
+      return;
+    }
+    stopCountdown();
+    if (window.ECOPITA_SITE_NOTICE(json)) return;
+    STATE.id = _totpStaffId; STATE.token = json.token; STATE.viewAs = ''; STATE.previewAs = '';
+    localStorage.setItem('ecopita_session', JSON.stringify({
+      token: STATE.token,
+      staffId: STATE.id,
+      displayName: STATE.id,
+      rewardHidden: !!json.rewardHidden,
+      canUseRm: json.canUseRm === true,
+      groupId: savedGroupId_(json.groupId),
+      groupAdmin: json.groupAdmin === true,
+      groupSiteUrl: window.ECOPITA_SITE_URL(json.groupSiteUrl),
+      role: json.role || '',
+      casePrefixes: json.casePrefixes || []
+    }));
+    fetchData();
+  } catch(e) {
+    document.getElementById('totpBtn').disabled = false;
+    document.getElementById('totpBtn').textContent = (_totpMode === 'login') ? 'ログイン' : '登録完了';
+    showTotpErr_('totpError', '通信エラーが発生しました。');
+  }
+}
+
+function startCountdown() { stopCountdown(); updateCountdown_(); _countdownTimer = setInterval(updateCountdown_, 1000); }
+function stopCountdown() { if (_countdownTimer) { clearInterval(_countdownTimer); _countdownTimer = null; } }
+function updateCountdown_() {
+  var now = Math.floor(Date.now() / 1000), remain = 30 - (now % 30);
+  var numEl = document.getElementById('countdownNum'), ringEl = document.getElementById('ringFill');
+  if (!numEl || !ringEl) return;
+  numEl.textContent = remain;
+  ringEl.style.strokeDashoffset = (1 - remain / 30) * 100;
+  ringEl.style.stroke = remain <= 5 ? 'var(--red)' : 'var(--accent)';
+}
+function showTotpErr_(id, msg) { var el = document.getElementById(id); if (!el) return; el.textContent = msg; el.style.display = 'block'; }
+
+function showAuthError(msg) {
+  console.error('AUTH ERROR:', msg);
+  alert('認証エラー: ' + msg);
+}
+
+function setUpdateBusy_(busy) {
+  var b = document.querySelector('.btn-update');
+  if (!b) return;
+  b.disabled = busy;
+  b.textContent = busy ? '更新中…' : '更新';
+}
+
+function fetchData(retryCount) {
+  retryCount = retryCount || 0;
+  showScreen_('loadingScreen');
+  setUpdateBusy_(true);
+  var _ae = document.getElementById('authError'); if (_ae) _ae.style.display = 'none';
+  var from = document.getElementById('dateFrom').value;
+  var to   = document.getElementById('dateTo').value;
+  var params = '?mode=json&token=' + encodeURIComponent(STATE.token);
+  if (from) params += '&from=' + encodeURIComponent(from);
+  if (to)   params += '&to='   + encodeURIComponent(to);
+  if (STATE.viewAs) params += '&view_as=' + encodeURIComponent(STATE.viewAs);
+  if (STATE.previewAs) params += '&preview_as=' + encodeURIComponent(STATE.previewAs);
+  gasReadFetch(GAS_URL + params, F, { onStatus: gasReadStatusTarget(document.querySelector('#loadingScreen span')) })
+    .then(function(res) { return res.text(); })
+    .then(function(text) {
+      var json; try { json = JSON.parse(text); } catch(e) { setUpdateBusy_(false); showAuthError('JSON解析エラー'); return; }
+      if (!json || !json.ok) {
+        if (json && (json.portalHidden === true || json.error === 'このグループでは使いません')) {
+          setUpdateBusy_(false);
+          STATE.data = null;
+          try { sessionStorage.removeItem('portal_cache'); } catch(e) {}
+          document.getElementById('mainScreen').style.display = 'none';
+          var groupMessage = document.getElementById('portalAccessMessage');
+          groupMessage.textContent = json.error;
+          groupMessage.style.display = 'block';
+          return;
+        }
+        if (json && json.error === 'TARGET_ACCESS_REVOKED') { STATE.viewAs = ''; fetchData(); return; }
+        if (retryCount === 0 && json && json.error && json.error.indexOf('セッション無効') !== -1) {
+          setTimeout(function() { fetchData(1); }, 1500); return;
+        }
+        setUpdateBusy_(false);
+        localStorage.removeItem('ecopita_session');
+        showAuthError((json && json.error) || '認証エラー');
+        return;
+      }
+      STATE.data = json;
+      var accessMessage = document.getElementById('portalAccessMessage');
+      if (accessMessage.style.display === 'block') {
+        accessMessage.style.display = 'none';
+        document.getElementById('mainScreen').style.display = '';
+      }
+      render(json);
+      showScreen_('mainScreen');
+      setUpdateBusy_(false);
+      // cases.html用にキャッシュ
+      try {
+        sessionStorage.setItem('portal_preview_as', STATE.previewAs || '');
+        sessionStorage.setItem('portal_cache', JSON.stringify({ ts: Date.now(), cases: json.case_list || [], previewAs: STATE.previewAs || '' }));
+      } catch(e) {}
+    })
+    .catch(function(err) { setUpdateBusy_(false); showAuthError('通信エラー: ' + (err.message || err)); });
+}
+
+function reload() { fetchData(); }
+function resetDates() { document.getElementById('dateFrom').value = ''; document.getElementById('dateTo').value = ''; fetchData(); }
+function onViewAsChange() { STATE.viewAs = document.getElementById('viewAsSelect').value; fetchData(); }
+function onPreviewAsChange() { STATE.previewAs = document.getElementById('previewAsSelect').value || ''; try { sessionStorage.setItem('portal_preview_as', STATE.previewAs); } catch(e) {} fetchData(); }
+
+function doLogout() {
+  if (STATE.token) { fetch(GAS_URL + '?mode=logout&token=' + encodeURIComponent(STATE.token), F).catch(function(){}); }
+  localStorage.removeItem('ecopita_session');
+  location.href = window.ECOPITA_SITE.baseUrl + '/login.html';
+}
+
+function render(json) {
+  var isAdmin = json.is_admin;
+  var rewardHidden = getRewardHidden_() && !isAdmin;
+  var isViewingAll = isAdmin && (!json.selectedStaffId || json.selectedStaffId === STATE.id);
+  var s = (isViewingAll && json.global_summary) ? json.global_summary : json.summary;
+  var _hu = document.getElementById('headerUser'); if (_hu) _hu.textContent = json.staff_name + (isAdmin ? '（管理者）' : '');
+  var sel = document.getElementById('viewAsSelect');
+  var selLabel = document.getElementById('viewAsLabel');
+  var viewableMembers = json.viewableMembers || [];
+  if (viewableMembers.length > 1) {
+    if (selLabel) selLabel.style.display = '';
+    sel.style.display = '';
+    sel.innerHTML = viewableMembers.map(function(v) {
+      var selected = (v.staffId === json.selectedStaffId) ? ' selected' : '';
+      return '<option value="' + esc(v.staffId) + '"' + selected + '>' + esc(v.name) + '</option>';
+    }).join('');
+  } else { sel.style.display = 'none'; if (selLabel) selLabel.style.display = 'none'; }
+  renderPreviewControls_(json, isAdmin);
+
+  var ps = json.payment_summary || { count: 0, total: 0, overdue: 0, overdue_total: 0 };
+  var payAlert = document.getElementById('paymentAlert');
+  if (ps.count > 0) {
+    document.getElementById('payAlertBadge').textContent = ps.count;
+    document.getElementById('payAlertAmount').textContent = fmtYen(ps.total || 0);
+    payAlert.style.display = 'flex';
+  } else { payAlert.style.display = 'none'; }
+
+  var kpis = [
+    { label: '受付数',     value: s.total_received,   unit: '件', color: 'var(--text)',   dot: 'var(--text2)' },
+    { label: '成約数',     value: s.seiyaku,          unit: '件', color: 'var(--green)',  dot: 'var(--green)' },
+    { label: '成約率',     value: s.seiyaku_rate_all, unit: '%',  color: 'var(--cyan)',   dot: 'var(--cyan)' },
+    { label: '失注数',     value: s.shicchu,          unit: '件', color: 'var(--red)',    dot: 'var(--red)' },
+    { label: '電話失注数', value: s.denwa_shicchu,    unit: '件', color: 'var(--orange)', dot: 'var(--orange)' },
+    { label: '予約・保留', value: (s.yoyaku||0)+(s.futsu||0), unit: '件', color: '#6b7280', dot: '#6b7280' }
+  ];
+  var allHtml = kpis.map(function(k) {
+    return '<div class="ag-card"><div class="ag-label"><span class="kpi-dot" style="background:' + k.dot + '"></span>' + k.label + '</div>'
+      + '<div class="ag-val-lg" style="color:' + k.color + '">' + k.value + '<span class="ag-unit">' + k.unit + '</span></div></div>';
+  }).join('');
+
+  var revenueItems = [
+    { label: '売上合計', value: s.revenue, cls: 'positive' }
+  ];
+  var rewardKeysPresent = !json.groupRewardHidden && (s.by_staff || []).every(function(st) { return Object.prototype.hasOwnProperty.call(st, 'reward'); });
+  if (isViewingAll && json.global_summary) {
+    var gs = json.global_summary, totalReward = 0;
+    (gs.by_staff || []).forEach(function(st) { totalReward += st.reward; });
+    if (rewardKeysPresent) {
+      revenueItems.push({ label: '報酬支払合計', value: totalReward, cls: '' });
+      revenueItems.push({ label: '会社手残り', value: gs.gross_profit - totalReward, cls: (gs.gross_profit - totalReward) >= 0 ? 'positive' : 'negative' });
+    }
+  } else if (!rewardHidden) {
+    revenueItems.push({ label: '広告費合計', value: s.ad_cost, cls: '' });
+    revenueItems.push({ label: '粗利', value: s.gross_profit, cls: s.gross_profit >= 0 ? 'positive' : 'negative' });
+    var myReward = 0, viewTarget = json.selectedStaffId || STATE.id;
+    (s.by_staff || []).forEach(function(st) { if (st.staff_id === viewTarget) myReward = st.reward; });
+    if (rewardKeysPresent) {
+      revenueItems.push({ label: '報酬見込み', value: myReward, cls: 'positive' });
+      revenueItems.push({ label: '', value: null, empty: true });
+    }
+  }
+  allHtml += revenueItems.map(function(r) {
+    if (r.empty) return '<div class="ag-card" style="background:transparent;border-color:transparent;"></div>';
+    return '<div class="ag-card"><div class="ag-label">' + r.label + '</div><div class="ag-val-sm ' + r.cls + '">' + fmtYen(r.value) + '</div></div>';
+  }).join('');
+  allHtml += '<div class="ag-card"><div class="ag-label">未入金</div><div class="ag-val-sm" style="color:var(--red);">' + fmtYen(ps.total) + '</div>'
+    + '<div style="font-size:11px;color:var(--text2);margin-top:6px;">うち期限超過</div>'
+    + '<div style="font-size:14px;font-weight:500;font-family:\'JetBrains Mono\',monospace;color:var(--red);">' + fmtYen(ps.overdue_total || 0) + '</div></div>';
+  document.getElementById('allGrid').innerHTML = allHtml;
+
+  var staffSection = document.getElementById('staffSection');
+  if (isAdmin && json.global_summary && json.global_summary.by_staff) {
+    staffSection.style.display = '';
+    var sortedStaff = json.global_summary.by_staff.slice().sort(function(a,b){ return (a.staff_id||'').localeCompare(b.staff_id||''); });
+    document.getElementById('staffBody').innerHTML = sortedStaff.map(function(st) {
+      return '<tr><td class="sticky-col" style="text-align:center"><strong>' + esc(st.staff_name) + '</strong><br><span style="color:var(--text2);font-size:11px">' + esc(st.staff_id) + '</span></td>'
+        + '<td class="mono" style="text-align:center">' + st.received + '</td><td class="mono" style="text-align:center;color:var(--green)">' + st.seiyaku + '</td>'
+        + '<td class="mono" style="text-align:center;color:var(--red)">' + st.shicchu + '</td><td class="mono" style="text-align:center;color:var(--orange)">' + st.denwa_shicchu + '</td>'
+        + '<td class="mono" style="text-align:center;color:var(--purple)">' + st.yoyaku + '</td><td class="mono" style="text-align:center">' + st.seiyaku_rate + '%</td>'
+        + '<td class="mono r">' + fmtYen(st.revenue) + '</td><td class="mono r">' + fmtYen(st.ad_cost) + '</td>'
+        + '<td class="mono r" style="color:' + (st.gross_profit >= 0 ? 'var(--green)' : 'var(--red)') + '">' + fmtYen(st.gross_profit) + '</td>'
+        + '<td class="mono r">' + fmtYen(st.reward) + '</td></tr>';
+    }).join('');
+  } else { staffSection.style.display = 'none'; }
+
+  var caseRows = (json.rows || []).slice().reverse().slice(0, 100);
+  var caseCols = isAdmin ? 8 : 7;
+  var caseHead = document.querySelector('#caseBody').closest('table').querySelector('thead tr');
+  caseHead.innerHTML = (isAdmin ? '<th class="sticky-col" style="text-align:center">担当者</th>' : '')
+    + '<th style="text-align:center">案件番号</th><th style="text-align:center">日付</th><th style="text-align:center">ステータス</th>'
+    + '<th>お客様</th><th style="text-align:center">内容</th><th style="text-align:right">売上</th><th>備考</th>';
+  document.getElementById('caseBody').innerHTML = caseRows.length ? caseRows.map(function(r) {
+    return (isAdmin ? '<tr><td class="sticky-col" style="text-align:center">' + esc(r.staff_name || '') + '</td>' : '<tr>')
+      + '<td class="mono" style="font-size:12px;text-align:center">' + esc(r.case_id) + '</td>'
+      + '<td style="text-align:center">' + esc(r.date) + '</td><td style="text-align:center">' + statusBadge(r.status) + '</td>'
+      + '<td>' + esc(r.customer) + '</td><td style="text-align:center">' + esc(r.equipment) + '</td>'
+      + '<td class="mono r">' + fmtYen(r.today_total) + '</td>'
+      + '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis">' + esc(r.memo) + '</td></tr>';
+  }).join('') : '<tr><td colspan="' + caseCols + '" style="text-align:center;color:var(--text2);padding:24px">データがありません</td></tr>';
+}
+
+function fmt(n) { if (n == null || isNaN(n)) return '0'; return Math.floor(n).toLocaleString('ja-JP'); }
+function fmtYen(n) { var v = Math.floor(Number(n) || 0); return v < 0 ? '-¥' + Math.abs(v).toLocaleString('ja-JP') : '¥' + v.toLocaleString('ja-JP'); }
+function esc(s) { if (!s) return ''; var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+function renderPreviewControls_(json, isAdmin) {
+  var wrap = document.getElementById('previewWrap'), sel = document.getElementById('previewAsSelect'), badge = document.getElementById('previewBadge');
+  if (!wrap || !sel) return;
+  if (!isAdmin) { wrap.style.display = 'none'; STATE.previewAs = ''; try { sessionStorage.removeItem('portal_preview_as'); } catch(e) {} return; }
+  var viewers = json.preview_viewers || [], applied = json.preview_as || '', selected = (applied && applied !== STATE.id) ? applied : (STATE.previewAs || ''), seen = {};
+  sel.innerHTML = '<option value="">通常（自分）</option>' + viewers.map(function(v) {
+    var id = v.staffId || v.staff_id || '';
+    if (!id || seen[id]) return '';
+    seen[id] = true;
+    return '<option value="' + esc(id) + '">' + esc(id + ' ' + (v.name || '')) + '</option>';
+  }).join('');
+  if (selected && !seen[selected]) sel.innerHTML += '<option value="' + esc(selected) + '">' + esc(selected) + '</option>';
+  sel.value = selected;
+  STATE.previewAs = selected;
+  try { sessionStorage.setItem('portal_preview_as', STATE.previewAs || ''); } catch(e) {}
+  wrap.style.display = 'flex';
+  if (badge) {
+    badge.style.display = selected ? '' : 'none';
+    badge.textContent = selected ? 'プレビュー: ' + selected + ' として表示中' : '';
+  }
+}
+function statusBadge(st) {
+  var cls = 'badge ';
+  if (st.indexOf('完工') > -1)      cls += 'badge-green';
+  else if (st === '電話失注')        cls += 'badge-orange';
+  else if (st === '失注')            cls += 'badge-red';
+  else if (st.indexOf('予約') > -1)  cls += 'badge-purple';
+  else if (st === 'キャンセル')      cls += 'badge-red';
+  else                               cls += 'badge-cyan';
+  return '<span class="' + cls + '">' + esc(st) + '</span>';
+}
+</script>
+<script src="./shared-nav.js"></script>
+</body>
+</html>

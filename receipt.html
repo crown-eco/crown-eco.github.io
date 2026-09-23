@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<script src="./shared-site-config.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>領収書発行</title>
+<script src="./shared-auth.js"></script>
+<script src="./shared-gas-call.js?v=20260914-read-v1"></script>
+<script src="./write-async-status.js?v=20260902-v1"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--purple:#5c2d91;--purple-deep:#3a1a5e;--bg:#f7f8fc;--card:#fff;--text:#1a1a1a;--sub:#5f6368;--border:#dce1e8;--good:#2e7d32;--warn:#e65100;--danger:#c62828}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text);line-height:1.6;padding-bottom:88px}
+.hero{background:linear-gradient(160deg,var(--purple),var(--purple-deep));color:#fff;padding:24px 20px;text-align:center}
+.hero h1{font-size:1.45rem;font-weight:800}
+.hero p{font-size:.92rem;opacity:.88;margin-top:6px}
+.container{max-width:560px;margin:0 auto;padding:16px 18px}
+.card{background:var(--card);border-radius:16px;box-shadow:0 10px 28px rgba(0,0,0,.06);padding:18px;margin-bottom:14px;border:1px solid var(--border)}
+.card-title{font-weight:800;color:var(--purple);margin-bottom:12px;text-align:center;font-size:1.02rem}
+  .field{margin-bottom:14px}
+  .field label{display:block;font-weight:700;font-size:.9rem;margin-bottom:6px}
+  .field input,.field select,.field textarea{width:100%;padding:10px 12px;border:2px solid var(--border);border-radius:10px;font-size:1rem;background:#fff}
+  .field textarea{font-family:inherit;line-height:1.5;resize:vertical;min-height:84px}
+  .field input[type="date"]{max-width:100%;-webkit-appearance:none;appearance:none}
+  .field-hint{font-size:.78rem;color:var(--sub);margin-top:4px}
+  .inline-warning{display:none;font-size:.82rem;color:var(--warn);font-weight:700;margin-top:5px}
+  .readonly-box{padding:10px 12px;background:#f5f5f5;border:2px solid var(--border);border-radius:10px;font-weight:700}
+  .proviso-preview{background:#f7fbff;border:1px solid #c9d7ee;border-radius:10px;padding:10px 12px;font-weight:800;color:#174a7c;margin-bottom:14px;word-break:break-word}
+.row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.preview{margin-top:8px;font-size:.85rem;color:var(--sub)} .preview span{font-weight:700;color:var(--purple)}
+.btn{display:block;width:100%;padding:14px;border-radius:12px;border:none;font-size:1.02rem;font-weight:800;cursor:pointer;background:var(--purple);color:#fff;margin-top:8px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.sub{background:#7b8794}
+.error-msg{display:none;margin-top:12px;padding:12px;background:#ffebee;border:2px solid var(--danger);border-radius:10px;color:var(--danger);font-weight:700;font-size:.9rem;text-align:center}
+.notice{padding:12px;border-radius:10px;margin-bottom:12px;font-size:.9rem;font-weight:700}
+.notice.warn{background:#fff3e0;border:2px solid #ffb74d;color:var(--warn)}
+.notice.ok{background:#e8f5e9;border:2px solid #81c784;color:var(--good)}
+.muted{color:var(--sub);font-size:.84rem}
+.hidden{display:none}
+.rows-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px}
+.toggle-all{display:flex;align-items:center;gap:8px;font-size:.88rem;font-weight:700;color:var(--sub)}
+.select-item{border:2px solid var(--border);border-radius:12px;padding:14px;background:#fff;transition:border-color .2s, background .2s;margin-bottom:10px}
+.select-item.selected{border-color:var(--purple);background:#f4eefe}
+.select-item.issued{background:#f3f6f3;border-color:#cfe0cf}
+.select-item .top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.select-item .title{font-weight:800;color:var(--purple)}
+.select-item .meta{font-size:.85rem;color:#666;margin-top:4px}
+.select-item .amount{font-weight:800;font-size:1.02rem;white-space:nowrap}
+.check-wrap{display:flex;gap:10px;align-items:flex-start;cursor:pointer}
+.check-wrap input{margin-top:4px;transform:scale(1.15)}
+.summary{background:#f4eefe;border-radius:12px;padding:12px;margin-top:10px}
+.summary .total{font-weight:800;color:var(--purple);font-size:1.08rem}
+.preview-row{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid #eee;font-size:.92rem}
+.preview-row:last-child{border-bottom:none}
+.preview-label{color:var(--sub);font-weight:700;min-width:86px}
+.preview-value{font-weight:700;text-align:right;word-break:break-all}
+.paid-list{background:#f6f7fb;border-radius:10px;padding:10px;margin-top:10px}
+.paid-item{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid #e4e7ee;font-size:.86rem}
+.paid-item:last-child{border-bottom:none}
+.result-box{text-align:center;padding:26px 12px}
+.result-box h2{color:var(--good);margin-bottom:10px}
+.result-box p{white-space:pre-line}
+.result-link{display:inline-block;margin-top:12px;color:var(--purple);font-weight:800;text-decoration:none}
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>🧾 領収書発行</h1>
+  <p>案件番号を入力して領収書を発行します</p>
+</div>
+
+<div class="container">
+  <p class="muted" style="text-align:center;margin-bottom:14px">※着金前の案件は発行できません</p>
+
+  <div id="step1">
+    <div class="card">
+      <div class="card-title">案件番号を入力</div>
+      <div class="field">
+        <label>案件番号</label>
+        <div class="row">
+          <select id="case_prefix" data-ecopita-case-prefixes onchange="onPrefixChange()" style="padding:10px 8px;border:2px solid var(--border);border-radius:10px;font-size:1rem;font-weight:800;color:var(--purple);min-width:80px">
+            <option value="YA">YA</option><option value="HM">HM</option>
+            <option value="CP">CP</option><option value="EC">EC</option><option value="HC">HC</option>
+          </select>
+          <select id="case_alpha" style="display:none;padding:10px 8px;border:2px solid var(--purple);border-radius:10px;font-size:1rem;font-weight:800;color:var(--purple);min-width:64px">
+            <option value="">-</option>
+            <option>A</option><option>B</option><option>C</option><option>D</option><option>E</option>
+            <option>F</option><option>G</option><option>H</option><option>I</option><option>J</option>
+            <option>K</option><option>L</option><option>M</option><option>N</option><option>O</option>
+            <option>P</option><option>Q</option><option>R</option><option>S</option><option>T</option>
+            <option>U</option><option>V</option><option>W</option><option>X</option><option>Y</option><option>Z</option>
+          </select>
+          <span style="font-weight:800;font-size:1.1rem;color:#aaa">-</span>
+          <input type="text" id="case_number" placeholder="12345678" inputmode="numeric" oninput="updatePreview()" style="flex:1;min-width:130px">
+        </div>
+        <div class="preview">案件番号：<span id="preview_val">---</span></div>
+      </div>
+      <button class="btn" id="btn_search" onclick="searchReceipt()" disabled>検索</button>
+      <div class="error-msg" id="search_error"></div>
+      <div id="receipt_write_gate" class="hidden" style="margin-top:12px;font-weight:700;color:#5f6368"></div>
+    </div>
+  </div>
+
+  <div id="step2" class="hidden">
+    <div class="card">
+      <div id="lookup_notice"></div>
+      <div id="case_info" class="muted" style="margin-bottom:10px"></div>
+      <div id="rows_area" class="hidden">
+        <div class="rows-head">
+          <div class="muted" id="rows_caption"></div>
+          <label class="toggle-all" id="toggle_all_wrap" style="display:none">
+            <input type="checkbox" id="toggle_all" onchange="toggleAllRows(this.checked)">
+            <span>全選択</span>
+          </label>
+        </div>
+        <div id="rows_list"></div>
+        <div id="selection_summary" class="summary hidden">
+          <div>選択中: <span id="sel_count">0</span>件</div>
+          <div class="total">合計: <span id="sel_total">¥0</span>（税込）</div>
+          <div class="muted" id="sel_mode" style="margin-top:6px"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="receipt_content_card">
+      <div class="card-title">領収書の内容</div>
+      <div class="field hidden" id="company_name_area">
+        <label>会社名</label>
+        <input type="text" id="company_name_display" placeholder="例：株式会社サンプル">
+      </div>
+      <div class="field">
+        <label id="recipient_name_label">宛名</label>
+        <input type="text" id="recipient_name" placeholder="例：山田 太郎">
+      </div>
+      <div class="field">
+        <label>送信先メールアドレス</label>
+        <input type="email" id="receipt_email" placeholder="example@email.com">
+      </div>
+      <div id="cc_area"></div>
+      <button type="button" onclick="addCc()" style="margin-bottom:14px;background:#eee;border:1px solid #ccc;border-radius:8px;padding:7px 14px;font-size:.85rem;cursor:pointer">＋ CCを追加</button>
+      <div class="field">
+        <label>支払方法</label>
+        <input type="text" id="payment_method" readonly placeholder="着金データから自動表示" style="background:#f1f1f4;color:#555;cursor:not-allowed">
+        <div class="field-hint">元データ（着金記録）から自動表示。変更できません。</div>
+      </div>
+      <div class="field">
+        <label>発行日</label>
+        <input type="date" id="issue_date">
+      </div>
+      <div class="field hidden" id="service_date_area">
+        <label>取引日（施工日）</label>
+        <div id="service_date_display" class="readonly-box"></div>
+      </div>
+      <div class="field">
+        <label>但し書きの内容</label>
+        <input type="text" id="receipt_proviso_base" maxlength="80" placeholder="例：山田太郎邸のエアコン工事" oninput="updateProvisoPreview()">
+        <div class="field-hint">「但し、」の後ろから「代として」などの前までを入力します</div>
+      </div>
+      <div class="field hidden" id="receipt_category_area">
+        <label>入金区分</label>
+        <select id="receipt_category" onchange="updateProvisoPreview()">
+          <option value="full">全額</option>
+          <option value="deposit">内金</option>
+          <option value="interim">中間金</option>
+          <option value="balance">残金</option>
+        </select>
+      </div>
+      <div id="rendered_proviso_preview" class="proviso-preview"></div>
+      <div class="field">
+        <label>お客様向け備考</label>
+        <textarea id="customer_memo" rows="3" maxlength="200" placeholder="領収書に記載する補足事項があれば入力"></textarea>
+      </div>
+      <button class="btn" id="btn_preview" onclick="showReceiptPreview()" disabled>確認画面へ</button>
+      <div class="error-msg" id="issue_error"></div>
+    </div>
+  </div>
+
+  <div id="step_preview" class="hidden">
+    <div class="card">
+      <div class="card-title" style="color:var(--danger)">📋 領収書の内容を確認</div>
+      <div id="preview_notice"></div>
+      <div id="preview_content"></div>
+      <div style="display:flex;gap:10px;margin-top:14px">
+        <button class="btn sub" onclick="hideReceiptPreview()" style="flex:1">戻って修正</button>
+        <button class="btn" id="btn_issue" onclick="issueReceipt()" style="flex:1">🧾 発行する</button>
+      </div>
+      <p class="muted" style="margin-top:8px;text-align:center">※PDF生成・メール送信・LINE WORKS通知が実行されます</p>
+      <div class="error-msg" id="preview_error"></div>
+    </div>
+  </div>
+
+  <div id="step4" class="hidden">
+    <div class="card">
+      <div class="result-box">
+        <h2>✅ メール送信完了しました</h2>
+        <p id="receipt_done_detail"></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+var GAS_URL = 'https://script.google.com/macros/s/AKfycbyvjri6i0fe11hzfoqfhSxWCsn1aP2WyT9ELZOzNMrVyEOx-ZsKqlhJQONzlaFLmPw/exec';
+var CASE_ID_INVALID_MESSAGE = '案件番号が正しくありません　確認してください';
+var receiptLookup = null;
+var paidRows = [];
+var selectedRowIds = {};
+var searchCaseId = '';
+var reissueMode = false; // 宛名修正などで「発行済みの着金分」を選んで再発行するモード
+var receiptWriteGateActive = false;
+var receiptWriteGateController = null;
+var RECEIPT_WRITE_GATE_COPY = '反映確認中のため、いまは発行できません。';
+
+function onPrefixChange() {
+  var alpha = document.getElementById('case_alpha');
+  alpha.style.display = document.getElementById('case_prefix').value === 'YA' ? '' : 'none';
+  if (document.getElementById('case_prefix').value !== 'YA') alpha.value = '';
+  updatePreview();
+}
+
+function buildCaseId() {
+  var p = document.getElementById('case_prefix').value;
+  var a = document.getElementById('case_alpha').value;
+  var n = document.getElementById('case_number').value.trim();
+  if (!n) return '';
+  if (p === 'YA') return a ? 'YA-' + a + n : 'YA-' + n;
+  return p + '-' + n;
+}
+
+function updatePreview() {
+  var id = buildCaseId();
+  document.getElementById('preview_val').textContent = id || '---';
+  document.getElementById('btn_search').disabled = !id;
+  document.getElementById('search_error').style.display = 'none';
+}
+
+function fmtYen(n) {
+  var v = Math.round(Number(n) || 0);
+  return v < 0 ? '-¥' + Math.abs(v).toLocaleString('ja-JP') : '¥' + v.toLocaleString('ja-JP');
+}
+
+function showError(id, msg) {
+  var el = document.getElementById(id);
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+function clearError(id) {
+  document.getElementById(id).style.display = 'none';
+}
+
+function escapeHtml(s) {
+  var d = document.createElement('div');
+  d.textContent = s || '';
+  return d.innerHTML;
+}
+
+function rowIdentityKey(r) {
+  var zKey = String(r && r.z_key || '').trim();
+  if (zKey) return 'z:' + zKey;
+  var salesId = String(r && r.sales_record_id || '').trim().toLowerCase();
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(salesId)
+    ? 'id:' + salesId : '';
+}
+
+// 文言は2026-09-04 00:4x に麗香が決定済み（① 麗香指定に変更 / ② 案のまま採用）。変更には麗香の再決定が必要。
+var RECEIPT_ROW_UNSELECTABLE_COPY = {
+  missingIdentity: 'システムデータの確認が必要です。管理者へ連絡してください。',
+  alreadyIssued: 'この着金分は発行済みです。宛名を修正する場合は、上の「宛名を修正して再発行する」を選んでください。'
+};
+
+function rowUnselectableReason(r) {
+  if (!rowIdentityKey(r)) return RECEIPT_ROW_UNSELECTABLE_COPY.missingIdentity;
+  if (!reissueMode && r && r.already_receipted) return RECEIPT_ROW_UNSELECTABLE_COPY.alreadyIssued;
+  return '';
+}
+
+function rowSelectable(r) { return !rowUnselectableReason(r); }
+
+function selectedRows() {
+  return paidRows.filter(function(r) { return rowSelectable(r) && !!selectedRowIds[rowIdentityKey(r)]; });
+}
+
+function fillCc(emails) {
+  var area = document.getElementById('cc_area');
+  area.innerHTML = '';
+  (emails || []).forEach(function(e) { if (e) addCc(e); });
+}
+
+function addCc(val) {
+  var area = document.getElementById('cc_area');
+  var div = document.createElement('div');
+  div.style.cssText = 'display:flex;gap:6px;margin-bottom:8px;align-items:center';
+  div.innerHTML = '<input type="email" class="cc-input" placeholder="CCメールアドレス" value="' + escapeHtml(val || '') + '" style="flex:1;padding:10px;border:2px solid var(--border);border-radius:10px;font-size:.95rem">'
+    + '<button type="button" onclick="this.parentElement.remove()" style="background:#ff5252;color:#fff;border:none;border-radius:50%;width:30px;height:30px;cursor:pointer;font-size:1rem">×</button>';
+  area.appendChild(div);
+}
+
+function getCcEmails() {
+  return Array.from(document.querySelectorAll('.cc-input')).map(function(el) {
+    return el.value.trim();
+  }).filter(function(v) {
+    return v && v.indexOf('@') > -1;
+  });
+}
+
+function categoryLabel(category) {
+  return ({ full:'全額', deposit:'内金', interim:'中間金', balance:'残金' })[category] || '全額';
+}
+
+function normalizeReceiptLine(s) {
+  return (s || '').replace(/\r\n/g, '\n').trim();
+}
+
+function hasNewline(s) {
+  return /[\r\n]/.test(s || '');
+}
+
+function renderReceiptProviso(base, category) {
+  var c = category || 'full';
+  if (c === 'deposit') return '但し、' + base + 'の内金として';
+  if (c === 'interim') return '但し、' + base + 'の中間金として';
+  if (c === 'balance') return '但し、' + base + 'の残金として';
+  return '但し、' + base + '代として';
+}
+
+function defaultReceiptProvisoBase(data) {
+  data = data || {};
+  if (data.default_receipt_proviso_base) return data.default_receipt_proviso_base;
+  if (data.default_receipt_site) return data.default_receipt_site + 'のエアコン工事';
+  return '';
+}
+
+function selectedCategoryDefault(rows) {
+  rows = rows || [];
+  if (rows.length === 1 && rows[0].is_split_payment) return rows[0].receipt_category || 'full';
+  return 'full';
+}
+
+function updateReceiptCategoryControl() {
+  var rows = selectedRows();
+  var area = document.getElementById('receipt_category_area');
+  var sel = document.getElementById('receipt_category');
+  area.classList.add('hidden');
+  sel.value = selectedCategoryDefault(rows);
+  updateProvisoPreview();
+}
+
+function getProvisoValidation() {
+  var base = normalizeReceiptLine(document.getElementById('receipt_proviso_base').value);
+  var category = document.getElementById('receipt_category').value || 'full';
+  if (!base) return { ok:false, message:'但し書きの内容を入力してください' };
+  if (hasNewline(base) || base.length > 80) return { ok:false, message:'但し書きの内容は改行なし80文字以内で入力してください' };
+  if (base.indexOf('但し') > -1 || base.indexOf('として') > -1) return { ok:false, message:'但し書きの内容に「但し」「として」は入れないでください' };
+  return { ok:true, base:base, category:category, rendered:renderReceiptProviso(base, category) };
+}
+
+function updateProvisoPreview() {
+  var preview = document.getElementById('rendered_proviso_preview');
+  var v = getProvisoValidation();
+  preview.textContent = v.ok ? v.rendered : '但し書きの内容を入力してください';
+}
+
+function docRefsText(list) {
+  return (list || []).filter(Boolean).join(' / ');
+}
+
+function renderRows() {
+  var wrap = document.getElementById('rows_area');
+  var list = document.getElementById('rows_list');
+  list.innerHTML = '';
+  wrap.classList.toggle('hidden', paidRows.length === 0);
+  document.getElementById('rows_caption').textContent = '';
+  document.getElementById('toggle_all_wrap').style.display = paidRows.length > 1 ? 'flex' : 'none';
+
+  paidRows.forEach(function(r, rowIndex) {
+    var issued = !!r.already_receipted;
+    var unselectableReason = rowUnselectableReason(r);
+    var selectable = !unselectableReason;
+    var checked = selectable && !!selectedRowIds[rowIdentityKey(r)];
+    var item = document.createElement('div');
+    item.className = 'select-item' + (checked ? ' selected' : '') + (issued ? ' issued' : '');
+    var splitMeta = r.is_split_payment ? '<div class="meta">入金区分: ' + escapeHtml(categoryLabel(r.receipt_category)) + '</div>' : '';
+    var issuedMeta = issued ? '<div class="meta" style="color:var(--good);font-weight:800">✅ 発行済み' + (r.receipt_id ? '（No. ' + escapeHtml(r.receipt_id) + '）' : '') + (reissueMode ? ' → 🔁 再発行の対象（旧No.は無効化されます）' : ' — 通常モードでは選べません') + '</div>' : '';
+    var unselectableMeta = unselectableReason ? '<div class="meta" style="color:var(--warn);font-weight:800">⚠️ ' + escapeHtml(unselectableReason) + '</div>' : '';
+    item.innerHTML =
+      '<label class="check-wrap"' + (selectable ? '' : ' style="cursor:not-allowed;opacity:.65"') + '>' +
+        '<input type="checkbox" ' + (checked ? 'checked' : '') + (selectable ? '' : ' disabled') + ' onchange="toggleRowByIndex(' + rowIndex + ', this.checked)">' +
+        '<div style="flex:1">' +
+          '<div class="top">' +
+            '<div>' +
+              '<div class="meta">支払日: ' + escapeHtml(r.arrival_date || '') + '</div>' +
+              '<div class="meta">支払方法: ' + escapeHtml(r.payment_method || '未設定') + '</div>' +
+              splitMeta +
+              issuedMeta +
+              unselectableMeta +
+            '</div>' +
+            '<div class="amount">' + fmtYen(r.amount_inc || 0) + '</div>' +
+          '</div>' +
+        '</div>' +
+      '</label>';
+    list.appendChild(item);
+  });
+
+  var issuableCount_ = paidRows.filter(rowSelectable).length;
+  document.getElementById('toggle_all').checked = issuableCount_ > 0 && selectedRows().length === issuableCount_;
+  updateSelectionSummary();
+}
+
+function toggleRowByIndex(rowIndex, checked) {
+  var row = paidRows[rowIndex];
+  var key = rowIdentityKey(row);
+  if (key) selectedRowIds[key] = checked;
+  renderRows();
+}
+
+function toggleAllRows(flag) {
+  paidRows.forEach(function(r) { if (rowSelectable(r)) selectedRowIds[rowIdentityKey(r)] = flag; });
+  renderRows();
+}
+
+// 発行済みがある案件の案内＋「再発行する」トグルを描画（状態で再構築）
+function receiptPaperSlipNotice_() {
+  var paper = receiptLookup.paper_slip || { status: 'none' };
+  if (paper.status === 'approved') return '<div class="notice ok">🧾 紙伝票確認済（' + escapeHtml(paper.approver || '') + '・' + escapeHtml(paper.approved_at || '') + '）</div>';
+  if (paper.status === 'pending') return '<div class="notice warn">運営の確認待ち（申請 ' + escapeHtml(paper.requested_at || '') + '）。確認されると LW でお知らせします。</div>';
+  if (receiptLookup.doc_requirement_met !== false) return '';
+  return '<div class="notice warn"><div class="field"><label for="paper_slip_note">伝票番号など（任意・100字）</label><textarea id="paper_slip_note" maxlength="100"></textarea></div><button type="button" class="btn" id="paper_slip_request" onclick="requestPaperSlipApproval_()">📄 紙伝票で契約書を発行済み（運営に確認を依頼する）</button></div>';
+}
+
+async function requestPaperSlipApproval_() {
+  var requestedCase = searchCaseId;
+  var button = document.getElementById('paper_slip_request');
+  if (!button || button.disabled || !requestedCase) return;
+  button.disabled = true;
+  button.textContent = '確認を依頼中...';
+  try {
+    var result = await gasCall({ form_type: 'receipt_paper_slip_request', case_id: requestedCase, note: document.getElementById('paper_slip_note').value.slice(0, 100) }, { mode: 'submit', url: GAS_URL });
+    if (searchCaseId !== requestedCase) return;
+    if (result.error === 'not_needed' || result.already_approved) { await searchReceipt(); return; }
+    if (!result.ok) throw new Error(result.error || '確認依頼に失敗しました');
+    receiptLookup.paper_slip = { status: 'pending', requested_at: result.requested_at || '' };
+    renderLookupNotice_();
+  } catch (error) {
+    if (searchCaseId === requestedCase) {
+      showError('search_error', error.message || '確認依頼に失敗しました。再検索して申請状況を確認してください。');
+      button.disabled = false;
+      button.textContent = '📄 紙伝票で契約書を発行済み（運営に確認を依頼する）';
+    }
+  }
+}
+
+function renderLookupNotice_() {
+  if (!receiptLookup) return;
+  var notice = document.getElementById('lookup_notice');
+  var resendUrl = 'resend.html?case=' + encodeURIComponent(searchCaseId) + '&doc_type=receipt';
+  var issuedCount = paidRows.filter(function(r) { return r.already_receipted; }).length;
+  var issuableCount = paidRows.length - issuedCount;
+  var paperNotice = receiptPaperSlipNotice_();
+  if (!receiptLookup.can_issue) {
+    notice.innerHTML = '<div class="notice warn">' + escapeHtml(receiptLookup.warning || '着金確認後に再度アクセスしてください') + '</div>' + paperNotice;
+    return;
+  }
+  if (issuedCount === 0) { notice.innerHTML = paperNotice; return; }
+  var base = (issuableCount === 0)
+    ? 'この案件は全ての着金分の領収書を発行済みです。'
+    : 'この案件は一部発行済みです（発行済みの着金は通常は選べません）。';
+  var html = '<div class="notice ok">' + base
+    + '送り直しは <a href="' + resendUrl + '" style="color:var(--purple);font-weight:800">こちらから再送</a>。'
+    + '<div style="margin-top:8px"><label style="display:inline-flex;align-items:center;gap:6px;font-weight:800;cursor:pointer">'
+    + '<input type="checkbox" ' + (reissueMode ? 'checked' : '') + ' onchange="setReissueMode(this.checked)"> 🔁 宛名を修正して再発行する</label></div>'
+    + '</div>';
+  if (reissueMode) {
+    html += '<div class="notice warn" style="margin-top:6px">⚠️ <strong>再発行モード</strong>：発行済みの着金分を選べます。再発行すると<strong>旧領収書は無効化</strong>され、宛名等を直した新しい領収書を発行します。発行物には「<span style="color:#c00">再発行</span>」と表示されます。</div>';
+  }
+  notice.innerHTML = paperNotice + html;
+}
+
+function setReissueMode(flag) {
+  reissueMode = !!flag;
+  // 再発行ON: 発行済み行を初期選択／OFF: 未発行行を初期選択
+  selectedRowIds = {};
+  paidRows.forEach(function(r) {
+    var key = rowIdentityKey(r);
+    if (key) selectedRowIds[key] = reissueMode ? !!r.already_receipted : !r.already_receipted;
+  });
+  renderLookupNotice_();
+  renderRows();
+}
+
+function updateSelectionSummary() {
+  var rows = selectedRows();
+  var box = document.getElementById('selection_summary');
+  if (rows.length === 0) {
+    box.classList.add('hidden');
+    document.getElementById('btn_preview').disabled = true;
+    document.getElementById('payment_method').value = '';
+    updateReceiptCategoryControl();
+    return;
+  }
+  var total = 0;
+  var methodSet = {};
+  var methodList = [];
+  rows.forEach(function(r) {
+    total += Number(r.amount_inc || 0);
+    var m = (r.payment_method || '').trim();
+    if (m && !methodSet[m]) { methodSet[m] = true; methodList.push(m); }
+  });
+  document.getElementById('payment_method').value = methodList.join(' / ');
+  document.getElementById('sel_count').textContent = rows.length;
+  document.getElementById('sel_total').textContent = fmtYen(total);
+  document.getElementById('sel_mode').textContent = rows.length > 1 ? '合算モードで発行します（複数の着金分を1枚にまとめます）。' : '';
+  box.classList.remove('hidden');
+  document.getElementById('btn_preview').disabled = receiptWriteGateActive || !(receiptLookup && receiptLookup.can_issue);
+  updateReceiptCategoryControl();
+}
+
+async function searchReceipt() {
+  var caseId = buildCaseId();
+  if (!caseId) return;
+  searchCaseId = caseId;
+  clearError('search_error');
+  receiptWriteGateActive = false;
+  if (receiptWriteGateController) receiptWriteGateController.stop();
+  receiptWriteGateController = null;
+  var receiptWriteGate = document.getElementById('receipt_write_gate');
+  receiptWriteGate.classList.add('hidden');
+  receiptWriteGate.textContent = '';
+  ['step_preview','step4'].forEach(function(id) { document.getElementById(id).classList.add('hidden'); });
+  var btn = document.getElementById('btn_search');
+  btn.disabled = true;
+  btn.textContent = '検索中...';
+
+  try {
+    var data = await gasCall(
+      { form_type: 'receipt_lookup', case_id: caseId, p1_sf: 'p1_sf_v1' },
+      {
+        mode: 'lookup',
+        url: GAS_URL,
+        onStatus: function(status) { btn.textContent = status; }
+      }
+    );
+    if (data.case_id_valid === false) {
+      showError('search_error', CASE_ID_INVALID_MESSAGE);
+      return;
+    }
+    if (!data.ok) {
+      if (data.reason === 'write_visibility_pending' && data.write_async_status &&
+          data.write_async_status.enabled === true) {
+        receiptWriteGateActive = true;
+        receiptWriteGate.classList.remove('hidden');
+        document.getElementById('btn_preview').disabled = true;
+        var issueButton = document.getElementById('btn_issue');
+        if (issueButton) issueButton.disabled = true;
+        if (window.WriteAsyncStatusV1) {
+          receiptWriteGateController = window.WriteAsyncStatusV1.start({
+            acceptance: data.write_async_status,
+            target: receiptWriteGate,
+            pendingMessage: window.WriteAsyncStatusV1.COPY.receiptGate,
+            callStatus: function(operationIds) {
+              return window.WriteAsyncStatusV1.callGasStatus(GAS_URL, operationIds);
+            },
+            onReflected: function() {
+              receiptWriteGateActive = false;
+              searchReceipt();
+            }
+          });
+        } else {
+          receiptWriteGate.textContent = RECEIPT_WRITE_GATE_COPY;
+          var gateRetry = document.createElement('button');
+          gateRetry.type = 'button';
+          gateRetry.textContent = 'もう一度確認';
+          gateRetry.onclick = searchReceipt;
+          gateRetry.style.cssText = 'display:block;margin-top:10px;padding:8px 14px;border:0;border-radius:8px;background:#546e7a;color:#fff;font-weight:700';
+          receiptWriteGate.appendChild(gateRetry);
+        }
+        return;
+      }
+      showError('search_error', data.error || '検索に失敗しました');
+      return;
+    }
+
+    receiptLookup = data;
+    paidRows = data.paid_rows || [];
+    reissueMode = false;
+    selectedRowIds = {};
+    paidRows.forEach(function(r) {
+      var key = rowIdentityKey(r);
+      if (key) selectedRowIds[key] = !r.already_receipted;
+    });
+
+    document.getElementById('step2').classList.remove('hidden');
+    var isCorpLookup = data.customer_type === '法人・団体';
+    var caseInfoHtml = '案件番号: <strong>' + escapeHtml(caseId) + '</strong><br>';
+    if (isCorpLookup) {
+      caseInfoHtml += 'お客様: <strong>' + escapeHtml(data.company_name) + '</strong>'
+        + '<br><span style="color:#5f6368;margin-left:4em">担当 ' + escapeHtml(data.contact_name || data.recipient_name || '') + '</span>';
+    } else {
+      caseInfoHtml += 'お客様: <strong>' + escapeHtml(data.recipient_name || data.name || '-') + '</strong>';
+    }
+    document.getElementById('case_info').innerHTML = caseInfoHtml;
+
+    renderLookupNotice_();
+
+    renderRows();
+    // 契約書も請求書も無く発行できない案件は、着金行の選択もお客様情報の入力欄も出さず、メッセージだけ表示する。
+    var canIssueView = !!data.can_issue;
+    document.getElementById('receipt_content_card').classList.toggle('hidden', !canIssueView);
+    document.getElementById('rows_area').classList.toggle('hidden', !canIssueView || paidRows.length === 0);
+    var companyArea = document.getElementById('company_name_area');
+    var recipientLabel = document.getElementById('recipient_name_label');
+    var recipientInput = document.getElementById('recipient_name');
+    if (isCorpLookup) {
+      document.getElementById('company_name_display').value = data.company_name || '';
+      companyArea.classList.remove('hidden');
+      recipientLabel.textContent = 'ご担当者名';
+      recipientInput.placeholder = '例：田中 太郎';
+      recipientInput.value = data.contact_name || data.recipient_name || '';
+    } else {
+      companyArea.classList.add('hidden');
+      document.getElementById('company_name_display').value = '';
+      recipientLabel.textContent = '宛名';
+      recipientInput.placeholder = '例：山田 太郎';
+      recipientInput.value = data.recipient_name || data.name || '';
+    }
+    document.getElementById('receipt_email').value = data.email || '';
+    fillCc(data.cc_emails || []);
+    document.getElementById('payment_method').value = data.default_payment_method || '';
+    if (!document.getElementById('issue_date').value) {
+      var _now = new Date();
+      var _y = _now.getFullYear();
+      var _m = String(_now.getMonth() + 1).padStart(2, '0');
+      var _d = String(_now.getDate()).padStart(2, '0');
+      document.getElementById('issue_date').value = _y + '-' + _m + '-' + _d;
+    }
+    var serviceText = data.service_date_jp || data.service_date || '';
+    document.getElementById('service_date_display').textContent = serviceText;
+    document.getElementById('service_date_area').classList.toggle('hidden', !serviceText);
+    document.getElementById('receipt_proviso_base').value = defaultReceiptProvisoBase(data);
+    updateReceiptCategoryControl();
+    document.getElementById('customer_memo').value = '';
+    document.getElementById('step2').scrollIntoView({ behavior: 'smooth' });
+  } catch(e) {
+    showError('search_error', gasCallErrorMessage(e));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '検索';
+  }
+}
+
+function showReceiptPreview() {
+  if (receiptWriteGateActive) { showError('issue_error', RECEIPT_WRITE_GATE_COPY); return; }
+  if (gasP1SfGuard('receipt_lookup', searchCaseId, function(message) { showError('issue_error', message); })) return;
+  if (!receiptLookup) return;
+  var rows = selectedRows();
+  var recipientName = document.getElementById('recipient_name').value.trim();
+  var email = document.getElementById('receipt_email').value.trim();
+  var paymentMethod = document.getElementById('payment_method').value.trim();
+  var issueDate = document.getElementById('issue_date').value;
+  var customerMemo = document.getElementById('customer_memo').value.trim();
+  var proviso = getProvisoValidation();
+  var isCorpReceipt = receiptLookup && receiptLookup.customer_type === '法人・団体';
+  var companyName = isCorpReceipt ? document.getElementById('company_name_display').value.trim() : '';
+
+  if (!receiptLookup.can_issue) { showError('issue_error', receiptLookup.warning || '着金確認後に再度アクセスしてください'); return; }
+  if (rows.length === 0) { showError('issue_error', '対象データを選択してください'); return; }
+  if (isCorpReceipt && !companyName) { showError('issue_error', '会社名を入力してください'); return; }
+  if (!recipientName) { showError('issue_error', '宛名を入力してください'); return; }
+  if (!email || email.indexOf('@') === -1) { showError('issue_error', '送信先メールアドレスを入力してください'); return; }
+  if (!paymentMethod) { showError('issue_error', '支払方法が元データにありません。売上管理の支払方法をご確認ください'); return; }
+  if (!issueDate) { showError('issue_error', '発行日を入力してください'); return; }
+  if (!proviso.ok) { showError('issue_error', proviso.message); return; }
+  clearError('issue_error');
+
+  var total = 0;
+  rows.forEach(function(r) { total += Number(r.amount_inc || 0); });
+  var taxEx = Math.round(total / 1.1);
+  var tax = total - taxEx;
+
+  var html = '';
+  html += '<div class="preview-row"><span class="preview-label">案件番号</span><span class="preview-value">' + escapeHtml(searchCaseId) + '</span></div>';
+  if (isCorpReceipt) {
+    html += '<div class="preview-row"><span class="preview-label">宛名</span><span class="preview-value">' + escapeHtml(companyName) + ' 御中<br>担当 ' + escapeHtml(recipientName) + ' 様</span></div>';
+  } else {
+    html += '<div class="preview-row"><span class="preview-label">宛名</span><span class="preview-value">' + escapeHtml(recipientName) + ' 様</span></div>';
+  }
+  html += '<div class="preview-row"><span class="preview-label">送信先</span><span class="preview-value">' + escapeHtml(email) + '</span></div>';
+  var cc = getCcEmails();
+  if (cc.length > 0) html += '<div class="preview-row"><span class="preview-label">CC</span><span class="preview-value">' + escapeHtml(cc.join(', ')) + '</span></div>';
+  html += '<div class="preview-row"><span class="preview-label">支払方法</span><span class="preview-value">' + escapeHtml(paymentMethod) + '</span></div>';
+  html += '<div class="preview-row"><span class="preview-label">発行日</span><span class="preview-value">' + escapeHtml(issueDate) + '</span></div>';
+  html += '<div class="preview-row"><span class="preview-label">但し書き</span><span class="preview-value">' + escapeHtml(proviso.rendered) + '</span></div>';
+  if (receiptLookup.service_date_jp || receiptLookup.service_date) {
+    html += '<div class="preview-row"><span class="preview-label">取引日</span><span class="preview-value">' + escapeHtml(receiptLookup.service_date_jp || receiptLookup.service_date) + '</span></div>';
+  }
+  var estimateRefs = docRefsText(receiptLookup.estimate_doc_nos);
+  var invoiceRefs = docRefsText(receiptLookup.invoice_doc_nos);
+  var contractRefs = docRefsText(receiptLookup.contract_doc_nos || receiptLookup.contract_ids);
+  if (estimateRefs) html += '<div class="preview-row"><span class="preview-label">見積書番号</span><span class="preview-value">' + escapeHtml(estimateRefs) + '</span></div>';
+  if (invoiceRefs) html += '<div class="preview-row"><span class="preview-label">請求書番号</span><span class="preview-value">' + escapeHtml(invoiceRefs) + '</span></div>';
+  if (contractRefs) html += '<div class="preview-row"><span class="preview-label">契約番号</span><span class="preview-value">' + escapeHtml(contractRefs) + '</span></div>';
+  html += '<div class="preview-row"><span class="preview-label">お客様向け備考</span><span class="preview-value">' + escapeHtml(customerMemo).replace(/\n/g, '<br>') + '</span></div>';
+
+  html += '<div class="paid-list">';
+  rows.forEach(function(r) {
+    html += '<div class="paid-item"><span>' + escapeHtml(r.arrival_date || '') + '</span><strong>' + fmtYen(r.amount_inc || 0) + '</strong></div>';
+  });
+  html += '</div>';
+  html += '<div class="preview-row" style="margin-top:8px"><span class="preview-label">10%対象額（税抜）</span><span class="preview-value">' + fmtYen(taxEx) + '</span></div>';
+  html += '<div class="preview-row"><span class="preview-label">消費税額（10%）</span><span class="preview-value">' + fmtYen(tax) + '</span></div>';
+  html += '<div class="preview-row"><span class="preview-label">合計（税込）</span><span class="preview-value" style="color:var(--purple);font-size:1.08rem">' + fmtYen(total) + '</span></div>';
+
+  var note = '';
+  if (reissueMode) {
+    note += '<div class="notice warn">🔁 <strong>再発行</strong>します。旧領収書は無効化され、発行物には「再発行」と表示されます。</div>';
+  }
+  if (rows.length > 1) {
+    note += '<div class="notice warn">合算モードです（複数の着金分を1枚にまとめます）。</div>';
+  }
+  document.getElementById('preview_notice').innerHTML = note;
+  document.getElementById('preview_content').innerHTML = html;
+
+  document.getElementById('step1').classList.add('hidden');
+  document.getElementById('step2').classList.add('hidden');
+  document.getElementById('step_preview').classList.remove('hidden');
+  window.scrollTo(0, 0);
+}
+
+function hideReceiptPreview() {
+  document.getElementById('step_preview').classList.add('hidden');
+  document.getElementById('step1').classList.remove('hidden');
+  document.getElementById('step2').classList.remove('hidden');
+  window.scrollTo(0, 0);
+}
+
+async function issueReceipt() {
+  if (receiptWriteGateActive) { showError('preview_error', RECEIPT_WRITE_GATE_COPY); return; }
+  if (gasP1SfGuard('receipt_lookup', searchCaseId, function(message) { showError('preview_error', message); })) return;
+  var rows = selectedRows();
+  var payload = {
+    form_type: 'receipt',
+    case_id: searchCaseId,
+    reissue: reissueMode,
+    selected_rows: rows,
+    recipient_name: document.getElementById('recipient_name').value.trim(),
+    email: document.getElementById('receipt_email').value.trim(),
+    cc_emails: getCcEmails(),
+    payment_method: document.getElementById('payment_method').value.trim(),
+    issue_date: document.getElementById('issue_date').value,
+    customer_memo: document.getElementById('customer_memo').value.trim(),
+    receipt_proviso_base: document.getElementById('receipt_proviso_base').value.trim(),
+    receipt_site: document.getElementById('receipt_proviso_base').value.trim(),
+    receipt_work: '',
+    receipt_category: document.getElementById('receipt_category').value || 'full',
+    customer_type: receiptLookup.customer_type || '個人',
+    company_name: (receiptLookup.customer_type === '法人・団体') ? document.getElementById('company_name_display').value.trim() : '',
+    contact_name: receiptLookup.contact_name || '',
+    name: receiptLookup.customer_type === '法人・団体'
+      ? (receiptLookup.name || '')
+      : document.getElementById('recipient_name').value.trim(),
+    contract_ids: receiptLookup.contract_ids || [],
+    contract_doc_nos: receiptLookup.contract_doc_nos || receiptLookup.contract_ids || [],
+    equipment: receiptLookup.equipment || ''
+  };
+
+  var btn = document.getElementById('btn_issue');
+  btn.disabled = true;
+  btn.textContent = '発行中...';
+  clearError('preview_error');
+
+  try {
+    var data = await gasCall(payload, { mode: 'submit', url: GAS_URL });
+    if (!data.ok) {
+      if (data.already_issued) {
+        var resendUrl2 = 'resend.html?case=' + encodeURIComponent(searchCaseId) + '&doc_type=receipt';
+        showError('preview_error', (data.error || 'この着金分は既に発行済みです。') + ' 再送はこちら → ' + resendUrl2);
+      } else {
+        showError('preview_error', data.error || '発行に失敗しました');
+      }
+      btn.disabled = false;
+      btn.textContent = '🧾 発行する';
+      return;
+    }
+
+    document.getElementById('step1').classList.add('hidden');
+    document.getElementById('step2').classList.add('hidden');
+    document.getElementById('step_preview').classList.add('hidden');
+    document.getElementById('step4').classList.remove('hidden');
+    document.getElementById('receipt_done_detail').textContent = payload.email + ' に領収書を送信しました。';
+    window.scrollTo(0, 0);
+
+    var asyncPayload = Object.assign({}, data, payload, { form_type: 'receipt_async' });
+    fetch(GAS_URL, { method: 'POST', body: JSON.stringify(asyncPayload) }).catch(function(){});
+  } catch(e) {
+    showError('preview_error', gasCallErrorMessage(e));
+    btn.disabled = false;
+    btn.textContent = '🧾 発行する';
+  }
+}
+
+(function autoFillCaseFromUrl_() {
+  var params = new URLSearchParams(location.search);
+  var c = params.get('case_id') || params.get('c');
+  if (!c) return;
+  var parts = c.split('-');
+  if (parts.length < 2) return;
+  var prefix = parts[0];
+  var rest = parts.slice(1).join('-');
+  var prefixSel = document.getElementById('case_prefix');
+  if (prefixSel) prefixSel.value = prefix;
+  onPrefixChange();
+  if (prefix === 'YA') {
+    var m = rest.match(/^([A-Z])(\d+)$/);
+    var alphaSel = document.getElementById('case_alpha');
+    var numEl = document.getElementById('case_number');
+    if (m && alphaSel && numEl) {
+      alphaSel.value = m[1];
+      numEl.value = m[2];
+    } else if (numEl) {
+      numEl.value = rest;
+    }
+  } else {
+    var numEl2 = document.getElementById('case_number');
+    if (numEl2) numEl2.value = rest;
+  }
+  updatePreview();
+  setTimeout(searchReceipt, 120);
+})();
+
+onPrefixChange();
+</script>
+<script src="./shared-nav.js"></script>
+<script src="./shared-email-check.js"></script>
+</body>
+</html>

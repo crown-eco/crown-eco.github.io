@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<script src="./shared-site-config.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>報酬確認ポータル</title>
+<script src="./shared-auth.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap');
+:root{--bg:#f5f7fa;--card:#fff;--hdr:#e65100;--hdr2:#fff3e0;--text:#1a1a1a;--text2:#5f6368;--muted:#7c839a;--inv:#fff;--lbl:#555d78;--border:#dce1e8;--focus:#e65100;--accent:#e65100;--accent-h:#bf360c;--green:#558b6e;--amber:#c27a00;--red:#c93030;--shadow:0 1px 3px rgba(0,0,0,.05);--r:10px;--rlg:14px}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{font-size:15px}
+body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text);line-height:1.6;min-height:100vh}
+.mono{font-family:'JetBrains Mono',monospace;font-feature-settings:'zero' 1}
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Login */
+#loginView{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px;background:linear-gradient(160deg,#161b26,#232b3e 40%,#1a2030)}
+.lcard{width:100%;max-width:400px;background:var(--card);border-radius:var(--rlg);box-shadow:0 8px 30px rgba(0,0,0,.12);overflow:hidden;animation:fadeUp .4s ease both}
+.lcard-hdr{background:var(--hdr);padding:28px 26px 24px;text-align:center;border-bottom:3px solid var(--accent)}.lcard-hdr h1{color:var(--inv);font-size:1.2rem;font-weight:700;letter-spacing:.05em}.lcard-hdr .sub{color:rgba(255,255,255,.3);font-size:.75rem;margin-top:3px;letter-spacing:.1em;text-transform:uppercase}
+.lform{padding:26px}.fld{margin-bottom:16px}.fld label{display:block;font-size:.85rem;font-weight:500;color:var(--lbl);margin-bottom:5px}.fld input,.fld select{width:100%;padding:12px;font-size:1.05rem;font-family:inherit;background:#f5f6f9;border:1.5px solid var(--border);border-radius:var(--r);outline:none;transition:border .2s}.fld input:focus,.fld select:focus{border-color:var(--focus);box-shadow:0 0 0 3px rgba(59,109,240,.1)}
+.btn{display:inline-flex;align-items:center;justify-content:center;padding:12px 24px;font-family:inherit;font-size:1rem;font-weight:600;border:none;border-radius:var(--r);cursor:pointer;transition:all .2s}.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-p{width:100%;background:var(--accent);color:#fff}.btn-p:hover:not(:disabled){background:var(--accent-h)}
+.btn-s{background:#f5f6f9;color:var(--text2);font-size:.88rem;padding:9px 16px}.btn-s:hover:not(:disabled){background:var(--border)}
+.btn-g{background:transparent;color:rgba(255,255,255,.5);font-size:.85rem;padding:7px 12px}.btn-g:hover:not(:disabled){color:#fff;background:rgba(255,255,255,.08)}
+.lerr{display:none;margin-top:12px;padding:10px;background:#fef0f0;color:var(--red);border-radius:var(--r);font-size:.88rem;text-align:center}.lerr.on{display:block}
+
+/* TOTP screens（loginViewと同じ背景・サイズ感） */
+.totp-view{display:none;align-items:center;justify-content:center;min-height:100vh;padding:20px;background:linear-gradient(160deg,#161b26,#232b3e 40%,#1a2030)}
+.totp-view.active{display:flex}
+.auth-card{width:100%;max-width:400px;background:var(--card);border-radius:var(--rlg);box-shadow:0 8px 30px rgba(0,0,0,.12);overflow:hidden;animation:fadeUp .4s ease both;padding:28px 26px}
+.auth-title{font-size:1.15rem;font-weight:700;color:var(--text);margin-bottom:8px;text-align:center}
+.auth-desc{font-size:.88rem;color:var(--text2);text-align:center;margin-bottom:4px;line-height:1.7}
+.auth-error{color:var(--red);font-size:.85rem;text-align:center;margin:6px 0;display:none}
+.auth-note{font-size:.82rem;color:var(--muted);text-align:center;margin-top:12px}
+.auth-note-small{font-size:.78rem;color:var(--muted);text-align:center;margin-top:10px}
+.otp-wrap{display:flex;align-items:center;justify-content:center;gap:16px;margin:18px 0}
+.otp-input{font-size:2rem;letter-spacing:10px;text-align:center;width:190px;padding:10px 8px;border:2px solid var(--border);border-radius:var(--r);outline:none;font-family:'JetBrains Mono',monospace;background:#f5f6f9}
+.otp-input:focus{border-color:var(--focus);box-shadow:0 0 0 3px rgba(59,109,240,.1)}
+.countdown-ring{position:relative;width:48px;height:48px;flex-shrink:0}
+.ring-svg{transform:rotate(-90deg)}
+.ring-bg{fill:none;stroke:#eee;stroke-width:3}
+.ring-fill{fill:none;stroke:var(--accent);stroke-width:3;stroke-linecap:round;stroke-dasharray:100;stroke-dashoffset:0;transition:stroke-dashoffset 1s linear,stroke 1s}
+.countdown-num{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:13px;font-weight:700;color:var(--text2)}
+.qrcode-box{display:flex;justify-content:center;margin:18px 0}
+.qrcode-box canvas,.qrcode-box img{border:4px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.12)}
+.secret-text{font-family:'JetBrains Mono',monospace;font-size:11px;word-break:break-all;background:#f5f6f9;padding:4px 8px;border-radius:var(--r);display:inline-block;margin-top:4px}
+
+/* App */
+#appView{display:none}
+.topbar{background:linear-gradient(160deg,#e65100,#bf360c);padding:24px 20px;display:flex;align-items:center;justify-content:center;position:sticky;top:0;z-index:100;border-bottom:none}.topbar h2{color:#fff;font-size:1.4rem;font-weight:700}.topbar .meta{color:rgba(255,255,255,.35);font-size:.78rem}.topbar-r{display:flex;gap:5px}
+.wrap{max-width:1000px;margin:0 auto;padding:16px 12px 60px}
+
+.ctrl-bar{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:16px;flex-wrap:wrap}
+.ctrl-bar label{font-size:.88rem;font-weight:500;color:var(--lbl)}
+.ctrl-bar input[type="date"],.ctrl-bar select{font-family:inherit;font-size:1rem;font-weight:600;padding:9px 14px;border:1.5px solid var(--border);border-radius:var(--r);background:var(--card);color:var(--text);cursor:pointer;outline:none}
+.date-range{font-size:.82rem;color:var(--muted);padding:4px 12px;background:var(--card);border-radius:20px;border:1px solid var(--border)}
+.admin-badge{font-size:.72rem;background:var(--accent);color:#fff;padding:2px 9px;border-radius:10px;font-weight:600;margin-left:6px}
+.preview-badge{font-size:.78rem;background:#fff3e0;color:#7a3e00;padding:4px 10px;border-radius:12px;border:1px solid #ffd59a;font-weight:600}
+
+.tabs{display:flex;gap:2px;margin-bottom:16px;background:var(--border);border-radius:var(--r);padding:3px;overflow-x:auto}.tab{flex:1;min-width:0;padding:10px 14px;font-size:.88rem;font-weight:600;text-align:center;border:none;background:transparent;color:var(--muted);cursor:pointer;border-radius:7px;transition:all .2s;white-space:nowrap}.tab.active{background:var(--card);color:var(--accent);box-shadow:var(--shadow)}.tab:hover:not(.active){color:var(--text2)}
+
+.summary{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;justify-content:center}
+.scard{background:var(--card);border:1px solid var(--border);border-radius:var(--rlg);padding:14px;box-shadow:var(--shadow);min-width:160px;flex:1;max-width:250px}.scard .sl{font-size:.78rem;color:var(--muted);font-weight:500;margin-bottom:4px}.scard .sv{font-size:1.25rem;font-weight:700}
+.career-summary{flex:0 0 100%;display:flex;justify-content:center;margin-bottom:2px}
+.career-card{border-color:#ffd6b8;background:linear-gradient(145deg,#fff9f4,#fff);max-width:360px;text-align:center}
+
+.week{background:var(--card);border:1px solid var(--border);border-radius:var(--rlg);margin-bottom:14px;overflow:hidden;box-shadow:var(--shadow);animation:fadeUp .3s ease both}
+.week-hdr{padding:12px 16px;background:#fff3e0;color:#5d4037;border-radius:var(--r) var(--r) 0 0}.week-hdr h3{font-size:.92rem;font-weight:600;margin-bottom:4px}.week-tf{font-size:1.1rem;font-weight:700}.week-tf .lb{font-size:.72rem;font-weight:400;opacity:.5;margin-right:5px}.week-tf .op{opacity:.4;margin:0 4px}
+.tbl-w{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.88rem;table-layout:fixed}thead th{background:#f0f2f6;color:var(--lbl);font-weight:600;font-size:.78rem;padding:9px 10px;text-align:left;white-space:nowrap;border-bottom:1px solid var(--border)}tbody td{padding:8px 10px;border-bottom:1px solid #f0f2f5}.r{text-align:right}.c{text-align:center}.total-row td{font-weight:700;background:#f7f8fb;border-top:2px solid var(--border)}.neg{color:var(--red)}.pos{color:var(--green)}tbody tr:hover{background:#f7f8fb}
+.empty-w{padding:24px;text-align:center;color:var(--muted);font-size:.9rem}
+.app-err{color:var(--red);font-size:.88rem;padding:6px 0}
+
+.day-cards{display:none;padding:8px;flex-direction:column;gap:8px}
+.day-card{background:#f8f9fc;border:1px solid var(--border);border-radius:var(--r);padding:12px 14px}
+.day-card.has-data{background:var(--card);box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.day-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.day-date{font-weight:600;font-size:.95rem}
+.day-count{font-size:.82rem;color:var(--muted);margin-left:8px}
+.day-reward{font-size:1.15rem;font-weight:700}
+.day-reward.pos{color:var(--green)}.day-reward.neg{color:var(--red)}
+.day-details{display:grid;grid-template-columns:1fr 1fr;gap:3px 16px}
+.day-item{display:flex;justify-content:space-between;font-size:.85rem;padding:2px 0}.day-item .dl{color:var(--muted)}.day-item .dv{font-weight:500}
+.payment-breakdown{border-top:1px dashed var(--border);margin-top:8px;padding-top:8px}
+.payment-title{font-size:.72rem;color:var(--muted);font-weight:600;margin-bottom:5px}
+.payment-chips{display:flex;flex-wrap:wrap;gap:5px}
+.payment-chip{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:4px 8px;font-size:.75rem;font-weight:600;line-height:1.2}
+.payment-chip.transfer{background:#E6F1FB;color:#0C447C}
+.payment-chip.card{background:#EEEDFE;color:#3C3489}
+.payment-chip.cash{background:#E1F5EE;color:#085041}
+.payment-chip.other{background:#FAEEDA;color:#633806}
+.day-empty{text-align:center;color:var(--muted);font-size:.82rem;padding:4px 0}
+.day-card.total{background:var(--hdr);color:var(--inv);border-color:var(--hdr)}
+.day-card.total .day-date,.day-card.total .dv{color:var(--inv)}.day-card.total .day-count,.day-card.total .dl{color:rgba(255,255,255,.5)}
+.day-card.total .payment-breakdown{border-top-color:rgba(255,255,255,.25)}.day-card.total .payment-title{color:rgba(255,255,255,.65)}
+
+.ref-body-cards{display:none;padding:8px;flex-direction:column;gap:8px}
+.ref-card{background:#f8f9fc;border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;overflow:hidden}
+.ref-name{font-weight:600;font-size:.92rem;margin-bottom:6px}
+.ref-weeks{display:grid;grid-template-columns:repeat(4,1fr);gap:3px 8px}
+.ref-week{display:flex;flex-direction:column;align-items:center;font-size:.85rem;padding:4px 0;min-width:0;overflow:hidden}.ref-week .dl{color:var(--muted);font-size:.75rem}.ref-week .dv{font-weight:600;font-size:.8rem;white-space:nowrap}
+.ref-total{display:flex;justify-content:space-between;font-size:.95rem;font-weight:700;margin-top:6px;padding-top:6px;border-top:1px solid var(--border)}
+
+.loading{display:none;position:fixed;inset:0;background:rgba(238,240,244,.75);z-index:9999;align-items:center;justify-content:center;backdrop-filter:blur(2px)}.loading.on{display:flex}
+.spinner{width:34px;height:34px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite}
+.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%) translateY(70px);background:var(--hdr);color:#fff;padding:10px 20px;border-radius:var(--r);font-size:.88rem;font-weight:500;box-shadow:0 8px 30px rgba(0,0,0,.12);z-index:10000;opacity:0;transition:all .3s;pointer-events:none}.toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+
+@media(max-width:640px){
+  html{font-size:14px}
+  .summary{grid-template-columns:1fr 1fr;gap:6px}.scard{padding:10px 12px}.scard .sv{font-size:1.1rem}
+  .ctrl-bar{flex-direction:column;gap:6px}
+  .tbl-w{display:none!important}
+  .day-cards{display:flex!important}
+  .ref-tbl-w{display:none!important}
+  .ref-body-cards{display:flex!important}
+  .week-hdr h3{font-size:.88rem}
+}
+</style>
+<script src="./shared-gas-call.js?v=20260914-read-v1"></script>
+</head>
+<body>
+<div class="loading" id="loading"><div style="text-align:center"><div class="spinner" style="margin:0 auto"></div><div style="margin-top:12px;color:var(--text2);font-size:14px">データを読み込み中...</div></div></div>
+<div class="toast" id="toast"></div>
+
+<!-- ===== アプリ本体 ===== -->
+<div id="appView" style="display:block">
+<div class="topbar"><div><h2>報酬確認ポータル</h2></div></div>
+<div id="lblUser" style="display:none"></div>
+<div class="wrap">
+  <div class="ctrl-bar">
+    <label>開始日</label><input type="date" id="startDate">
+    <div id="adminSelect" style="display:none;margin-left:16px;align-items:center;gap:10px"><label>対象</label><select id="memberSelect" onchange="onMemberChange()" style="margin-left:10px"></select></div>
+    <div id="previewSelect" style="display:none;align-items:center;gap:10px"><label>閲覧者として見る</label><select id="previewAsSelect" onchange="onPreviewAsChange()"></select><span class="preview-badge" id="previewBadge" style="display:none"></span></div>
+    <button class="btn btn-s" id="dateBtn" onclick="reload()">表示更新</button>
+    <span class="date-range" id="dateRange"></span>
+  </div>
+  <div class="tabs" id="tabBar"></div>
+  <div class="summary" id="summaryArea"></div>
+  <div id="weeksArea"></div>
+  <p class="app-err" id="appErr"></p>
+</div></div>
+
+<script>
+var GAS_API_URL = 'https://script.google.com/macros/s/AKfycbyvjri6i0fe11hzfoqfhSxWCsn1aP2WyT9ELZOzNMrVyEOx-ZsKqlhJQONzlaFLmPw/exec';
+var token='',busy=false,seq=0,latest=0,ua=navigator.userAgent||'';
+var currentData=null,activeTab='own',isAdmin=false,myStaffId='',viewStaffId='',previewAs='';
+
+// TOTP状態
+var _totpPassToken='', _totpStaffId='', _totpMode='', _totpDisplayName='', _countdownTimer=null;
+
+(function(){
+  if (window.ECOPITA_SESSION) {
+    if (window.ECOPITA_SESSION.rewardHidden) {
+      location.replace(window.ECOPITA_SITE.baseUrl + '/portal.html');
+      return;
+    }
+    token = window.ECOPITA_SESSION.token;
+    myStaffId = window.ECOPITA_SESSION.staffId;
+    viewStaffId = window.ECOPITA_SESSION.staffId;
+    bootstrap();
+  }
+})();
+
+// ================================================================
+// 画面切り替え
+// ================================================================
+function showScreen_(id) {
+  ['loginView','screen-lw-otc','screen-qr','screen-totp','appView'].forEach(function(s){
+    var el=document.getElementById(s);
+    if(!el)return;
+    if(s==='appView'){el.style.display=(s===id)?'block':'none';}
+    else if(s==='loginView'){el.style.display=(s===id)?'flex':'none';}
+    else{el.classList.toggle('active',s===id);}
+  });
+}
+
+// ================================================================
+// API通信
+// ================================================================
+async function callApi(payload){
+  var json=JSON.stringify(payload);
+  var encoded=btoa(unescape(encodeURIComponent(json)));
+  var url=GAS_API_URL+'?_portal_data='+encodeURIComponent(encoded);
+  var resp=await (['bootstrap','changeDate','viewReferree'].indexOf(payload.action) >= 0 ? gasReadFetch(url, {redirect:'follow'}, { onStatus: gasReadStatusTarget('appErr') }) : fetch(url,{redirect:'follow'}));
+  var text=await resp.text();
+  try{return JSON.parse(text)}catch(e){throw new Error('サーバーからの応答が不正です。')}
+}
+
+// ================================================================
+// ログイン
+// ================================================================
+async function doLogin(){
+  if(busy)return;
+  var sid=document.getElementById('staffId').value.trim(),p=document.getElementById('pin').value.trim();
+  document.getElementById('loginErr').classList.remove('on');
+  if(!sid||!p){document.getElementById('loginErr').textContent='担当者番号とPINを入力してください';document.getElementById('loginErr').classList.add('on');return}
+  setBusy(true);document.getElementById('loginBtn').textContent='ログイン中...';document.getElementById('loading').classList.add('on');
+  try{
+    var r=await callApi({action:'login',staffId:sid,pin:p,ua:ua});
+    document.getElementById('loading').classList.remove('on');setBusy(false);document.getElementById('loginBtn').textContent='ログイン';
+    if(r&&r.ok){
+      handleLoginSuccess(r);
+    } else {
+      document.getElementById('loginErr').textContent=(r&&r.error)||'ログイン失敗';
+      document.getElementById('loginErr').classList.add('on');
+      document.getElementById('pin').value='';document.getElementById('pin').focus();
+    }
+  }catch(e){
+    document.getElementById('loading').classList.remove('on');setBusy(false);document.getElementById('loginBtn').textContent='ログイン';
+    document.getElementById('loginErr').textContent=e.message||'通信エラー';document.getElementById('loginErr').classList.add('on');
+    document.getElementById('pin').value='';document.getElementById('pin').focus();
+  }
+}
+
+// ================================================================
+// ログイン成功後の分岐
+// ================================================================
+function handleLoginSuccess(r) {
+  _totpPassToken   = r.passToken   || '';
+  _totpStaffId     = r.staffId     || '';
+  _totpDisplayName = r.displayName || r.staffId || '';
+
+  if (r.totp_required) {
+    // 通常ログイン → TOTP入力
+    _totpMode = 'login';
+    document.getElementById('totpDesc').textContent = 'Google Authenticatorに表示されている\n6桁のコードを入力してください。';
+    document.getElementById('totpBtn').textContent = 'ログイン';
+    document.getElementById('totpInput').value = '';
+    document.getElementById('totpError').style.display = 'none';
+    showScreen_('screen-totp');
+    startCountdown();
+  } else if (r.totp_setup_required) {
+    // 初回登録 → LINE WORKS OTC送信
+    _totpMode = 'setup';
+    sendLwOtc_();
+  } else {
+    // TOTPなし → OTC交換してメイン画面へ
+    finishLoginWithOtc_(r);
+  }
+}
+
+// TOTPなし時の既存フロー
+async function finishLoginWithOtc_(r) {
+  var otcResult=await callApi({action:'exchangeOTC',otc:r.otc,ua:ua});
+  if(!otcResult||!otcResult.ok){
+    document.getElementById('loginErr').textContent=(otcResult&&otcResult.error)||'認証エラー';
+    document.getElementById('loginErr').classList.add('on');
+    showScreen_('loginView');
+    return;
+  }
+  if(window.ECOPITA_SITE_NOTICE(otcResult))return;
+  myStaffId=r.staffId;viewStaffId=r.staffId;
+  document.getElementById('lblUser').textContent=r.displayName+'（'+r.staffId+'）';
+  showScreen_('appView');
+  token=otcResult.token;
+  localStorage.setItem('ecopita_session',JSON.stringify({token:token,staffId:myStaffId,displayName:r.displayName||myStaffId,rewardHidden:!!r.rewardHidden,canUseRm:otcResult.canUseRm===true,groupId:savedRewardGroupId_(otcResult.groupId),groupAdmin:otcResult.groupAdmin===true,groupSiteUrl:window.ECOPITA_SITE_URL(otcResult.groupSiteUrl),role:otcResult.role||'',casePrefixes:otcResult.casePrefixes||r.casePrefixes||[]}));
+}
+
+// ================================================================
+// LINE WORKS 本人確認コード（初回登録）
+// ================================================================
+async function sendLwOtc_() {
+  showScreen_('screen-lw-otc');
+  document.getElementById('lwOtcInput').value='';
+  document.getElementById('lwOtcError').style.display='none';
+  document.getElementById('loading').classList.add('on');
+  try{
+    var res=await callApi({action:'totp_send_otc',staffId:_totpStaffId,passToken:_totpPassToken});
+    document.getElementById('loading').classList.remove('on');
+    if(!res.ok){showTotpErr_('lwOtcError','コードの送信に失敗しました（'+res.reason+'）');return}
+    _totpPassToken=res.passToken||_totpPassToken;
+    document.getElementById('lwOtcInput').focus();
+  }catch(e){document.getElementById('loading').classList.remove('on');showTotpErr_('lwOtcError','通信エラーが発生しました。');}
+}
+
+async function submitLwOtc(){
+  var code=document.getElementById('lwOtcInput').value.trim();
+  if(code.length!==6){showTotpErr_('lwOtcError','6桁のコードを入力してください。');return}
+  document.getElementById('lwOtcBtn').disabled=true;document.getElementById('lwOtcBtn').textContent='送信中...';
+  try{
+    var res=await callApi({action:'totp_verify_otc',staffId:_totpStaffId,passToken:_totpPassToken,code:code});
+    document.getElementById('lwOtcBtn').disabled=false;document.getElementById('lwOtcBtn').textContent='確認';
+    _totpPassToken=res.passToken||_totpPassToken;
+    if(!res.ok){
+      var msg=res.reason==='expired'?'コードの有効期限が切れました。再度ログインしてください。':res.reason==='mismatch'?'コードが違います。LINE WORKSを確認してください。':res.reason==='invalid_pass_token'?'もう一度ログインしてください。':'エラーが発生しました（'+res.reason+'）';
+      showTotpErr_('lwOtcError',msg);return;
+    }
+    showQrCode_(res.otpauth);
+  }catch(e){document.getElementById('lwOtcBtn').disabled=false;document.getElementById('lwOtcBtn').textContent='確認';showTotpErr_('lwOtcError','通信エラーが発生しました。');}
+}
+
+// ================================================================
+// QRコード表示
+// ================================================================
+function showQrCode_(otpauth){
+  showScreen_('screen-qr');
+  var container=document.getElementById('qrcode-container');
+  container.innerHTML='';
+  new QRCode(container,{text:otpauth,width:200,height:200,correctLevel:QRCode.CorrectLevel.M});
+  var secret=(otpauth.match(/secret=([A-Z2-7]+)/i)||[])[1]||'';
+  document.getElementById('secretText').textContent=secret;
+}
+
+function showTotpConfirm(){
+  showScreen_('screen-totp');
+  startCountdown();
+  document.getElementById('totpDesc').textContent='Google Authenticatorに表示されている\n6桁のコードを入力して登録を完了してください。';
+  document.getElementById('totpBtn').textContent='登録完了';
+  document.getElementById('totpInput').value='';
+  document.getElementById('totpError').style.display='none';
+}
+
+// ================================================================
+// TOTP 6桁コード送信
+// ================================================================
+async function submitTotp(){
+  var code=document.getElementById('totpInput').value.trim();
+  if(code.length!==6){showTotpErr_('totpError','6桁のコードを入力してください。');return}
+  document.getElementById('totpBtn').disabled=true;document.getElementById('totpBtn').textContent='送信中...';
+  var action=(_totpMode==='login')?'totp_verify_login':'totp_confirm_setup';
+  try{
+    var res=await callApi({action:action,staffId:_totpStaffId,passToken:_totpPassToken,code:code});
+    document.getElementById('totpBtn').disabled=false;document.getElementById('totpBtn').textContent=(_totpMode==='login')?'ログイン':'登録完了';
+    if(!res.ok){
+      _totpPassToken=res.passToken||_totpPassToken;
+      var msg=res.reason==='busy'?(res.error||'ただいま混雑しています。しばらく待ってからもう一度お試しください。'):res.reason==='locked'?'ロックされました。'+(res.remainMin||10)+'分後にお試しください。':res.reason==='invalid'?'コードが違います。残り'+(res.remainTry||'?')+'回入力できます。':res.reason==='invalid_pass_token'?'もう一度ログインしてください。':'エラーが発生しました（'+res.reason+'）';
+      showTotpErr_('totpError',msg);document.getElementById('totpInput').value='';return;
+    }
+    stopCountdown();
+    // TOTP成功 → セッションtokenを受け取る
+    if(window.ECOPITA_SITE_NOTICE(res))return;
+    token = res.token || '';
+    myStaffId = _totpStaffId;
+    viewStaffId = _totpStaffId;
+    localStorage.setItem('ecopita_session',JSON.stringify({token:token,staffId:myStaffId,displayName:_totpDisplayName||myStaffId,rewardHidden:!!res.rewardHidden,canUseRm:res.canUseRm===true,groupId:savedRewardGroupId_(res.groupId),groupAdmin:res.groupAdmin===true,groupSiteUrl:window.ECOPITA_SITE_URL(res.groupSiteUrl),role:res.role||'',casePrefixes:res.casePrefixes||[]}));
+    showScreen_('appView');
+    bootstrap();
+  }catch(e){document.getElementById('totpBtn').disabled=false;document.getElementById('totpBtn').textContent=(_totpMode==='login')?'ログイン':'登録完了';showTotpErr_('totpError','通信エラーが発生しました。');}
+}
+
+// ================================================================
+// カウントダウン
+// ================================================================
+function startCountdown(){stopCountdown();updateCountdown_();_countdownTimer=setInterval(updateCountdown_,1000)}
+function stopCountdown(){if(_countdownTimer){clearInterval(_countdownTimer);_countdownTimer=null}}
+function updateCountdown_(){
+  var now=Math.floor(Date.now()/1000),remain=30-(now%30),pct=remain/30;
+  var numEl=document.getElementById('countdownNum'),ringEl=document.getElementById('ringFill');
+  if(!numEl||!ringEl)return;
+  numEl.textContent=remain;
+  ringEl.style.strokeDashoffset=(1-pct)*100;
+  ringEl.style.stroke=remain<=5?'#c93030':'var(--accent)';
+}
+
+function showTotpErr_(id,msg){var el=document.getElementById(id);if(!el)return;el.textContent=msg;el.style.display='block'}
+
+// ================================================================
+// 既存関数（変更なし）
+// ================================================================
+async function bootstrap(){
+  if(!token||busy)return;var s=++seq;latest=s;setBusy(true);document.getElementById('loading').classList.add('on');document.getElementById('appErr').textContent='';
+  try{
+    var r=await callApi({action:'bootstrap',sessionToken:token,startDate:null,ua:ua,previewAs:previewAs||''});
+    if(s!==latest)return;document.getElementById('loading').classList.remove('on');setBusy(false);
+    if(!r||!r.ok){handleErr((r&&r.error)||(r&&r.reason));return}
+    currentData=r;isAdmin=r.isAdmin||false;
+    document.getElementById('startDate').value=r.startDate;updateDateRange(r.startDate);
+    var vm=r.viewableMembers||[];
+    if(vm.length>1){document.getElementById('adminSelect').style.display='';var sel=document.getElementById('memberSelect');sel.innerHTML='';
+      vm.forEach(function(m){var o=document.createElement('option');o.value=m.staffId;o.textContent=m.staffId+' '+m.name;sel.appendChild(o)});sel.value=myStaffId;}
+    if(isAdmin){document.getElementById('lblUser').innerHTML=r.displayName+'（'+r.staffId+'）<span class="admin-badge">管理者</span>';}
+    else{document.getElementById('lblUser').textContent=r.displayName+'（'+r.staffId+'）';}
+    updatePreviewControls(r);
+    buildTabs();renderOwn();
+  }catch(e){if(s!==latest)return;document.getElementById('loading').classList.remove('on');setBusy(false);handleErr(e.message)}
+}
+
+async function reload(){
+  if(!token||busy)return;var s=++seq;latest=s;setBusy(true);document.getElementById('loading').classList.add('on');document.getElementById('appErr').textContent='';
+  var target=document.getElementById('memberSelect').value||null;
+  try{
+    var r=await callApi({action:'changeDate',sessionToken:token,startDate:document.getElementById('startDate').value,targetStaffId:target,ua:ua,previewAs:previewAs||''});
+    if(s!==latest)return;document.getElementById('loading').classList.remove('on');setBusy(false);
+    if(!r||!r.ok){handleErr(r&&r.error);return}
+    currentData.weeks=r.weeks;currentData.referrees=r.referrees;currentData.referralReward=r.referralReward;currentData.careerReward=r.careerReward||null;
+    if(r.viewStaffId)viewStaffId=r.viewStaffId;
+    updatePreviewControls(r);
+    document.getElementById('startDate').value=r.startDate;updateDateRange(r.startDate);
+    if(activeTab==='own')renderOwn();
+  }catch(e){if(s!==latest)return;document.getElementById('loading').classList.remove('on');setBusy(false);handleErr(e.message)}
+}
+
+function onMemberChange(){reload()}
+function onPreviewAsChange(){previewAs=document.getElementById('previewAsSelect').value||'';reload()}
+
+async function loadReferreeDetail(refId){
+  if(!token||busy)return;var s=++seq;latest=s;setBusy(true);document.getElementById('loading').classList.add('on');
+  document.getElementById('summaryArea').innerHTML='';document.getElementById('weeksArea').innerHTML='';
+  try{
+    var r=await callApi({action:'viewReferree',sessionToken:token,referreeStaffId:refId,startDate:document.getElementById('startDate').value,ua:ua,previewAs:previewAs||''});
+    if(s!==latest)return;document.getElementById('loading').classList.remove('on');setBusy(false);
+    if(!r||!r.ok){handleErr(r&&r.error);return}
+    updatePreviewControls(r);
+    document.getElementById('summaryArea').innerHTML='<div class="scard" style="grid-column:1/-1"><div class="sl">被紹介者</div><div class="sv">'+esc(r.refName)+'の明細</div></div>';
+    document.getElementById('weeksArea').innerHTML=r.weeks?renderWeeksHTML(r.weeks,true,null):'<div class="empty-w">データなし</div>';
+  }catch(e){if(s!==latest)return;document.getElementById('loading').classList.remove('on');setBusy(false);handleErr(e.message)}
+}
+
+async function doLogout(){
+  if(busy)return;
+  try{await callApi({action:'logout',sessionToken:token,ua:ua})}catch(e){}
+  localStorage.removeItem('ecopita_session');
+  location.href=window.ECOPITA_SITE.baseUrl + '/login.html';
+}
+
+function $(id){return document.getElementById(id)}
+function yen(n){var v=Number(n||0);return v<0?'-¥'+Math.abs(v).toLocaleString('ja-JP'):'¥'+v.toLocaleString('ja-JP')}
+function esc(s){var d=document.createElement('div');d.textContent=s==null?'':s;return d.innerHTML}
+function toast(m){var t=document.getElementById('toast');t.textContent=m;t.classList.add('on');setTimeout(function(){t.classList.remove('on')},2500)}
+function fmtMD(s){if(!s)return'-';var p=s.split('-');return parseInt(p[1])+'/'+parseInt(p[2])}
+function colorVal(n){if(n<0)return'<span class="neg mono">'+yen(n)+'</span>';if(n>0)return'<span class="pos mono">'+yen(n)+'</span>';return'<span class="mono">¥0</span>'}
+function colorCls(n){return n<0?'neg':n>0?'pos':''}
+function paymentChipClass(method){if(method==='振込')return'transfer';if(method==='クレカ')return'card';if(method==='現金')return'cash';return'other'}
+function renderPaymentBreakdown(payments){var items=(payments||[]).filter(function(p){return Number(p&&p.amount||0)!==0});if(!items.length)return'';var html='<div class="payment-breakdown"><div class="payment-title">支払い内訳</div><div class="payment-chips">';items.forEach(function(p){html+='<span class="payment-chip '+paymentChipClass(p.method)+'"><span>'+esc(p.method||'その他')+'</span><span class="mono">'+yen(p.amount)+'</span></span>'});return html+'</div></div>'}
+function setBusy(f){busy=!!f;['loginBtn','dateBtn'].forEach(function(id){var e=document.getElementById(id);if(e)e.disabled=!!f})}
+function updatePreviewControls(r){
+  var box=document.getElementById('previewSelect'),sel=document.getElementById('previewAsSelect'),badge=document.getElementById('previewBadge');
+  if(!box||!sel)return;
+  if(!isAdmin){box.style.display='none';previewAs='';if(badge)badge.style.display='none';return}
+  var viewers=(r&&r.preview_viewers)||[],applied=(r&&r.preview_as)||'',selected=(applied&&applied!==myStaffId)?applied:(previewAs||''),seen={};
+  box.style.display='flex';sel.innerHTML='';
+  var normal=document.createElement('option');normal.value='';normal.textContent='通常（自分）';sel.appendChild(normal);
+  viewers.forEach(function(v){var id=v.staffId||v.staff_id||'';if(!id||seen[id])return;seen[id]=true;var o=document.createElement('option');o.value=id;o.textContent=id+' '+(v.name||'');sel.appendChild(o)});
+  if(selected&&!seen[selected]){var extra=document.createElement('option');extra.value=selected;extra.textContent=selected;sel.appendChild(extra)}
+  sel.value=selected;previewAs=selected;
+  if(badge){badge.style.display=selected?'':'none';badge.textContent=selected?'プレビュー: '+selected+' として表示中':''}
+}
+
+function updateDateRange(start){if(!start)return;var s=new Date(start),e=new Date(s.getTime()+27*86400000);
+  var days=['日','月','火','水','木','金','土'];var f=function(d){return(d.getMonth()+1)+'/'+d.getDate()+'（'+days[d.getDay()]+'）'};
+  document.getElementById('dateRange').textContent=f(s)+'〜'+f(e)+'　4週分'}
+
+function buildTabs(){var bar=document.getElementById('tabBar');bar.innerHTML='';
+  bar.appendChild(mkTab('own','自分の報酬'));
+  if(currentData.referrees&&currentData.referrees.length)currentData.referrees.forEach(function(r){bar.appendChild(mkTab('detail_'+r.staffId,r.name+'の明細'))});
+  activateTab('own')}
+
+function mkTab(id,label){var b=document.createElement('button');b.className='tab';b.textContent=label;b.dataset.tab=id;b.onclick=function(){activateTab(id)};return b}
+function activateTab(id){activeTab=id;document.querySelectorAll('.tab').forEach(function(t){t.classList.toggle('active',t.dataset.tab===id)});
+  if(id==='own')renderOwn();else if(id.indexOf('detail_')===0)loadReferreeDetail(id.replace('detail_',''))}
+
+function renderOwn(){
+  if(!currentData||!currentData.weeks){document.getElementById('weeksArea').innerHTML='<div class="empty-w">データがありません</div>';document.getElementById('summaryArea').innerHTML='';return}
+  var weeks=currentData.weeks,tT=0,tS=0,tA=0,tR=0;
+  weeks.forEach(function(w){tT+=w.transferAmount;tS+=w.totals.sales;tA+=w.totals.adCost;tR+=w.totals.reward});
+  var rr=currentData.referralReward,refTotal=rr?rr.total:0;
+  var hasRef=refTotal>0||(currentData.referrees&&currentData.referrees.length>0);
+
+  var sm='';
+  var career=currentData.careerReward;
+  if(career&&career.amount!=null)sm+='<div class="career-summary"><div class="scard career-card"><div class="sl">今までの報酬 累計</div><div class="sv mono" style="color:var(--accent)">'+yen(career.amount)+'</div></div></div>';
+  sm+='<div class="scard"><div class="sl">報酬合計</div><div class="sv mono">'+yen(tR)+'</div></div>';
+  if(hasRef){
+    sm+='<div class="scard"><div class="sl">紹介者報酬</div><div class="sv mono" style="color:var(--green)">'+yen(refTotal)+'</div></div>';
+    sm+='<div class="scard"><div class="sl">最終合計（振込）</div><div class="sv mono" style="color:var(--accent)">'+yen(tR+refTotal)+'</div></div>';
+  }else{
+    sm+='<div class="scard"><div class="sl">振込合計</div><div class="sv mono" style="color:var(--accent)">'+yen(tT)+'</div></div>';
+  }
+  sm+='<div class="scard"><div class="sl">売上合計</div><div class="sv mono" style="color:var(--green)">'+yen(tS)+'</div></div>';
+  sm+='<div class="scard"><div class="sl">広告費合計</div><div class="sv mono" style="color:var(--amber)">'+yen(tA)+'</div></div>';
+  document.getElementById('summaryArea').innerHTML=sm;
+
+  var refByWeek=rr?rr.byWeek:[0,0,0,0];
+  var html=renderWeeksHTML(weeks,true,refByWeek);
+
+  if(hasRef&&rr&&rr.byRef&&rr.byRef.length){
+    function refWeekNote(r,wi){
+      var active=(r.activeCounts&&r.activeCounts[wi])?r.activeCounts[wi]:((r.weekCounts&&r.weekCounts[wi])?r.weekCounts[wi]:0);
+      var loss=(r.lossCounts&&r.lossCounts[wi])?r.lossCounts[wi]:0;
+      var parts=[];
+      if(active)parts.push(active+'件');
+      if(loss)parts.push('損益'+loss+'件');
+      return parts.join(' / ');
+    }
+    function refWeekAmount(r,wi){return(r.weekAmounts&&r.weekAmounts[wi]!=null)?r.weekAmounts[wi]:0}
+    html+='<div class="week"><div class="week-hdr" style="background:#ffe0b2;color:#5d4037"><h3>紹介者報酬 内訳</h3><div class="week-tf"><span class="lb">合計</span><span class="mono">'+yen(refTotal)+'</span></div></div>';
+    html+='<div class="tbl-w"><table><thead><tr><th>被紹介者</th><th class="r">第1週</th><th class="r">第2週</th><th class="r">第3週</th><th class="r">第4週</th><th class="r">合計</th></tr></thead><tbody>';
+    rr.byRef.forEach(function(r){html+='<tr><td>'+esc(r.name)+'</td>';[0,1,2,3].forEach(function(wi){var note=refWeekNote(r,wi);html+='<td class="r mono">'+yen(refWeekAmount(r,wi))+(note?' <span style="color:var(--muted);font-size:.75rem">('+esc(note)+')</span>':'')+'</td>'});html+='<td class="r mono" style="font-weight:700">'+yen(r.total)+'</td></tr>'});
+    html+='</tbody></table></div>';
+    html+='<div class="ref-body-cards">';
+    rr.byRef.forEach(function(r){
+      html+='<div class="ref-card"><div class="ref-name">'+esc(r.name)+'</div><div class="ref-weeks">';
+      [0,1,2,3].forEach(function(wi){var note=refWeekNote(r,wi);html+='<div class="ref-week"><span class="dl">第'+(wi+1)+'週</span><span class="dv mono">'+yen(refWeekAmount(r,wi))+'</span>'+(note?'<span class="dl">'+esc(note)+'</span>':'')+'</div>'});
+      html+='</div><div class="ref-total"><span>合計</span><span class="mono">'+yen(r.total)+'</span></div></div>';
+    });
+    html+='</div></div>';
+  }
+  document.getElementById('weeksArea').innerHTML=html}
+
+function renderWeeksHTML(weeks,full,refByWeek){var html='';
+  weeks.forEach(function(w,i){var ws=fmtMD(w.weekStart),we=fmtMD(w.weekEnd);var d0=w.days[0],d6=w.days[6];
+    var refAmt=(refByWeek&&refByWeek[i])?refByWeek[i]:0;
+    html+='<div class="week" style="animation-delay:'+(i*0.04)+'s"><div class="week-hdr"><h3>第'+(i+1)+'週　'+ws+'（'+(d0?d0.dow:'')+'）〜'+we+'（'+(d6?d6.dow:'')+'）</h3><div class="week-tf">';
+    if(refAmt){html+='<span class="lb">報酬</span><span class="mono">'+yen(w.transferAmount)+'</span>'+'<span class="op">+</span><span class="lb">紹介</span><span class="mono" style="color:var(--green)">'+yen(refAmt)+'</span>'+'<span class="op">=</span><span class="lb">合計</span><span class="mono">'+yen(w.transferAmount+refAmt)+'</span>';}
+    else{html+='<span class="lb">振込</span><span class="mono">'+yen(w.transferAmount)+'</span>';}
+    html+='</div></div>';
+    if(w.totals.count===0&&w.transferAmount===0&&!refAmt){html+='<div class="empty-w">この週のデータはまだありません</div></div>';return}
+    html+='<div class="tbl-w"><table><thead><tr><th class="c">日付</th><th class="c">件数</th><th class="r">売上</th><th class="r">広告費</th>';
+    if(full)html+='<th class="r">手数料</th><th class="r">CO費用</th><th class="r">本体代</th><th class="r">伝票代</th>';
+    html+='<th class="r">報酬</th></tr></thead><tbody>';
+    w.days.forEach(function(d){html+='<tr><td class="c">'+fmtMD(d.date)+'（'+esc(d.dow)+'）</td><td class="c">'+d.count+'</td><td class="r mono">'+yen(d.sales)+'</td><td class="r mono">'+yen(d.adCost)+'</td>';
+      if(full)html+='<td class="r mono">'+yen(d.cardFee)+'</td><td class="r mono">'+yen(d.coFee||0)+'</td><td class="r mono">'+yen(d.honntai)+'</td><td class="r mono">'+yen(d.slipCost)+'</td>';
+      html+='<td class="r">'+colorVal(d.reward)+'</td></tr>'});
+    var t=w.totals;html+='<tr class="total-row"><td class="c">合計</td><td class="c">'+t.count+'</td><td class="r mono">'+yen(t.sales)+'</td><td class="r mono">'+yen(t.adCost)+'</td>';
+    if(full)html+='<td class="r mono">'+yen(t.cardFee)+'</td><td class="r mono">'+yen(t.coFee||0)+'</td><td class="r mono">'+yen(t.honntai)+'</td><td class="r mono">'+yen(t.slipCost)+'</td>';
+    html+='<td class="r">'+colorVal(t.reward)+'</td></tr></tbody></table></div>';
+    html+='<div class="day-cards">';
+    w.days.forEach(function(d){
+      var hasD=d.count>0||d.sales!==0||d.adCost!==0||d.reward!==0;
+      html+='<div class="day-card'+(hasD?' has-data':'')+'"><div class="day-top"><div><span class="day-date">'+fmtMD(d.date)+'（'+esc(d.dow)+'）</span><span class="day-count">'+d.count+'件</span></div><div class="day-reward '+colorCls(d.reward)+' mono">'+yen(d.reward)+'</div></div>';
+      if(hasD&&full){html+='<div class="day-details"><div class="day-item"><span class="dl">売上</span><span class="dv mono">'+yen(d.sales)+'</span></div><div class="day-item"><span class="dl">広告費</span><span class="dv mono">'+yen(d.adCost)+'</span></div><div class="day-item"><span class="dl">手数料</span><span class="dv mono">'+yen(d.cardFee)+'</span></div><div class="day-item"><span class="dl">CO費用</span><span class="dv mono">'+yen(d.coFee||0)+'</span></div><div class="day-item"><span class="dl">本体代</span><span class="dv mono">'+yen(d.honntai)+'</span></div><div class="day-item"><span class="dl">伝票代</span><span class="dv mono">'+yen(d.slipCost)+'</span></div></div>';html+=renderPaymentBreakdown(d.payments);}
+      else if(!hasD){html+='<div class="day-empty">データなし</div>';}
+      html+='</div>';
+    });
+    var t2=w.totals;
+    html+='<div class="day-card total"><div class="day-top"><div><span class="day-date">合計</span><span class="day-count">'+t2.count+'件</span></div><div class="day-reward '+(t2.reward>=0?'pos':'neg')+' mono">'+yen(t2.reward)+'</div></div>';
+    if(full){html+='<div class="day-details"><div class="day-item"><span class="dl">売上</span><span class="dv mono">'+yen(t2.sales)+'</span></div><div class="day-item"><span class="dl">広告費</span><span class="dv mono">'+yen(t2.adCost)+'</span></div><div class="day-item"><span class="dl">手数料</span><span class="dv mono">'+yen(t2.cardFee)+'</span></div><div class="day-item"><span class="dl">CO費用</span><span class="dv mono">'+yen(t2.coFee||0)+'</span></div><div class="day-item"><span class="dl">本体代</span><span class="dv mono">'+yen(t2.honntai)+'</span></div><div class="day-item"><span class="dl">伝票代</span><span class="dv mono">'+yen(t2.slipCost)+'</span></div></div>';html+=renderPaymentBreakdown(t2.payments);}
+    html+='</div></div>';
+    html+='</div>';});return html}
+
+function savedRewardGroupId_(value){var id=String(value||'').trim().toLowerCase();return /^[a-z0-9_]+$/.test(id)?id:'main'}
+function handleErr(msg){msg=msg||'エラー';
+  if(msg==='このグループでは使いません'||msg.indexOf('グループ設定を確認できません')===0){
+    currentData=null;
+    ['summaryArea','weeksArea','tabBar'].forEach(function(id){document.getElementById(id).innerHTML=''});
+    document.getElementById('adminSelect').style.display='none';
+    document.getElementById('previewSelect').style.display='none';
+    document.getElementById('appErr').textContent=msg;return;
+  }
+  if(msg==='unavailable'){location.replace(window.ECOPITA_SITE.baseUrl + '/portal.html');return}
+  if(msg==='TARGET_ACCESS_REVOKED'){viewStaffId=myStaffId;reload();return;}
+  if(msg.indexOf('再ログイン')!==-1||msg.indexOf('セッション')!==-1||msg.indexOf('期限')!==-1){toast(msg);setTimeout(resetLogin,1200);return}
+  document.getElementById('appErr').textContent=msg}
+
+function resetLogin(){
+  localStorage.removeItem('ecopita_session');
+  token='';currentData=null;isAdmin=false;myStaffId='';viewStaffId='';previewAs='';activeTab='own';
+  stopCountdown();
+  document.getElementById('pin').value='';
+  document.getElementById('appErr').textContent='';
+  document.getElementById('weeksArea').innerHTML='';
+  document.getElementById('summaryArea').innerHTML='';
+  document.getElementById('tabBar').innerHTML='';
+  document.getElementById('adminSelect').style.display='none';
+  document.getElementById('previewSelect').style.display='none';
+  document.getElementById('loginErr').classList.remove('on');
+  showScreen_('loginView');
+}
+</script>
+<script src="./shared-nav.js"></script>
+</body>
+</html>

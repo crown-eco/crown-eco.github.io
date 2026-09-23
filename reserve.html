@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<script src="./shared-site-config.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>予約日管理</title>
+<script src="./shared-auth.js"></script>
+<script src="./shared-gas-call.js?v=20260914-read-v1"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--green:#2e7d32;--green-dark:#1b5e20;--bg:#f5f7fa;--card:#fff;--text:#1a1a1a;--text-sub:#5f6368;--border:#dce1e8;--radius:14px;--red:#c62828;--orange:#e65100}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text);line-height:1.6;padding-bottom:80px}
+.hero{background:linear-gradient(160deg,var(--green),var(--green-dark));color:#fff;padding:24px 20px;text-align:center}
+.hero h1{font-size:1.4rem;font-weight:700}
+.hero p{font-size:.9rem;opacity:.85;margin-top:6px}
+.container{max-width:500px;margin:0 auto;padding:15px 20px}
+.card{background:var(--card);border-radius:var(--radius);box-shadow:0 2px 8px rgba(0,0,0,.06);padding:18px;margin-bottom:14px;border:1px solid var(--border)}
+.card-title{font-weight:700;color:var(--green);margin-bottom:12px;text-align:center;font-size:1rem}
+.field{margin-bottom:14px}
+.field label{display:block;font-weight:600;font-size:.9rem;margin-bottom:5px}
+.field input,.field select{width:100%;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:1rem;background:#fff;box-sizing:border-box}
+.field input[type="date"]{max-width:100%;-webkit-appearance:none;appearance:none}
+.row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.preview{margin-top:8px;font-size:.85rem;color:var(--text-sub)}.preview span{font-weight:700;color:var(--green)}
+.btn{display:block;width:100%;padding:14px;border-radius:12px;border:none;font-size:1.1rem;font-weight:700;cursor:pointer;margin-top:8px;color:#fff}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn-green{background:var(--green)}.btn-green:hover:not(:disabled){opacity:.9}
+.btn-orange{background:var(--orange)}.btn-orange:hover:not(:disabled){opacity:.9}
+.btn-red{background:var(--red)}.btn-red:hover:not(:disabled){opacity:.9}
+.btn-gray{background:#78909c}.btn-gray:hover:not(:disabled){opacity:.9}
+.error-msg{display:none;margin-top:12px;padding:12px;background:#ffebee;border:2px solid var(--red);border-radius:8px;color:var(--red);font-weight:600;font-size:.9rem;text-align:center}
+.info-box{background:#e8f5e9;border:2px solid #66bb6a;border-radius:10px;padding:14px;margin-bottom:14px;font-size:.9rem}
+.info-row{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(0,0,0,.06)}
+.info-row:last-child{border-bottom:none}
+.info-label{color:var(--text-sub);font-weight:600}
+.info-value{font-weight:700;color:var(--green)}
+.hidden{display:none}
+.result-box{text-align:center;padding:30px 20px}
+.result-box h2{margin-bottom:8px}
+.time-row{display:flex;gap:10px;align-items:center}
+.time-row .field{flex:1}
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>📅 予約日管理</h1>
+  <p>予約日の設定・変更・キャンセル</p>
+</div>
+
+<div class="container">
+
+  <!-- STEP1: 案件番号入力 -->
+  <div id="step1">
+    <div class="card">
+      <div class="card-title">案件番号を入力</div>
+      <div class="field">
+        <label>案件番号</label>
+        <div class="row">
+          <select id="case_prefix" data-ecopita-case-prefixes onchange="onPrefixChange()" style="padding:10px 8px;border:2px solid var(--border);border-radius:8px;font-size:1rem;font-weight:700;color:var(--green);min-width:80px">
+            <option value="YA">YA</option><option value="HM">HM</option>
+            <option value="CP">CP</option><option value="EC">EC</option><option value="HC">HC</option>
+          </select>
+          <select id="case_alpha" style="display:none;padding:10px 8px;border:2px solid var(--green);border-radius:8px;font-size:1rem;font-weight:700;color:var(--green);min-width:64px">
+            <option value="">-</option>
+            <option>A</option><option>B</option><option>C</option><option>D</option><option>E</option>
+            <option>F</option><option>G</option><option>H</option><option>I</option><option>J</option>
+            <option>K</option><option>L</option><option>M</option><option>N</option><option>O</option>
+            <option>P</option><option>Q</option><option>R</option><option>S</option><option>T</option>
+            <option>U</option><option>V</option><option>W</option><option>X</option><option>Y</option><option>Z</option>
+          </select>
+          <span style="font-weight:700;font-size:1.1rem;color:#aaa">-</span>
+          <input type="text" id="case_number" placeholder="12345678" inputmode="numeric" oninput="updatePreview()" style="flex:1;min-width:130px">
+        </div>
+        <div class="preview">案件番号：<span id="preview_val">---</span></div>
+      </div>
+      <button class="btn btn-green" id="btn_search" onclick="doSearch()" disabled>検索</button>
+      <div class="error-msg" id="error_msg"></div>
+    </div>
+  </div>
+
+  <!-- STEP2: 案件情報 + アクション選択 -->
+  <div id="step2" class="hidden">
+    <div class="card">
+      <div class="card-title">予約情報</div>
+      <div class="info-box" id="case_info"></div>
+      <div id="action_buttons">
+        <button class="btn btn-green" onclick="showDateForm()">📅 予約日を決定する</button>
+        <button class="btn btn-orange" onclick="doSnooze()">⏳ まだ調整中（また聞いて）</button>
+        <button class="btn btn-red" onclick="doCancel()">🚫 キャンセルになった</button>
+      </div>
+      <div class="error-msg" id="action_error"></div>
+    </div>
+  </div>
+
+  <!-- STEP2.5: 予約日入力 -->
+  <div id="step_date" class="hidden">
+    <div class="card">
+      <div class="card-title">予約日時を入力</div>
+      <div class="field">
+        <label>予約日</label>
+        <input type="date" id="new_reserve_date">
+      </div>
+      <div class="time-row">
+        <div class="field">
+          <label>開始時間</label>
+          <select id="new_reserve_start">
+            <option value="">--</option>
+            <option>00:00</option><option>00:30</option><option>01:00</option><option>01:30</option>
+            <option>02:00</option><option>02:30</option><option>03:00</option><option>03:30</option>
+            <option>04:00</option><option>04:30</option><option>05:00</option><option>05:30</option>
+            <option>06:00</option><option>06:30</option><option>07:00</option><option>07:30</option>
+            <option>08:00</option><option>08:30</option><option>09:00</option><option>09:30</option>
+            <option>10:00</option><option>10:30</option><option>11:00</option><option>11:30</option>
+            <option>12:00</option><option>12:30</option><option>13:00</option><option>13:30</option>
+            <option>14:00</option><option>14:30</option><option>15:00</option><option>15:30</option>
+            <option>16:00</option><option>16:30</option><option>17:00</option><option>17:30</option>
+            <option>18:00</option><option>18:30</option><option>19:00</option><option>19:30</option>
+            <option>20:00</option><option>20:30</option><option>21:00</option><option>21:30</option>
+            <option>22:00</option><option>22:30</option><option>23:00</option><option>23:30</option>
+          </select>
+        </div>
+        <span style="font-size:1.2rem;font-weight:700;margin-top:20px">〜</span>
+        <div class="field">
+          <label>終了時間</label>
+          <select id="new_reserve_end">
+            <option value="">--</option>
+            <option>00:00</option><option>00:30</option><option>01:00</option><option>01:30</option>
+            <option>02:00</option><option>02:30</option><option>03:00</option><option>03:30</option>
+            <option>04:00</option><option>04:30</option><option>05:00</option><option>05:30</option>
+            <option>06:00</option><option>06:30</option><option>07:00</option><option>07:30</option>
+            <option>08:00</option><option>08:30</option><option>09:00</option><option>09:30</option>
+            <option>10:00</option><option>10:30</option><option>11:00</option><option>11:30</option>
+            <option>12:00</option><option>12:30</option><option>13:00</option><option>13:30</option>
+            <option>14:00</option><option>14:30</option><option>15:00</option><option>15:30</option>
+            <option>16:00</option><option>16:30</option><option>17:00</option><option>17:30</option>
+            <option>18:00</option><option>18:30</option><option>19:00</option><option>19:30</option>
+            <option>20:00</option><option>20:30</option><option>21:00</option><option>21:30</option>
+            <option>22:00</option><option>22:30</option><option>23:00</option><option>23:30</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn btn-green" onclick="submitDate()">予約日を確定</button>
+      <button class="btn btn-gray" onclick="document.getElementById('step_date').classList.add('hidden')" style="margin-top:6px">戻る</button>
+      <div class="error-msg" id="date_error"></div>
+    </div>
+  </div>
+
+  <!-- STEP3: 完了 -->
+  <div id="step3" class="hidden">
+    <div class="card">
+      <div class="result-box" id="result_box">
+        <h2 id="result_title"></h2>
+        <p id="result_detail"></p>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+var GAS_URL = 'https://script.google.com/macros/s/AKfycbyvjri6i0fe11hzfoqfhSxWCsn1aP2WyT9ELZOzNMrVyEOx-ZsKqlhJQONzlaFLmPw/exec';
+var CASE_ID_INVALID_MESSAGE = '案件番号が正しくありません　確認してください';
+var caseData = null;
+
+function onPrefixChange() {
+  var a = document.getElementById('case_alpha');
+  a.style.display = document.getElementById('case_prefix').value === 'YA' ? '' : 'none';
+  if (document.getElementById('case_prefix').value !== 'YA') a.value = '';
+  updatePreview();
+}
+
+function buildCaseId() {
+  var p = document.getElementById('case_prefix').value;
+  var a = document.getElementById('case_alpha').value;
+  var n = document.getElementById('case_number').value.trim();
+  if (!n) return '';
+  if (p === 'YA') return a ? 'YA-' + a + n : 'YA-' + n;
+  return p + '-' + n;
+}
+
+function updatePreview() {
+  var id = buildCaseId();
+  document.getElementById('preview_val').textContent = id || '---';
+  document.getElementById('btn_search').disabled = !id;
+  document.getElementById('error_msg').style.display = 'none';
+}
+
+function showError(elId, msg) {
+  var el = document.getElementById(elId);
+  el.textContent = msg; el.style.display = 'block';
+}
+
+async function doSearch() {
+  var id = buildCaseId();
+  if (!id) return;
+  var btn = document.getElementById('btn_search');
+  btn.disabled = true; btn.textContent = '検索中...';
+  document.getElementById('error_msg').style.display = 'none';
+  document.getElementById('step2').classList.add('hidden');
+  document.getElementById('step_date').classList.add('hidden');
+  document.getElementById('step3').classList.add('hidden');
+
+  try {
+    var r = await gasCall(
+      { form_type: 'reserve_lookup', case_id: id, p1_sf: 'p1_sf_v1' },
+      { mode: 'lookup', url: GAS_URL, onStatus: function(status) { btn.textContent = status; } }
+    );
+    if (r.case_id_valid === false) { showError('error_msg', CASE_ID_INVALID_MESSAGE); }
+    else if (!r.ok) { showError('error_msg', r.error || '案件が見つかりません'); }
+    else { renderCaseInfo(r); }
+  } catch(e) { showError('error_msg', '通信エラーが発生しました'); }
+  btn.disabled = false; btn.textContent = '検索';
+}
+
+function renderCaseInfo(r) {
+  caseData = r;
+  var html = '';
+  html += '<div class="info-row"><span class="info-label">案件番号</span><span class="info-value">' + r.case_id + '</span></div>';
+  html += '<div class="info-row"><span class="info-label">お客様名</span><span class="info-value">' + (r.name || '-') + '</span></div>';
+  html += '<div class="info-row"><span class="info-label">ステータス</span><span class="info-value">' + (r.status || '-') + '</span></div>';
+  html += '<div class="info-row"><span class="info-label">現在の予約日</span><span class="info-value" style="color:' + (r.reserve_date === '未定' ? 'var(--orange)' : 'var(--green)') + '">' + (r.reserve_date || 'なし') + '</span></div>';
+  if (r.reserve_time) html += '<div class="info-row"><span class="info-label">予約時間</span><span class="info-value">' + r.reserve_time + '</span></div>';
+  document.getElementById('case_info').innerHTML = html;
+  document.getElementById('step2').classList.remove('hidden');
+  document.getElementById('step2').scrollIntoView({ behavior: 'smooth' });
+}
+
+function showDateForm() {
+  document.getElementById('step_date').classList.remove('hidden');
+  document.getElementById('step_date').scrollIntoView({ behavior: 'smooth' });
+}
+
+async function submitDate() {
+  var d = document.getElementById('new_reserve_date').value;
+  if (!d) { showError('date_error', '予約日を入力してください'); return; }
+  await sendAction('set_date', {
+    reserve_date: d,
+    reserve_time_start: document.getElementById('new_reserve_start').value || '',
+    reserve_time_end: document.getElementById('new_reserve_end').value || ''
+  });
+}
+
+async function doSnooze() {
+  await sendAction('snooze', {});
+}
+
+async function doCancel() {
+  if (!confirm('この案件をキャンセルにしますか？')) return;
+  await sendAction('cancel', {});
+}
+
+async function sendAction(action, extra) {
+  var guardCaseId = (caseData && caseData.case_id) || buildCaseId();
+  if (gasP1SfGuard('reserve_lookup', guardCaseId, function(message) { showError('action_error', message); })) return;
+  var payload = Object.assign({
+    form_type: 'reserve_update',
+    case_id: caseData.case_id,
+    action: action
+  }, extra);
+
+  document.querySelectorAll('.btn').forEach(function(b) { b.disabled = true; });
+  document.getElementById('action_error').style.display = 'none';
+
+  try {
+    var resp = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify(payload) });
+    var r = await resp.json();
+    if (!r.ok) {
+      showError('action_error', r.error || '更新に失敗しました');
+      document.querySelectorAll('.btn').forEach(function(b) { b.disabled = false; });
+      return;
+    }
+    if (action === 'set_date') fireReserveUpdateAsync(payload);
+    document.getElementById('step1').classList.add('hidden');
+    document.getElementById('step2').classList.add('hidden');
+    document.getElementById('step_date').classList.add('hidden');
+    document.getElementById('step3').classList.remove('hidden');
+
+    var title = document.getElementById('result_title');
+    var detail = document.getElementById('result_detail');
+    if (action === 'set_date') {
+      title.style.color = 'var(--green)';
+      title.textContent = '✅ 予約日を設定しました';
+      detail.textContent = caseData.case_id + ' → ' + extra.reserve_date;
+    } else if (action === 'snooze') {
+      title.style.color = 'var(--orange)';
+      title.textContent = '⏳ 調整中として記録しました';
+      detail.textContent = '2日後にまたお知らせします';
+    } else if (action === 'cancel') {
+      title.style.color = 'var(--red)';
+      title.textContent = '🚫 キャンセルとして記録しました';
+      detail.textContent = caseData.case_id;
+    }
+  } catch(e) {
+    showError('action_error', '通信エラーが発生しました');
+    document.querySelectorAll('.btn').forEach(function(b) { b.disabled = false; });
+  }
+}
+
+function fireReserveUpdateAsync(payload) {
+  try {
+    var asyncPayload = Object.assign({}, payload, { form_type: 'reserve_update_async' });
+    fetch(GAS_URL, { method: 'POST', body: JSON.stringify(asyncPayload) }).catch(function(){});
+  } catch(e) {}
+}
+
+// URLパラメータで案件番号があれば自動検索
+(function() {
+  var params = new URLSearchParams(location.search);
+  var c = params.get('c');
+  if (c) {
+    var parts = c.match(/^([A-Z]+)-?([A-Z]?)(\d+)$/i);
+    if (parts) {
+      document.getElementById('case_prefix').value = parts[1].toUpperCase();
+      onPrefixChange();
+      if (parts[2]) document.getElementById('case_alpha').value = parts[2].toUpperCase();
+      document.getElementById('case_number').value = parts[3];
+      updatePreview();
+      setTimeout(doSearch, 300);
+    }
+  }
+})();
+
+onPrefixChange();
+</script>
+<script src="./shared-nav.js"></script>
+</body>
+</html>

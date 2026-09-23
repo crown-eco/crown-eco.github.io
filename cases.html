@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<script src="./shared-site-config.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>案件一覧</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<style>
+:root{--bg:#0f1117;--surface:#1a1d27;--surface2:#242836;--border:#2e3348;--text:#e8eaf0;--text2:#8b90a5;--accent:#4f8cff;--accent2:#3b6fd4;--green:#34d399;--red:#f87171;--orange:#fbbf24;--purple:#a78bfa;--cyan:#22d3ee;--radius:12px;}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;-webkit-font-smoothing:antialiased;}
+.header{background:var(--surface);border-bottom:1px solid var(--border);padding:12px 24px;padding-right:64px;display:flex;align-items:center;justify-content:space-between;gap:12px;}
+.header-left{display:flex;align-items:center;gap:12px;}
+.header-logo{width:36px;height:36px;background:linear-gradient(135deg,var(--accent),var(--purple));border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;color:#fff;}
+.header-title{font-size:18px;font-weight:600;}
+.header-user{font-size:13px;color:var(--text2);background:var(--surface2);padding:6px 14px;border-radius:20px;}
+.btn{background:var(--accent);color:#fff;border:none;padding:7px 18px;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;}
+.btn:hover{background:var(--accent2);}
+.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--text2);}
+.btn-ghost:hover{border-color:var(--text2);color:var(--text);background:var(--surface2);}
+.btn-back{background:transparent;border:1px solid var(--accent);color:var(--accent);padding:6px 14px;border-radius:8px;font-size:13px;cursor:pointer;white-space:nowrap;}
+.btn-back:hover{background:rgba(79,140,255,.1);}
+.controls{padding:12px 24px;display:flex;align-items:center;gap:10px;flex-wrap:nowrap;overflow-x:auto;}
+.controls label{font-size:13px;color:var(--text2);white-space:nowrap;}
+.view-select{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:7px 12px;border-radius:8px;font-family:'Noto Sans JP',sans-serif;font-size:13px;outline:none;cursor:pointer;}
+.preview-wrap{display:flex;align-items:center;gap:8px;white-space:nowrap;}
+.preview-badge{font-size:12px;color:#ffd59a;background:rgba(255,213,154,.08);border:1px solid rgba(255,213,154,.35);border-radius:12px;padding:3px 9px;font-weight:600;}
+.controls input[type="date"]{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:7px 12px;border-radius:8px;font-family:'Noto Sans JP',sans-serif;font-size:13px;outline:none;}
+.controls input[type="date"]::-webkit-calendar-picker-indicator{filter:invert(1);cursor:pointer;opacity:.8;}
+.section{padding:12px 24px 24px;}
+.table-wrap{position:relative;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);overflow:hidden;}
+.table-scroll{overflow-x:auto;}
+table{width:100%;border-collapse:collapse;font-size:13px;}
+thead th{background:var(--surface2);padding:10px 12px;text-align:left;font-weight:500;color:var(--text2);font-size:12px;border-bottom:1px solid var(--border);white-space:nowrap;position:sticky;top:0;}
+thead th.sortable{cursor:pointer;user-select:none;}
+thead th.sortable:hover{color:var(--text);}
+thead th.sortable::after{content:' ↕';font-size:10px;}
+thead th.sort-asc::after{content:' ↑';color:var(--accent);}
+thead th.sort-desc::after{content:' ↓';color:var(--accent);}
+.th-name-inner{display:inline-flex;align-items:center;gap:3px;}
+.resize-ind{font-size:11px;color:var(--border);cursor:col-resize;padding:0 2px;user-select:none;transition:color .15s;}
+.resize-ind:hover{color:var(--text2);}
+.resize-handle{position:absolute;right:-8px;top:-10px;bottom:-10px;width:16px;cursor:col-resize;z-index:2;}
+.filter-btn{background:transparent;border:none;color:var(--text2);font-size:11px;cursor:pointer;padding:0 2px;margin-left:2px;line-height:1;vertical-align:middle;}
+.filter-btn:hover{color:var(--text);}
+.filter-btn.active{color:var(--accent);}
+.filter-tag-row{padding:6px 12px;border-bottom:1px solid var(--border);background:var(--surface2);display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.filter-tag{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:500;background:rgba(79,140,255,.15);color:var(--accent);cursor:pointer;}
+.filter-tag:hover{background:rgba(79,140,255,.25);}
+.filter-dd{position:fixed;background:var(--surface);border:1px solid var(--border);border-radius:8px;z-index:9999;min-width:150px;box-shadow:0 4px 16px rgba(0,0,0,.4);overflow:hidden;}
+.filter-dd-item{padding:8px 14px;font-size:13px;cursor:pointer;color:var(--text2);}
+.filter-dd-item:hover{background:var(--surface2);color:var(--text);}
+.filter-dd-item.selected{color:var(--accent);}
+tbody td{padding:9px 12px;border-bottom:1px solid var(--border);white-space:nowrap;}
+tbody tr:last-child td{border-bottom:none;}
+tbody tr:hover{background:rgba(79,140,255,.04);}
+tbody tr.overdue{background:rgba(248,113,113,.06);}
+.td-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:default;}
+.mono{font-family:'JetBrains Mono',monospace;font-size:12px;}
+.badge{display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:500;}
+.badge-green{background:rgba(52,211,153,.12);color:var(--green);}
+.badge-red{background:rgba(248,113,113,.12);color:var(--red);}
+.badge-orange{background:rgba(251,191,36,.12);color:var(--orange);}
+.badge-purple{background:rgba(167,139,250,.12);color:var(--purple);}
+.badge-cyan{background:rgba(34,211,238,.12);color:var(--cyan);}
+.badge-gray{background:rgba(139,144,165,.12);color:var(--text2);}
+.count-bar{padding:8px 14px;font-size:12px;color:var(--text2);border-top:1px solid var(--border);}
+.state-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;gap:16px;color:var(--text2);}
+.spinner{width:36px;height:36px;border:3px solid var(--border);border-top:3px solid var(--accent);border-radius:50%;animation:spin .8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+@media(max-width:640px){
+  .header{padding:10px 12px;padding-right:52px;flex-wrap:wrap;gap:8px;}
+  .header-left{flex-shrink:0;}
+  .header-title{font-size:15px;}
+  .header .header-user{display:none;}
+  .btn-back{font-size:11px;padding:5px 10px;}
+  .section{padding:8px 10px 16px;}
+  .controls{padding:8px 10px;flex-wrap:wrap;gap:6px;}
+  .controls label{font-size:12px;}
+  .preview-wrap{flex-wrap:wrap;}
+  .controls input[type="date"]{font-size:12px;padding:6px 8px;max-width:130px;}
+  .controls .btn{font-size:12px;padding:6px 12px;}
+  .filter-btn{padding:6px 6px;font-size:13px;min-width:28px;min-height:28px;}
+  thead th{padding:8px 6px;font-size:11px;}
+  tbody td{padding:7px 6px;font-size:12px;}
+  .filter-dd{min-width:130px;max-width:calc(100vw - 20px);}
+  .filter-dd-item{padding:10px 14px;font-size:14px;}
+  .badge{font-size:10px;padding:2px 6px;}
+}
+</style>
+<script src="./shared-gas-call.js?v=20260914-read-v1"></script>
+</head>
+<body>
+<div id="loadingScreen" class="state-screen">
+  <div class="spinner"></div>
+  <span>読み込み中...</span>
+</div>
+<div id="mainScreen" style="display:none">
+  <div class="header">
+    <div class="header-left">
+      <div class="header-logo">C</div>
+      <span class="header-title">案件一覧</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <button class="btn-back" onclick="window.location.href=window.ECOPITA_SITE.baseUrl + '/portal.html'">← 業務ポータルに戻る</button>
+      <div class="header-user" id="headerUser">---</div>
+      <button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;" onclick="doLogout()">ログアウト</button>
+    </div>
+  </div>
+  <div class="controls">
+    <label>表示:</label>
+    <select class="view-select" id="viewAsSelect" style="display:none" onchange="onViewAsChange()"></select>
+    <div class="preview-wrap" id="previewWrap" style="display:none">
+      <label>閲覧者として見る:</label>
+      <select class="view-select" id="previewAsSelect" onchange="onPreviewAsChange()"></select>
+      <span class="preview-badge" id="previewBadge" style="display:none"></span>
+    </div>
+    <label>期間:</label>
+    <input type="date" id="dateFrom">
+    <span style="color:var(--text2)">〜</span>
+    <input type="date" id="dateTo">
+    <button class="btn" onclick="reload()">更新</button>
+    <button class="btn btn-ghost" onclick="resetDates()">全期間</button>
+  </div>
+  <div class="section">
+    <div class="table-wrap" id="tableWrap">
+      <div id="filterTagRow" style="display:none;" class="filter-tag-row"></div>
+      <div class="table-scroll">
+        <table id="casesTable">
+          <thead>
+            <tr id="casesHeaderRow">
+              <th class="sortable" data-col="case_id" onclick="sortBy('case_id')">案件番号</th>
+              <th class="sortable" data-col="date" onclick="sortBy('date')">契約日</th>
+              <th style="position:relative;">
+                <div class="th-name-inner" id="thNameWrap">
+                  <span>お客様名</span>
+                  <span class="resize-ind" id="resizeInd">｜</span>
+                  <div class="resize-handle" id="resizeHandle"></div>
+                </div>
+              </th>
+              <th>案件内容</th>
+              <th class="sortable" data-col="sales" onclick="sortBy('sales')" style="text-align:right;">売上</th>
+              <th>支払方法 <button class="filter-btn" id="fbtnPayMethod" onclick="toggleDD('payMethod',this)">▼</button></th>
+              <th class="sortable" data-col="transfer_deadline" onclick="sortBy('transfer_deadline')">振込期日</th>
+              <th class="sortable" data-col="arrival_date" onclick="sortBy('arrival_date')">入金日</th>
+              <th>契約状況 <button class="filter-btn" id="fbtnStatus" onclick="toggleDD('status',this)">▼</button></th>
+              <th>入金状態 <button class="filter-btn" id="fbtnPayStatus" onclick="toggleDD('payStatus',this)">▼</button></th>
+            </tr>
+          </thead>
+          <tbody id="casesBody"></tbody>
+        </table>
+      </div>
+      <div class="count-bar" id="countBar">0件</div>
+      <div id="filterDd" class="filter-dd" style="display:none;"></div>
+    </div>
+  </div>
+</div>
+<script>
+var GAS_URL='https://script.google.com/macros/s/AKfycbyWAsYrvJs4ihH046NL-tIzUBsPM7rOdm0MSdKjptR9KliR6Et0SvS_2z_egd4I7476FQ/exec';
+var F={redirect:'follow'};
+var STATE={token:'',id:'',viewAs:'',previewAs:'',isAdmin:false};
+var ALL_ROWS=[],SORT_COL='date',SORT_DIR=-1,NAME_WIDTH=140;
+var FILTERS={payMethod:'銀行振り込み',status:'',payStatus:'未入金+期限超過'};
+var ACTIVE_DD=null;
+var FILTER_OPTS={
+  payMethod:['銀行振り込み','現金','クレジットカード','支払いなし'],
+  status:['完工','予約','失注','電話失注','不通・保留','キャンセル'],
+  payStatus:['未入金+期限超過','未入金','入金済','期限超過','対象外']
+};
+
+window.addEventListener('DOMContentLoaded',function(){
+  if(window.ECOPITA_SITE_BLOCKED)return;
+  try{var s=localStorage.getItem('ecopita_session');if(s){var sess=JSON.parse(s);if(sess.token){if(window.ECOPITA_SITE_NOTICE(sess))return;STATE.token=sess.token;STATE.id=sess.staffId||'';try{STATE.previewAs=sessionStorage.getItem('portal_preview_as')||'';}catch(pe){}
+    // portalからのキャッシュがあれば即表示
+    try{var pc=sessionStorage.getItem('portal_cache');if(pc){var pcd=JSON.parse(pc);if(pcd.cases&&pcd.ts&&Date.now()-pcd.ts<120000&&(pcd.previewAs||'')===(STATE.previewAs||'')){renderFromCache_(pcd.cases);}}}catch(ce){}
+    fetchData();return;}}}catch(e){}
+  window.location.href=window.ECOPITA_SITE.baseUrl + '/portal.html';
+});
+
+function renderFromCache_(cases){
+  // キャッシュから仮表示（fetchData完了で上書きされる）
+  try{
+    document.getElementById('loadingScreen').style.display='none';
+    document.getElementById('mainScreen').style.display='';
+    ALL_ROWS=cases;
+    updateFilterBtns();applyFilters();
+  }catch(e){}
+}
+
+function fetchData(){
+  document.getElementById('loadingScreen').style.display='flex';
+  document.getElementById('mainScreen').style.display='none';
+  var params='?mode=cases&token='+encodeURIComponent(STATE.token);
+  if(STATE.viewAs) params+='&view_as='+encodeURIComponent(STATE.viewAs);
+  if(STATE.previewAs) params+='&preview_as='+encodeURIComponent(STATE.previewAs);
+  gasReadFetch(GAS_URL+params, F, { onStatus: gasReadStatusTarget(document.querySelector('#loadingScreen span')) }).then(function(r){return r.json();}).then(function(json){
+    if(!json||!json.ok){
+      if(json&&json.error==='TARGET_ACCESS_REVOKED'){STATE.viewAs='';fetchData();return;}
+      localStorage.removeItem('ecopita_session');
+      window.location.href=window.ECOPITA_SITE.baseUrl + '/portal.html';
+      return;
+    }
+    render(json);
+  }).catch(function(){gasReadStatusTarget(document.querySelector('#loadingScreen span'))(GAS_READ_FINAL_MESSAGE);});
+}
+
+function render(json){
+  STATE.isAdmin=!!json.is_admin;
+  document.getElementById('headerUser').textContent=STATE.isAdmin?'管理者':(json.staff_name||STATE.id);
+  var sel=document.getElementById('viewAsSelect');
+  var vm=json.viewableMembers||[];
+  if(vm.length>1){
+    sel.style.display='';
+    sel.innerHTML=vm.map(function(v){return'<option value="'+esc(v.staffId)+'"'+(v.staffId===json.selectedStaffId?' selected':'')+'>'+esc(v.name)+'</option>';}).join('');
+  }else{sel.style.display='none';}
+  renderPreviewControls_(json);
+  var headerRow=document.getElementById('casesHeaderRow');
+  if(STATE.isAdmin&&!document.getElementById('thStaff')){
+    var th=document.createElement('th');
+    th.id='thStaff';th.textContent='担当者';
+    th.style.cssText='padding:10px 12px;text-align:left;font-weight:500;color:var(--text2);font-size:12px;border-bottom:1px solid var(--border);white-space:nowrap;background:var(--surface2);';
+    headerRow.insertBefore(th,headerRow.firstChild);
+  }
+  ALL_ROWS=json.rows||[];
+  applyFilters();
+  initResize();
+  document.getElementById('loadingScreen').style.display='none';
+  document.getElementById('mainScreen').style.display='block';
+}
+
+function toggleDD(key,btn){
+  var dd=document.getElementById('filterDd');
+  if(ACTIVE_DD===key){dd.style.display='none';ACTIVE_DD=null;return;}
+  ACTIVE_DD=key;
+  var opts=FILTER_OPTS[key],cur=FILTERS[key];
+  var html='<div style="padding:4px 0;"><div class="filter-dd-item'+(cur?'':' selected')+'" onclick="setFilter(\''+key+'\',\'\')">全て</div>';
+  opts.forEach(function(o){html+='<div class="filter-dd-item'+(cur===o?' selected':'')+'" onclick="setFilter(\''+key+'\',\''+o.replace(/\\/g,'\\\\').replace(/'/g,"\\'")+'\')">'+ esc(o)+'</div>';});
+  html+='</div>';
+  dd.innerHTML=html;
+  var bRect=btn.getBoundingClientRect();
+  dd.style.position='fixed';
+  dd.style.top=Math.min(bRect.bottom+4, window.innerHeight-200)+'px';
+  var ddLeft=bRect.left;
+  dd.style.display='block';
+  var ddWidth=dd.offsetWidth||150;
+  if(ddLeft+ddWidth>window.innerWidth-10) ddLeft=window.innerWidth-ddWidth-10;
+  dd.style.left=Math.max(10,ddLeft)+'px';
+}
+
+document.addEventListener('click',function(e){
+  if(!ACTIVE_DD)return;
+  var dd=document.getElementById('filterDd');
+  if(dd&&!dd.contains(e.target)&&!e.target.classList.contains('filter-btn')){dd.style.display='none';ACTIVE_DD=null;}
+});
+
+function setFilter(key,val){
+  FILTERS[key]=val;
+  var dd=document.getElementById('filterDd');
+  dd.style.display='none';ACTIVE_DD=null;
+  updateFilterBtns();updateFilterTags();applyFilters();
+}
+
+function updateFilterBtns(){
+  var map={payMethod:'fbtnPayMethod',status:'fbtnStatus',payStatus:'fbtnPayStatus'};
+  for(var k in map){var btn=document.getElementById(map[k]);if(btn)btn.classList.toggle('active',!!FILTERS[k]);}
+}
+
+function updateFilterTags(){
+  var row=document.getElementById('filterTagRow');
+  var labels={payMethod:'支払方法',status:'契約状況',payStatus:'入金状態'};
+  var tags=[];
+  for(var k in FILTERS){if(FILTERS[k])tags.push({key:k,label:labels[k]+': '+FILTERS[k]});}
+  if(!tags.length){row.style.display='none';return;}
+  row.style.display='flex';
+  row.innerHTML='<span style="font-size:11px;color:var(--text2);white-space:nowrap;">絞り込み中:</span>'
+    +tags.map(function(t){return'<span class="filter-tag" onclick="setFilter(\''+t.key+'\',\'\')">'+esc(t.label)+' ×</span>';}).join('')
+    +'<span style="font-size:11px;color:var(--text2);cursor:pointer;text-decoration:underline;margin-left:4px;white-space:nowrap;" onclick="clearAllFilters()">全解除</span>';
+}
+
+function clearAllFilters(){FILTERS={payMethod:'',status:'',payStatus:''};updateFilterBtns();updateFilterTags();applyFilters();}
+
+function applyFilters(){
+  var from=document.getElementById('dateFrom').value;
+  var to=document.getElementById('dateTo').value;
+  var filtered=ALL_ROWS.filter(function(r){
+    if(from&&r.date<from)return false;
+    if(to&&r.date>to)return false;
+    if(FILTERS.payMethod&&r.pay_method!==FILTERS.payMethod)return false;
+    if(FILTERS.status&&r.status.indexOf(FILTERS.status)===-1)return false;
+    if(FILTERS.payStatus){
+      if(FILTERS.payStatus==='未入金+期限超過'){
+        if(r.pay_status!=='未入金'&&r.pay_status!=='期限超過')return false;
+      }else if(r.pay_status!==FILTERS.payStatus)return false;
+    }
+    return true;
+  });
+if (SORT_COL) {
+    filtered.sort(function(a, b) {
+      var av = a[SORT_COL] || '', bv = b[SORT_COL] || '';
+      if (SORT_COL === 'sales') { av = Number(av); bv = Number(bv); }
+      if (av < bv) return SORT_DIR; if (av > bv) return -SORT_DIR; return 0;
+    });
+  }
+  renderRows(filtered);
+}
+
+function renderRows(rows){
+  var isAdmin=STATE.isAdmin,cols=isAdmin?11:10;
+  document.getElementById('casesBody').innerHTML=rows.length?rows.map(function(r){
+    var isOverdue=r.pay_status==='期限超過';
+    var tr='<tr class="'+(isOverdue?'overdue':'')+'">';
+    if(isAdmin)tr+='<td style="font-size:12px;color:var(--text2);max-width:80px;overflow:hidden;text-overflow:ellipsis;">'+esc(r.staff_name||r.staff_id||'')+'</td>';
+    tr+='<td class="mono" style="font-size:11px;">'+esc(r.case_id)+'</td>'
+      +'<td>'+esc(r.date)+'</td>'
+      +'<td class="td-name" style="max-width:'+NAME_WIDTH+'px" title="'+esc(r.customer)+'">'+esc(r.customer)+'</td>'
+      +'<td style="color:var(--text2);">'+esc(r.content)+'</td>'
+      +'<td class="mono" style="text-align:right;">¥'+fmt(r.sales)+'</td>'
+      +'<td>'+esc(r.pay_method)+'</td>'
+      +'<td class="mono'+(isOverdue?'" style="color:var(--red);font-weight:500':'')+'">'+(r.transfer_deadline||'—')+'</td>'
+      +'<td class="mono">'+(r.arrival_date||'—')+'</td>'
+      +'<td>'+statusBadge(r.status)+'</td>'
+      +'<td>'+payStatusBadge(r.pay_status)+'</td>'
+      +'</tr>';
+    return tr;
+  }).join(''):'<tr><td colspan="'+cols+'" style="text-align:center;color:var(--text2);padding:24px;">データがありません</td></tr>';
+  var salesTotal=rows.reduce(function(sum,r){var v=Number(r.sales);return sum+(isNaN(v)?0:v);},0);
+  document.getElementById('countBar').textContent=rows.length+'件　合計 ¥'+fmt(salesTotal);
+}
+
+function sortBy(col) {
+  if (SORT_COL === col) {
+    if (SORT_DIR === -1) { SORT_DIR = 1; }
+    else { SORT_COL = null; SORT_DIR = 0; }
+  } else { SORT_COL = col; SORT_DIR = -1; }
+  document.querySelectorAll('thead th').forEach(function(th) {
+    th.classList.remove('sort-asc', 'sort-desc');
+    if (th.dataset.col === col && SORT_COL) th.classList.add(SORT_DIR === -1 ? 'sort-desc' : 'sort-asc');
+  });
+  applyFilters();
+}
+  
+function onViewAsChange(){STATE.viewAs=document.getElementById('viewAsSelect').value;fetchData();}
+function onPreviewAsChange(){STATE.previewAs=document.getElementById('previewAsSelect').value||'';try{sessionStorage.setItem('portal_preview_as',STATE.previewAs);}catch(e){}fetchData();}
+function renderPreviewControls_(json){
+  var wrap=document.getElementById('previewWrap'),sel=document.getElementById('previewAsSelect'),badge=document.getElementById('previewBadge');
+  if(!wrap||!sel)return;
+  if(!STATE.isAdmin){wrap.style.display='none';STATE.previewAs='';try{sessionStorage.removeItem('portal_preview_as');}catch(e){}return;}
+  var viewers=json.preview_viewers||[],applied=json.preview_as||'',selected=(applied&&applied!==STATE.id)?applied:(STATE.previewAs||''),seen={};
+  sel.innerHTML='<option value="">通常（自分）</option>'+viewers.map(function(v){var id=v.staffId||v.staff_id||'';if(!id||seen[id])return'';seen[id]=true;return'<option value="'+esc(id)+'">'+esc(id+' '+(v.name||''))+'</option>';}).join('');
+  if(selected&&!seen[selected])sel.innerHTML+='<option value="'+esc(selected)+'">'+esc(selected)+'</option>';
+  sel.value=selected;STATE.previewAs=selected;try{sessionStorage.setItem('portal_preview_as',STATE.previewAs||'');}catch(e){}
+  wrap.style.display='flex';
+  if(badge){badge.style.display=selected?'':'none';badge.textContent=selected?'プレビュー: '+selected+' として表示中':'';}
+}
+function reload(){fetchData();}
+function resetDates(){document.getElementById('dateFrom').value='';document.getElementById('dateTo').value='';applyFilters();}
+function doLogout(){localStorage.removeItem('ecopita_session');window.location.href=window.ECOPITA_SITE.baseUrl + '/portal.html';}
+
+function initResize(){
+  var handle=document.getElementById('resizeHandle');
+  var wrap=document.getElementById('thNameWrap');
+  if(!handle)return;
+  var startX,startW;
+  function doResize(cx){NAME_WIDTH=Math.max(80,startW+(cx-startX));wrap.style.width=NAME_WIDTH+'px';document.querySelectorAll('.td-name').forEach(function(td){td.style.maxWidth=NAME_WIDTH+'px';});}
+  handle.addEventListener('mousedown',function(e){startX=e.clientX;startW=wrap.offsetWidth;document.addEventListener('mousemove',onMM);document.addEventListener('mouseup',onMU);e.preventDefault();});
+  function onMM(e){doResize(e.clientX);}
+  function onMU(){document.removeEventListener('mousemove',onMM);document.removeEventListener('mouseup',onMU);}
+  handle.addEventListener('touchstart',function(e){startX=e.touches[0].clientX;startW=wrap.offsetWidth;document.addEventListener('touchmove',onTM,{passive:false});document.addEventListener('touchend',onTE);e.preventDefault();},{passive:false});
+  function onTM(e){doResize(e.touches[0].clientX);e.preventDefault();}
+  function onTE(){document.removeEventListener('touchmove',onTM);document.removeEventListener('touchend',onTE);}
+}
+
+function fmt(n){if(n==null||isNaN(n))return'0';return Math.floor(n).toLocaleString('ja-JP');}
+function esc(s){if(!s)return'';var d=document.createElement('div');d.textContent=s;return d.innerHTML;}
+function statusBadge(st){
+  if(!st)return'';
+  var cls='badge ';
+  if(st.indexOf('完工')>-1)cls+='badge-green';
+  else if(st==='電話失注')cls+='badge-orange';
+  else if(st==='失注')cls+='badge-red';
+  else if(st.indexOf('予約')>-1)cls+='badge-purple';
+  else if(st==='キャンセル')cls+='badge-red';
+  else cls+='badge-cyan';
+  return'<span class="'+cls+'">'+esc(st)+'</span>';
+}
+function payStatusBadge(ps){
+  if(!ps)return'';
+  var cls='badge ';
+  if(ps==='期限超過')cls+='badge-red';
+  else if(ps==='未入金')cls+='badge-orange';
+  else cls+='badge-gray';
+  return'<span class="'+cls+'">'+esc(ps)+'</span>';
+}
+</script>
+<style>.header{padding-right:64px;}</style>
+<script src="./shared-nav.js"></script>
+</body>
+</html>

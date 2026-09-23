@@ -1,0 +1,1194 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<script src="./shared-site-config.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>請求書発行</title>
+<script src="./shared-auth.js"></script>
+<script src="./shared-gas-call.js?v=20260914-read-v1"></script>
+<script src="./write-async-status.js?v=20260902-v1"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--purple:#5c2d91;--purple-deep:#3a1a5e;--bg:#f5f7fa;--card:#fff;--text:#1a1a1a;--text-sub:#5f6368;--border:#dce1e8;--radius:14px;--red:#c62828;--green:#2e7d32;--orange:#e65100}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text);line-height:1.6;padding-bottom:80px}
+.hero{background:linear-gradient(160deg,var(--purple),var(--purple-deep));color:#fff;padding:24px 20px;text-align:center}
+.hero h1{font-size:1.4rem;font-weight:700}
+.hero p{font-size:.9rem;opacity:.85;margin-top:6px}
+.container{max-width:500px;margin:0 auto;padding:15px 20px}
+.card{background:var(--card);border-radius:var(--radius);box-shadow:0 2px 8px rgba(0,0,0,.06);padding:18px;margin-bottom:14px;border:1px solid var(--border)}
+.card-title{font-weight:700;color:var(--purple);margin-bottom:12px;text-align:center;font-size:1rem}
+.field{margin-bottom:14px}
+.field label{display:block;font-weight:600;font-size:.9rem;margin-bottom:5px}
+.field input,.field select{width:100%;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:1rem;background:#fff;box-sizing:border-box}
+.field input[type="date"]{max-width:100%;-webkit-appearance:none;appearance:none}
+.row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.preview{margin-top:8px;font-size:.85rem;color:var(--text-sub)}.preview span{font-weight:700;color:var(--purple)}
+.btn{display:block;width:100%;padding:14px;border-radius:12px;border:none;font-size:1.1rem;font-weight:700;cursor:pointer;background:var(--purple);color:#fff;margin-top:8px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn:hover:not(:disabled){opacity:.9}
+.error-msg{display:none;margin-top:12px;padding:12px;background:#ffebee;border:2px solid var(--red);border-radius:8px;color:var(--red);font-weight:600;font-size:.9rem;text-align:center}
+.select-item{border:2px solid var(--border);border-radius:10px;padding:14px;cursor:pointer;background:#fff;transition:border-color .2s;margin-bottom:8px;position:relative}
+.select-item:hover{border-color:var(--purple)}
+.select-item.selected{border-color:var(--purple);background:#f4eefe}
+.select-item.selected::after{content:'✓';position:absolute;top:10px;right:12px;font-size:1.2rem;font-weight:700;color:var(--purple)}
+.select-item .title{font-weight:700;font-size:.95rem;color:var(--purple)}
+.select-item .meta{font-size:.85rem;color:#666;margin-top:4px}
+.select-item .detail{font-size:.8rem;color:#888;margin-top:2px}
+.result-box{text-align:center;padding:30px 20px}
+.result-box h2{color:var(--green);margin-bottom:8px}
+.hidden{display:none}
+.warn{color:var(--red);font-size:.85rem;font-weight:600;text-align:center;margin-bottom:12px}
+.notice-box{padding:12px;border-radius:8px;font-size:.85rem;font-weight:600;margin-bottom:12px;text-align:center}
+.notice-warn{background:#fff3e0;border:2px solid #ff9800;color:var(--orange)}
+.selection-summary{background:#f4eefe;border-radius:8px;padding:12px;margin-top:12px;font-size:.9rem}
+.selection-summary .total{font-weight:700;color:var(--purple);font-size:1.1rem}
+.preview-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #eee;font-size:.9rem}
+.preview-row:last-child{border-bottom:none}
+.preview-label{color:var(--text-sub);font-weight:600;min-width:90px}
+.preview-value{font-weight:700;text-align:right;word-break:break-all}
+.preview-section{margin-bottom:14px;padding:12px;border-radius:8px}
+.preview-items{background:#f5f5f5;border-radius:8px;padding:10px;margin:8px 0}
+.preview-item{display:flex;justify-content:space-between;padding:4px 0;font-size:.85rem}
+.preview-total{font-size:1.1rem;font-weight:700;color:var(--purple);text-align:right;padding-top:8px;border-top:2px solid var(--purple)}
+.inv-preview{background:#fff;border:2px solid #333;border-radius:4px;padding:24px 20px;font-size:.85rem}
+.inv-preview .inv-header{text-align:center;border-bottom:3px double #333;padding-bottom:12px;margin-bottom:16px}
+.inv-preview .inv-header h2{font-size:1.3rem;letter-spacing:.3em;margin:0}
+.inv-preview .inv-to{font-size:1.1rem;font-weight:700;border-bottom:1px solid #333;display:inline-block;padding-bottom:2px;margin-bottom:12px}
+.inv-preview .inv-table{width:100%;border-collapse:collapse;margin:12px 0}
+.inv-preview .inv-table th{background:#f0f0f0;border:1px solid #ccc;padding:6px 8px;font-size:.8rem;text-align:center}
+.inv-preview .inv-table td{border:1px solid #ccc;padding:6px 8px;font-size:.85rem}
+.inv-preview .inv-table .r{text-align:right}
+.inv-preview .inv-table .c{text-align:center}
+  .inv-preview .inv-grand{font-size:1.2rem;font-weight:700;text-align:right;padding:10px 0;border-top:2px solid #333;margin-top:4px}
+  .inv-preview .inv-pay{background:#f9f9f9;border:1px solid #ddd;border-radius:4px;padding:10px;margin-top:12px;font-size:.85rem}
+  .inv-preview .inv-pay div{padding:2px 0}
+  .payment-breakdown{border:2px solid #0055a4;border-radius:6px;margin:8px 0 10px;overflow:hidden}
+  .payment-title{background:#0055a4;color:#fff;font-weight:700;padding:5px 8px;font-size:9.5pt}
+  .payment-row{display:table;width:100%;border-top:1px solid #d8e3ef}
+  .payment-row:first-of-type{border-top:none}
+  .payment-label,.payment-amount,.payment-status{display:table-cell;padding:6px 8px;vertical-align:middle}
+  .payment-label{width:36%;font-weight:700}
+  .payment-amount{width:28%;text-align:right;white-space:nowrap;font-weight:700}
+  .payment-status{width:36%;color:#333}
+  .payment-transfer{background:#fff8e1}
+  .payment-transfer .payment-label{font-size:12pt}
+  .payment-transfer .payment-amount{font-size:13pt;color:#c62828}
+  .transfer-amount{color:#c62828;font-size:13pt}
+  </style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>📑 請求書発行</h1>
+  <p>案件番号を入力して請求書を発行します</p>
+</div>
+
+<div class="container">
+  <p class="warn">※お客様から求められた時のみ使用</p>
+
+  <!-- STEP1: 案件番号入力 -->
+  <div id="step1">
+    <div class="card">
+      <div class="card-title">案件番号を入力</div>
+      <div class="field">
+        <label>案件番号</label>
+        <div class="row">
+          <select id="case_prefix" data-ecopita-case-prefixes onchange="onPrefixChange()" style="padding:10px 8px;border:2px solid var(--border);border-radius:8px;font-size:1rem;font-weight:700;color:var(--purple);min-width:80px">
+            <option value="YA">YA</option><option value="HM">HM</option>
+            <option value="CP">CP</option><option value="EC">EC</option><option value="HC">HC</option>
+          </select>
+          <select id="case_alpha" style="display:none;padding:10px 8px;border:2px solid var(--purple);border-radius:8px;font-size:1rem;font-weight:700;color:var(--purple);min-width:64px">
+            <option value="">-</option>
+            <option>A</option><option>B</option><option>C</option><option>D</option><option>E</option>
+            <option>F</option><option>G</option><option>H</option><option>I</option><option>J</option>
+            <option>K</option><option>L</option><option>M</option><option>N</option><option>O</option>
+            <option>P</option><option>Q</option><option>R</option><option>S</option><option>T</option>
+            <option>U</option><option>V</option><option>W</option><option>X</option><option>Y</option><option>Z</option>
+          </select>
+          <span style="font-weight:700;font-size:1.1rem;color:#aaa">-</span>
+          <input type="text" id="case_number" placeholder="12345678" inputmode="numeric" oninput="updatePreview()" style="flex:1;min-width:130px">
+        </div>
+        <div class="preview">案件番号：<span id="preview_val">---</span></div>
+      </div>
+      <button class="btn" id="btn_search" onclick="doSearch()" disabled>検索</button>
+      <div class="error-msg" id="error_msg"></div>
+    </div>
+  </div>
+
+  <!-- STEP2: 契約書/見積書選択（複数可） -->
+  <div id="step2" class="hidden">
+    <div class="card">
+      <div class="card-title">請求書の元データを選択<br><span style="font-size:.8rem;color:var(--text-sub);font-weight:400">複数選択で合算できます</span></div>
+      <div id="step2_empty_notice" class="hidden" style="background:#fff3e0;border:2px solid #ff9800;border-radius:8px;padding:12px;margin-bottom:12px;font-size:.9rem;color:var(--orange);font-weight:600;text-align:center">元になる見積／契約は見つかりませんでした。<br>「一から作る」で請求書を作成できます。</div>
+      <div id="select_list"></div>
+      <div id="selection_summary" class="selection-summary hidden">
+        <div>選択中: <span id="sel_count">0</span>件</div>
+        <div class="total">合計: <span id="sel_total">¥0</span>（税込）</div>
+      </div>
+      <button class="btn" id="btn_next" onclick="goToUriage()" disabled style="margin-top:12px">これをもとに作る（次へ）</button>
+      <button class="btn" id="btn_from_scratch" onclick="goToFromScratch()" style="margin-top:8px;background:#78909c">一から作る</button>
+    </div>
+  </div>
+
+  <!-- STEP2.5: 売上報告する/しない -->
+  <div id="step_uriage" class="hidden">
+    <div class="card">
+      <div class="card-title">売上報告</div>
+      <div id="uriage_notice"></div>
+      <p id="uriage_desc" style="font-size:.9rem;color:var(--text-sub);text-align:center;margin-bottom:14px"></p>
+      <div id="uriage_buttons" style="display:flex;gap:10px">
+        <button class="btn" onclick="selectUriage(true)" style="background:var(--purple);flex:1">売上報告もする</button>
+        <button class="btn" onclick="selectUriage(false)" style="background:#78909c;flex:1">しない</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP3: 請求書詳細入力 -->
+  <div id="step3" class="hidden">
+      <div class="card">
+        <div class="card-title" id="step3_title">請求書の発行</div>
+        <div id="selected_info" style="background:#f4eefe;border-radius:8px;padding:12px;margin-bottom:14px;font-size:.9rem"></div>
+        <div style="background:#f7f9fc;border:2px solid var(--border);border-radius:10px;padding:14px;margin-bottom:14px">
+          <div style="font-weight:700;color:var(--purple);margin-bottom:10px">お客様情報</div>
+          <div id="fs_custtype_area" class="hidden field">
+            <label>お客様区分</label>
+            <div style="display:flex;gap:10px">
+              <button type="button" id="fs_custtype_kojin" class="btn" onclick="setFsCustomerType('個人')" style="flex:1;margin-top:0">個人</button>
+              <button type="button" id="fs_custtype_hojin" class="btn" onclick="setFsCustomerType('法人・団体')" style="flex:1;margin-top:0;background:#78909c">法人・団体</button>
+            </div>
+          </div>
+          <div class="field">
+            <label>宛名（お客様名）</label>
+            <input type="text" id="inv_customer_name" placeholder="例：山田 太郎">
+          </div>
+          <div id="inv_corp_fields" class="hidden">
+            <div class="field">
+              <label>会社名</label>
+              <input type="text" id="inv_company_name" placeholder="例：株式会社サンプル">
+            </div>
+            <div class="field">
+              <label>担当者名</label>
+              <input type="text" id="inv_contact_name" placeholder="例：山田 太郎">
+            </div>
+          </div>
+          <div class="field">
+            <label>住所</label>
+            <input type="text" id="inv_address" placeholder="例：東京都新宿区西新宿">
+          </div>
+          <div class="field">
+            <label>番地</label>
+            <input type="text" id="inv_banchi" placeholder="例：1-2-3">
+          </div>
+          <div class="field">
+            <label>建物</label>
+            <input type="text" id="inv_building" placeholder="例：サンプルビル101">
+          </div>
+          <div class="field">
+            <label>電話番号</label>
+            <input type="tel" id="inv_tel" placeholder="例：09012345678">
+          </div>
+        </div>
+
+        <!-- 明細入力（一から作る 専用） -->
+        <div id="fs_items_area" class="hidden" style="background:#f7f9fc;border:2px solid var(--purple);border-radius:10px;padding:14px;margin-bottom:14px">
+          <div style="font-weight:700;color:var(--purple);margin-bottom:10px">📝 請求明細</div>
+          <div id="fs_item_rows"></div>
+          <button type="button" onclick="addFsItem()" style="background:#eee;border:1px solid #ccc;border-radius:8px;padding:8px 16px;font-size:.85rem;cursor:pointer;margin-top:4px">＋ 品目を追加</button>
+          <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border)">
+            <div style="display:flex;justify-content:space-between;font-size:.9rem;color:var(--purple);margin-bottom:4px">
+              <span>小計（税抜）</span><span id="fs_subtotal_ex">¥0</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:.9rem;color:var(--purple);margin-bottom:6px">
+              <span>消費税（10%）</span><span id="fs_tax">¥0</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-weight:700;font-size:1.1rem;color:var(--purple)">
+              <span>ご請求金額（税込）</span><span id="fs_total">¥0</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 支払方法（一から作る 専用） -->
+        <div id="fs_payment_method_area" class="hidden field">
+          <label>支払方法</label>
+          <select id="fs_payment_method" onchange="onFsPaymentMethodChange()">
+            <option value="銀行振り込み">銀行振り込み</option>
+            <option value="現金">現金</option>
+            <option value="クレジットカード">クレジットカード</option>
+          </select>
+        </div>
+
+        <!-- 売上報告トグル（一から作る 専用・STEP2.5をインライン化） -->
+        <div id="fs_uriage_area" class="hidden" style="background:#f4eefe;border:2px solid var(--purple);border-radius:10px;padding:14px;margin-bottom:14px">
+          <div style="font-weight:700;color:var(--purple);margin-bottom:8px">売上報告</div>
+          <div id="fs_uriage_notice"></div>
+          <p style="font-size:.85rem;color:var(--text-sub);margin-bottom:10px">請求書の発行と同時に売上管理へ記録しますか？</p>
+          <div style="display:flex;gap:10px">
+            <button type="button" id="fs_uriage_yes" class="btn" onclick="setFsUriage(true)" style="background:#78909c;flex:1;margin-top:0">売上報告もする</button>
+            <button type="button" id="fs_uriage_no" class="btn" onclick="setFsUriage(false)" style="background:var(--purple);flex:1;margin-top:0">しない</button>
+          </div>
+        </div>
+
+        <div id="visit_date_area" class="hidden" style="background:#fff3e0;border:2px solid #ff9800;border-radius:10px;padding:14px;margin-bottom:14px">
+        <div style="font-weight:700;color:#e65100;margin-bottom:10px">📅 売上報告（訪問日）</div>
+        <div class="field">
+          <label>訪問日 <span style="color:var(--red);font-size:.8rem">※必須</span></label>
+          <input type="date" id="inv_visit_date">
+        </div>
+      </div>
+      <div class="field">
+        <label>📧 送信先メールアドレス</label>
+        <input type="email" id="inv_email" placeholder="example@email.com">
+        <div id="cc_area"></div>
+        <button type="button" onclick="addCc()" style="margin-top:6px;background:#eee;border:1px solid #ccc;border-radius:8px;padding:6px 14px;font-size:.85rem;cursor:pointer">＋ CCを追加</button>
+      </div>
+      <div id="inv_payment_card" style="background:#e3f2fd;border:2px solid var(--purple);border-radius:10px;padding:14px;margin-bottom:14px">
+        <div id="inv_payment_title" style="font-weight:700;color:var(--purple);margin-bottom:10px">💳 お支払い情報（銀行振り込み）</div>
+        <div class="field" id="inv_deadline_field">
+          <label>振込期限 <span style="color:var(--red);font-size:.8rem">※必須</span></label>
+          <input type="date" id="inv_deadline">
+        </div>
+        <div class="field" id="inv_transfer_name_field">
+          <label>振込名義 <span style="color:var(--red);font-size:.8rem">※必須</span></label>
+          <input type="text" id="inv_transfer_name" placeholder="例：ヤマダ タロウ">
+        </div>
+      </div>
+      <button class="btn" id="btn_preview" onclick="showPreview()">確認画面へ</button>
+      <div class="error-msg" id="issue_error"></div>
+    </div>
+  </div>
+
+  <!-- STEP3.5: プレビュー確認 -->
+  <div id="step_preview" class="hidden">
+    <div class="card">
+      <div class="card-title" style="color:var(--red);text-align:center">📋 請求書の内容を確認</div>
+      <div id="preview_content" style="font-size:.9rem"></div>
+      <div style="display:flex;gap:10px;margin-top:14px">
+        <button class="btn" onclick="hideInvoicePreview()" style="background:#78909c;flex:1">戻って修正</button>
+        <button class="btn" id="btn_issue" onclick="issueInvoice()" style="background:var(--purple);flex:1">📑 発行する</button>
+      </div>
+      <p style="font-size:.75rem;color:var(--text-sub);margin-top:8px;text-align:center">※PDF生成・メール送信・LINE WORKS通知が実行されます</p>
+      <div class="error-msg" id="preview_error"></div>
+    </div>
+  </div>
+
+  <!-- STEP4: 完了 -->
+  <div id="step4" class="hidden">
+    <div class="card">
+      <div class="result-box">
+        <h2>✅ 請求書を送信しました</h2>
+        <p id="result_detail" style="white-space:pre-line"></p>
+        <div id="invoice_write_status" style="margin-top:14px;font-weight:700"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+var GAS_URL = 'https://script.google.com/macros/s/AKfycbyvjri6i0fe11hzfoqfhSxWCsn1aP2WyT9ELZOzNMrVyEOx-ZsKqlhJQONzlaFLmPw/exec';
+var CASE_ID_INVALID_MESSAGE = '案件番号が正しくありません　確認してください';
+
+// ローカル時刻（=ブラウザTZ、JST想定）で YYYY-MM-DD を返す。toISOString はUTCで1日ずれるため使わない。
+function toLocalYMD(d) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+var selections = []; // 複数選択用配列
+var allItems = []; // 検索結果の全アイテム
+var lookupData = {}; // lookup結果キャッシュ
+var writeUriage = false;
+var searchCaseId = '';
+var hasCompletion = false;
+var fromScratch = false; // 「一から作る」ルートかどうか
+var fsCustomerType = '個人'; // 一から作る時のお客様区分（個人 / 法人・団体）
+var TAX_RATE = 0.10;
+
+function onPrefixChange() {
+  var a = document.getElementById('case_alpha');
+  a.style.display = document.getElementById('case_prefix').value === 'YA' ? '' : 'none';
+  if (document.getElementById('case_prefix').value !== 'YA') a.value = '';
+  updatePreview();
+}
+
+function buildCaseId() {
+  var p = document.getElementById('case_prefix').value;
+  var a = document.getElementById('case_alpha').value;
+  var n = document.getElementById('case_number').value.trim();
+  if (!n) return '';
+  if (p === 'YA') return a ? 'YA-' + a + n : 'YA-' + n;
+  return p + '-' + n;
+}
+
+function updatePreview() {
+  var id = buildCaseId();
+  document.getElementById('preview_val').textContent = id || '---';
+  document.getElementById('btn_search').disabled = !id;
+  document.getElementById('error_msg').style.display = 'none';
+}
+
+// URLパラメータで案件番号が渡されたら自動入力+自動検索
+(function autoFillCaseFromUrl_() {
+  var params = new URLSearchParams(location.search);
+  var c = params.get('c');
+  if (!c) return;
+  var parts = c.split('-');
+  if (parts.length < 2) return;
+  var prefix = parts[0];
+  var rest = parts.slice(1).join('-');
+  var prefixSel = document.getElementById('case_prefix');
+  if (prefixSel) prefixSel.value = prefix;
+  onPrefixChange();
+  if (prefix === 'YA') {
+    // 'YA-A12345678' → alpha='A', number='12345678'
+    var m = rest.match(/^([A-Z])(\d+)$/);
+    var alphaSel = document.getElementById('case_alpha');
+    var numEl = document.getElementById('case_number');
+    if (m && alphaSel && numEl) {
+      alphaSel.value = m[1];
+      numEl.value = m[2];
+    } else if (numEl) {
+      numEl.value = rest;
+    }
+  } else {
+    var numEl2 = document.getElementById('case_number');
+    if (numEl2) numEl2.value = rest;
+  }
+  updatePreview();
+  if (typeof doSearch === 'function') setTimeout(doSearch, 100);
+})();
+
+function fmtYen(n) {
+  var v = Math.floor(Number(n) || 0);
+  return v < 0 ? '-¥' + Math.abs(v).toLocaleString('ja-JP') : '¥' + v.toLocaleString('ja-JP');
+}
+
+function showError(id, msg) {
+  var el = document.getElementById(id);
+  el.textContent = msg; el.style.display = 'block';
+}
+
+function invoiceP1SfBlocked_(errorId) {
+  var show = function(message) { showError(errorId, message); };
+  return gasP1SfGuard('contract_list', searchCaseId, show) ||
+    gasP1SfGuard('lookup', searchCaseId, show);
+}
+
+async function doSearch() {
+  var id = buildCaseId();
+  if (!id) return;
+  searchCaseId = id;
+  var btn = document.getElementById('btn_search');
+  btn.disabled = true; btn.textContent = '検索中...';
+  ['step2','step_uriage','step3','step4'].forEach(function(s) { document.getElementById(s).classList.add('hidden'); });
+  document.getElementById('error_msg').style.display = 'none';
+  selections = [];
+  allItems = [];
+  fromScratch = false;
+
+  try {
+    var r = await gasCall(
+      { form_type: 'contract_list', case_id: id, p1_sf: 'p1_sf_v1' },
+      {
+        mode: 'lookup',
+        url: GAS_URL,
+        onStatus: function(status) { btn.textContent = status; }
+      }
+    );
+    if (r.case_id_valid === false) { showError('error_msg', CASE_ID_INVALID_MESSAGE); }
+    else if (!r.ok && r.case_id_valid === true) {
+      // 有効な案件番号だが契約/見積が0件（バックが ok:false を返す）→ 行き止まりにせず「一から作る」を出す
+      hasCompletion = r.has_completion || false;
+      renderSelection(id, [], []);
+    }
+    else if (!r.ok) { showError('error_msg', r.error || 'この案件番号は登録されていません。'); }
+    else {
+      hasCompletion = r.has_completion || false;
+      renderSelection(id, r.contracts || [], r.versions || []);
+    }
+  } catch(e) { showError('error_msg', gasCallErrorMessage(e)); }
+  btn.disabled = false; btn.textContent = '検索';
+}
+
+function renderSelection(caseId, contracts, versions) {
+  var list = document.getElementById('select_list');
+  list.innerHTML = '';
+  allItems = [];
+
+  // 案件レベルのお客様名（contractsのうち最初の name を案件全体の代表名とする）
+  var caseLevelName = '';
+  for (var ci = 0; ci < contracts.length; ci++) {
+    if (contracts[ci].name) { caseLevelName = contracts[ci].name; break; }
+  }
+  // versionsに name が含まれてれば優先（API側が返してれば）
+  if (!caseLevelName) {
+    for (var vi = 0; vi < versions.length; vi++) {
+      if (versions[vi].name) { caseLevelName = versions[vi].name; break; }
+    }
+  }
+
+  contracts.forEach(function(c) {
+    var data = {
+      type: 'contract', case_id: caseId, contract_id: c.contract_id,
+      name: c.name, amount: c.amount, amount_ex: c.amount_ex || 0,
+      items: c.items || [], payment: c.payment,
+      transfer_deadline: c.transfer_deadline || '',
+      transfer_name: c.transfer_name || '',
+      payment_splits: c.payment_splits || [],
+      paymentSummary: c.paymentSummary || null,
+      label: '契約書 ' + c.contract_id + '（' + c.datetime + '）'
+    };
+    allItems.push(data);
+    var idx = allItems.length - 1;
+    var item = document.createElement('div');
+    item.className = 'select-item';
+    item.setAttribute('data-idx', idx);
+    item.innerHTML = '<div class="title">📋 契約書: ' + c.contract_id + '</div>'
+      + '<div class="meta">' + c.datetime + ' ／ ' + c.name + '</div>'
+      + '<div class="meta">' + fmtYen(c.amount) + '（税込）／ ' + c.payment + '</div>'
+      + '<div class="detail">' + c.items_text + '</div>';
+    item.onclick = function() { toggleSelect(item, idx); };
+    list.appendChild(item);
+  });
+
+  versions.forEach(function(v) {
+    var dtDisp = v.doc_type === '見積書' ? '修理見積書' : v.doc_type;
+    var vItems = (v.items || []).map(function(it) { return { name: it.name, price: it.price||0, qty: it.qty||1, subtotal: it.subtotal||(it.price||0)*(it.qty||1) }; });
+    var vSubEx = vItems.reduce(function(s,it) { return s + it.subtotal; }, 0);
+    var data = {
+      type: 'version', case_id: caseId, quote_ver: v.ver, quote_type: v.doc_type,
+      name: v.name || caseLevelName,
+      items: vItems,
+      amount_ex: vSubEx,
+      amount: vSubEx > 0 ? vSubEx + Math.round(vSubEx * 0.1) : (v.amount || 0),
+      label: dtDisp + ' 第' + v.ver + '版（' + v.created + '）'
+    };
+    allItems.push(data);
+    var idx = allItems.length - 1;
+    var item = document.createElement('div');
+    item.className = 'select-item';
+    item.setAttribute('data-idx', idx);
+    item.innerHTML = '<div class="title" style="color:#5c2d91">📄 ' + dtDisp + ' 第' + v.ver + '版</div>'
+      + '<div class="meta">' + v.created + (data.amount ? ' ／ ' + fmtYen(data.amount) + '（税込）' : '') + '</div>'
+      + (vItems.length > 0 ? '<div class="detail">' + vItems.filter(function(it){return it.price>0;}).map(function(it){return it.name+(it.qty>1?' ×'+it.qty:'');}).join('、') + '</div>' : '');
+    item.onclick = function() { toggleSelect(item, idx); };
+    list.appendChild(item);
+  });
+
+  // 0件でも行き止まりにしない：「一から作る」だけ出す
+  var hasSources = list.children.length > 0;
+  document.getElementById('step2_empty_notice').classList.toggle('hidden', hasSources);
+  document.getElementById('selection_summary').classList.add('hidden');
+  document.getElementById('btn_next').classList.toggle('hidden', !hasSources); // 元データありのときだけ「これをもとに作る」
+  document.getElementById('btn_next').disabled = true;
+  document.getElementById('btn_from_scratch').classList.remove('hidden'); // 常時表示
+  document.getElementById('step2').classList.remove('hidden');
+  document.getElementById('step2').scrollIntoView({ behavior: 'smooth' });
+}
+
+function toggleSelect(el, idx) {
+  var pos = selections.indexOf(idx);
+  if (pos > -1) {
+    selections.splice(pos, 1);
+    el.classList.remove('selected');
+  } else {
+    selections.push(idx);
+    el.classList.add('selected');
+  }
+  updateSelectionSummary();
+}
+
+function updateSelectionSummary() {
+  var sum = document.getElementById('selection_summary');
+  var btnNext = document.getElementById('btn_next');
+  if (selections.length === 0) {
+    sum.classList.add('hidden');
+    btnNext.disabled = true;
+    return;
+  }
+  var total = 0;
+  selections.forEach(function(idx) { total += (allItems[idx].amount || 0); });
+  document.getElementById('sel_count').textContent = selections.length;
+  document.getElementById('sel_total').textContent = fmtYen(total);
+  sum.classList.remove('hidden');
+  btnNext.disabled = false;
+}
+
+function hasVersionSelected() {
+  return selections.some(function(idx) { return allItems[idx].type === 'version'; });
+}
+
+function onlyContracts() {
+  return selections.every(function(idx) { return allItems[idx].type === 'contract'; });
+}
+
+// STEP2 → STEP2.5 or STEP3
+async function goToUriage() {
+  var btnN = document.getElementById('btn_next');
+  btnN.disabled = true; btnN.textContent = '読み込み中...';
+
+  // 各選択アイテムのitems取得（contract_idごとにlookup）
+  // ※ items既存でも si===0 ならフォーム情報（メール/振込名義等）取得のため lookup する
+  for (var si = 0; si < selections.length; si++) {
+    var sel = allItems[selections[si]];
+    var needItems = !(sel.items && sel.items.length > 0);
+    var needFormInfo = (si === 0);
+    if (!needItems && !needFormInfo) continue;
+    try {
+      var ld = await gasCall(
+        { form_type: 'lookup', case_id: searchCaseId, contract_id: sel.contract_id || '', p1_sf: 'p1_sf_v1' },
+        {
+          mode: 'lookup',
+          url: GAS_URL,
+          onStatus: function(status) { btnN.textContent = status; }
+        }
+      );
+      if (ld && ld.code === 'busy_caseid_check') {
+        showError('error_msg', ld.error || GAS_P1_SF_HONEST_MESSAGE);
+        btnN.disabled = false;
+        btnN.textContent = '次へ';
+        return;
+      }
+      if (ld && ld.case_id_valid === false) {
+        showError('error_msg', CASE_ID_INVALID_MESSAGE);
+        btnN.disabled = false;
+        btnN.textContent = '次へ';
+        return;
+      }
+      if (needItems && ld.ok && ld.order_items && ld.order_items.length > 0) {
+        sel.items = ld.order_items.map(function(it) {
+          return { name: it.name, price: it.price||0, qty: it.qty||1, subtotal: it.subtotal||(it.price||0)*(it.qty||1) };
+        });
+        var subEx = sel.items.reduce(function(s,it) { return s + it.subtotal; }, 0);
+        sel.amount_ex = subEx;
+        sel.amount = subEx + Math.round(subEx * 0.1);
+      }
+      // 最初の選択からフォーム情報を取得（items既存でも実行）
+      if (needFormInfo) {
+        lookupData = ld || {};
+        fillInvoiceCustomerFields(lookupData, sel.name || '');
+        if (ld && ld.payment_splits) sel.payment_splits = ld.payment_splits;
+        if (ld && ld.paymentSummary) sel.paymentSummary = ld.paymentSummary;
+        if (ld && ld.email) document.getElementById('inv_email').value = ld.email.split(',')[0];
+        if (ld && ld.cc_emails && ld.cc_emails.length > 0) {
+          document.getElementById('cc_area').innerHTML = '';
+          ld.cc_emails.forEach(function(e) { if (e) addCc(e); });
+        }
+        if (ld && ld.transfer_name) document.getElementById('inv_transfer_name').value = ld.transfer_name;
+        if (ld && ld.transfer_deadline) document.getElementById('inv_deadline').value = ld.transfer_deadline;
+      }
+    } catch(e) {
+      if (si === 0) {
+        lookupData = {};
+        showError('error_msg', gasCallErrorMessage(e));
+      }
+    }
+  }
+  btnN.disabled = false; btnN.textContent = '次へ';
+
+  if (!document.getElementById('inv_deadline').value) {
+    var d3 = new Date(); d3.setDate(d3.getDate() + 3);
+    document.getElementById('inv_deadline').value = toLocalYMD(d3);
+  }
+
+  // 選択内容をSTEP3に表示
+  var labels = selections.map(function(idx) { return allItems[idx].label; });
+  document.getElementById('selected_info').textContent = '選択中: ' + labels.join(' ＋ ');
+
+  if (onlyContracts()) {
+    // 契約書のみ → 売上報告スキップ → 直接STEP3
+    writeUriage = false;
+    document.getElementById('visit_date_area').classList.add('hidden');
+    document.getElementById('step_uriage').classList.add('hidden');
+    document.getElementById('step3').classList.remove('hidden');
+    document.getElementById('step3').scrollIntoView({ behavior: 'smooth' });
+  } else {
+    // 見積書を含む → 売上報告選択を表示
+    var noticeEl = document.getElementById('uriage_notice');
+    if (hasCompletion) {
+      noticeEl.innerHTML = '<div class="notice-box notice-warn">⚠️ この案件は既に売上報告されている可能性があります<br>二重報告にならないか確認してください</div>';
+    } else {
+      noticeEl.innerHTML = '';
+    }
+    document.getElementById('uriage_desc').textContent = '請求書の発行と同時に売上管理へ記録しますか？';
+    document.getElementById('uriage_buttons').style.display = 'flex';
+    writeUriage = false;
+    document.getElementById('step_uriage').classList.remove('hidden');
+    document.getElementById('step_uriage').scrollIntoView({ behavior: 'smooth' });
+  }
+}
+
+function selectUriage(flag) {
+  writeUriage = flag;
+  if (flag) {
+    document.getElementById('visit_date_area').classList.remove('hidden');
+    if (!document.getElementById('inv_visit_date').value) {
+      document.getElementById('inv_visit_date').value = toLocalYMD(new Date());
+    }
+  } else {
+    document.getElementById('visit_date_area').classList.add('hidden');
+  }
+  document.getElementById('step3').classList.remove('hidden');
+  document.getElementById('step3').scrollIntoView({ behavior: 'smooth' });
+}
+
+// ========== 「一から作る」ルート ==========
+
+// STEP2 → from_scratch STEP3。案件番号でlookupを1回試み、取れたら顧客情報をprefill、無ければ空欄。
+async function goToFromScratch() {
+  fromScratch = true;
+  selections = []; // 元データ選択は使わない
+  var btn = document.getElementById('btn_from_scratch');
+  btn.disabled = true; btn.textContent = '読み込み中...';
+
+  // 顧客情報の補完（取れなくても続行）
+  lookupData = {};
+  try {
+    var ld = await gasCall(
+      { form_type: 'lookup', case_id: searchCaseId, contract_id: '', p1_sf: 'p1_sf_v1' },
+      {
+        mode: 'lookup',
+        url: GAS_URL,
+        onStatus: function(status) { btn.textContent = status; }
+      }
+    );
+    if (ld && ld.code === 'busy_caseid_check') {
+      showError('error_msg', ld.error || GAS_P1_SF_HONEST_MESSAGE);
+      btn.disabled = false; btn.textContent = '一から作る';
+      return;
+    }
+    if (ld && ld.case_id_valid === false) {
+      showError('error_msg', CASE_ID_INVALID_MESSAGE);
+      btn.disabled = false; btn.textContent = '一から作る';
+      return;
+    }
+    if (ld && ld.ok) {
+      lookupData = ld;
+      fillInvoiceCustomerFields(ld, '');
+      if (ld.email) document.getElementById('inv_email').value = ld.email.split(',')[0];
+      if (ld.cc_emails && ld.cc_emails.length > 0) {
+        document.getElementById('cc_area').innerHTML = '';
+        ld.cc_emails.forEach(function(e) { if (e) addCc(e); });
+      }
+      if (ld.transfer_name) document.getElementById('inv_transfer_name').value = ld.transfer_name;
+      if (ld.transfer_deadline) document.getElementById('inv_deadline').value = ld.transfer_deadline;
+    } else {
+      // lookup失敗 → 空欄で手入力（法人欄は既定で隠す）
+      fillInvoiceCustomerFields({}, '');
+    }
+  } catch(e) {
+    lookupData = {};
+    fillInvoiceCustomerFields({}, '');
+    showError('error_msg', gasCallErrorMessage(e));
+  }
+  btn.disabled = false; btn.textContent = '一から作る';
+
+  // 振込期限のデフォルト（3日後）
+  if (!document.getElementById('inv_deadline').value) {
+    var d3 = new Date(); d3.setDate(d3.getDate() + 3);
+    document.getElementById('inv_deadline').value = toLocalYMD(d3);
+  }
+
+  // from_scratch 専用UIを有効化
+  document.getElementById('step3_title').textContent = '請求書を一から作成';
+  document.getElementById('selected_info').textContent = '一から作成（元になる見積／契約なし）';
+  document.getElementById('fs_items_area').classList.remove('hidden');
+  document.getElementById('fs_payment_method_area').classList.remove('hidden');
+  document.getElementById('fs_uriage_area').classList.remove('hidden');
+  document.getElementById('fs_custtype_area').classList.remove('hidden');
+  setFsCustomerType((lookupData.customer_type === '法人・団体') ? '法人・団体' : '個人');
+  // 明細行が無ければ1行用意
+  if (document.querySelectorAll('#fs_item_rows .fs-item-row').length === 0) addFsItem();
+  fsRecalc();
+  onFsPaymentMethodChange();
+
+  // 売上報告の初期状態＝しない
+  writeUriage = false;
+  updateFsUriageButtons();
+  document.getElementById('visit_date_area').classList.add('hidden');
+
+  document.getElementById('step2').classList.add('hidden');
+  document.getElementById('step_uriage').classList.add('hidden');
+  document.getElementById('step3').classList.remove('hidden');
+  document.getElementById('step3').scrollIntoView({ behavior: 'smooth' });
+}
+
+function addFsItem() {
+  var area = document.getElementById('fs_item_rows');
+  var div = document.createElement('div');
+  div.className = 'fs-item-row';
+  div.style.cssText = 'display:flex;gap:6px;margin-bottom:6px;align-items:center;flex-wrap:wrap';
+  div.innerHTML =
+    '<input type="text" class="fs-item-name" placeholder="品目名" style="flex:2;min-width:110px;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:.95rem" oninput="fsRecalc()">'
+    + '<input type="number" class="fs-item-price" placeholder="単価（税抜）" inputmode="numeric" style="flex:1;min-width:90px;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:.95rem;text-align:right" oninput="fsRecalc()">'
+    + '<input type="number" class="fs-item-qty" placeholder="数量" inputmode="numeric" value="1" style="width:64px;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:.95rem;text-align:right" oninput="fsRecalc()">'
+    + '<button type="button" onclick="this.closest(\'.fs-item-row\').remove();fsRecalc()" style="background:#ff5252;color:#fff;border:none;border-radius:50%;width:30px;height:30px;cursor:pointer;font-size:1rem;flex-shrink:0">×</button>';
+  area.appendChild(div);
+}
+
+// 明細行 → items 配列 {name, price, qty, subtotal}
+function getFsItems() {
+  var items = [];
+  document.querySelectorAll('#fs_item_rows .fs-item-row').forEach(function(row) {
+    var n = row.querySelector('.fs-item-name').value.trim();
+    var p = parseInt(row.querySelector('.fs-item-price').value) || 0;
+    var q = parseInt(row.querySelector('.fs-item-qty').value) || 0;
+    if (n && p !== 0 && q > 0) items.push({ name: n, price: p, qty: q, subtotal: p * q });
+  });
+  return items;
+}
+
+function fsRecalc() {
+  var items = getFsItems();
+  var subEx = items.reduce(function(s, it) { return s + it.subtotal; }, 0);
+  var tax = Math.round(subEx * TAX_RATE);
+  var total = subEx + tax;
+  document.getElementById('fs_subtotal_ex').textContent = fmtYen(subEx);
+  document.getElementById('fs_tax').textContent = fmtYen(tax);
+  document.getElementById('fs_total').textContent = fmtYen(total);
+}
+
+function getFsPaymentMethod() {
+  var el = document.getElementById('fs_payment_method');
+  return el ? el.value : '銀行振り込み';
+}
+
+// 支払方法が銀行振込以外なら振込期限・振込名義を隠す（＝任意扱い）
+function onFsPaymentMethodChange() {
+  var m = getFsPaymentMethod();
+  var isBank = (m === '銀行振り込み');
+  document.getElementById('inv_payment_title').textContent = '💳 お支払い情報（' + m + '）';
+  document.getElementById('inv_deadline_field').classList.toggle('hidden', !isBank);
+  document.getElementById('inv_transfer_name_field').classList.toggle('hidden', !isBank);
+}
+
+function setFsUriage(flag) {
+  writeUriage = flag;
+  updateFsUriageButtons();
+  if (flag) {
+    document.getElementById('visit_date_area').classList.remove('hidden');
+    if (!document.getElementById('inv_visit_date').value) {
+      document.getElementById('inv_visit_date').value = toLocalYMD(new Date());
+    }
+  } else {
+    document.getElementById('visit_date_area').classList.add('hidden');
+  }
+}
+
+function updateFsUriageButtons() {
+  var yes = document.getElementById('fs_uriage_yes');
+  var no = document.getElementById('fs_uriage_no');
+  if (!yes || !no) return;
+  yes.style.background = writeUriage ? 'var(--purple)' : '#78909c';
+  no.style.background = writeUriage ? '#78909c' : 'var(--purple)';
+}
+
+function addCc(val) {
+  var area = document.getElementById('cc_area');
+  var div = document.createElement('div');
+  div.style.cssText = 'display:flex;gap:6px;margin-top:6px;align-items:center';
+  div.innerHTML = '<input type="email" class="cc-input" placeholder="CCメールアドレス" value="' + (val||'') + '" style="flex:1;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:.95rem">'
+    + '<button type="button" onclick="this.parentElement.remove()" style="background:#ff5252;color:#fff;border:none;border-radius:50%;width:30px;height:30px;cursor:pointer;font-size:1rem">×</button>';
+  area.appendChild(div);
+}
+
+function getCcEmails() {
+  return Array.from(document.querySelectorAll('.cc-input')).map(function(el) { return el.value.trim(); }).filter(function(v) { return v && v.includes('@'); });
+}
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function fillInvoiceCustomerFields(data, fallbackName) {
+  data = data || {};
+  var isCorp = data.customer_type === '法人・団体';
+  document.getElementById('inv_customer_name').value = data.name || fallbackName || '';
+  document.getElementById('inv_company_name').value = data.company_name || '';
+  document.getElementById('inv_contact_name').value = data.contact_name || '';
+  document.getElementById('inv_address').value = data.address || '';
+  document.getElementById('inv_banchi').value = data.banchi || '';
+  document.getElementById('inv_building').value = data.building || '';
+  document.getElementById('inv_tel').value = data.tel || '';
+  document.getElementById('inv_corp_fields').classList.toggle('hidden', !isCorp);
+}
+
+// 一から作る時のお客様区分トグル（法人選択で会社名/担当者名欄を表示）
+function setFsCustomerType(type) {
+  fsCustomerType = (type === '法人・団体') ? '法人・団体' : '個人';
+  var isCorp = fsCustomerType === '法人・団体';
+  document.getElementById('inv_corp_fields').classList.toggle('hidden', !isCorp);
+  var k = document.getElementById('fs_custtype_kojin');
+  var h = document.getElementById('fs_custtype_hojin');
+  if (k && h) {
+    k.style.background = isCorp ? '#78909c' : 'var(--purple)';
+    h.style.background = isCorp ? 'var(--purple)' : '#78909c';
+  }
+}
+
+function getInvoiceCustomerFields() {
+  // from_scratch はトグル値、既存フローは lookup 由来
+  var ctype = fromScratch ? fsCustomerType : (lookupData.customer_type || '個人');
+  var isCorp = ctype === '法人・団体';
+  return {
+    customer_type: ctype,
+    name: document.getElementById('inv_customer_name').value.trim(),
+    company_name: isCorp ? document.getElementById('inv_company_name').value.trim() : '',
+    contact_name: isCorp ? document.getElementById('inv_contact_name').value.trim() : '',
+    address: document.getElementById('inv_address').value.trim(),
+    banchi: document.getElementById('inv_banchi').value.trim(),
+    building: document.getElementById('inv_building').value.trim(),
+    tel: document.getElementById('inv_tel').value.trim()
+  };
+}
+
+function buildInvoiceCustomerDisplay(customer) {
+  var name = customer.name || '';
+  if (customer.customer_type === '法人・団体' && customer.company_name) {
+    return escapeHtml(customer.company_name) + ' 御中<br>担当 ' + escapeHtml(customer.contact_name || name);
+  }
+  return escapeHtml(name) + ' 様';
+}
+
+function getSingleContractPaymentSummary() {
+  if (selections.length !== 1) return null;
+  var sel = allItems[selections[0]];
+  if (!sel || sel.type !== 'contract') return null;
+  var summary = (lookupData && lookupData.paymentSummary) || sel.paymentSummary || null;
+  if (!summary || !summary.hasBreakdown || !summary.rows || summary.rows.length === 0) return null;
+  return summary;
+}
+
+function renderPaymentBreakdownHtml(summary) {
+  var h = '<div class="payment-breakdown">';
+  h += '<div class="payment-title">お支払い内訳</div>';
+  summary.rows.forEach(function(row) {
+    h += '<div class="payment-row' + (row.isTransfer ? ' payment-transfer' : '') + '">';
+    h += '<div class="payment-label">' + (row.label || '') + '</div>';
+    h += '<div class="payment-amount">¥' + (row.amountFormatted || fmtYen(row.amount_inc || 0).replace(/^¥/, '')) + '</div>';
+    h += '<div class="payment-status">' + (row.status || '') + '</div>';
+    h += '</div>';
+  });
+  h += '</div>';
+  return h;
+}
+
+function hideInvoicePreview() {
+  document.getElementById('step_preview').classList.add('hidden');
+  // 元々表示されていた入力画面を全て復活
+  document.getElementById('step1').classList.remove('hidden');
+  document.getElementById('step2').classList.remove('hidden');
+  document.getElementById('step3').classList.remove('hidden');
+  if (selections.length > 0 && hasVersionSelected && hasVersionSelected()) {
+    document.getElementById('step_uriage').classList.remove('hidden');
+  }
+  window.scrollTo(0, 0);
+}
+
+function showPreview() {
+  if (invoiceP1SfBlocked_('issue_error')) return;
+  var email = document.getElementById('inv_email').value.trim();
+  var deadline = document.getElementById('inv_deadline').value;
+  var transferName = document.getElementById('inv_transfer_name').value.trim();
+  var paymentMethod = fromScratch ? getFsPaymentMethod() : '銀行振り込み';
+  var isBank = (paymentMethod === '銀行振り込み');
+
+  // 銀行振込のときのみ振込期限・名義が必須（from_scratchで現金/クレカ選択時は任意）
+  if (isBank) {
+    if (!deadline) { showError('issue_error', '振込期限を入力してください'); return; }
+    if (!transferName) { showError('issue_error', '振込名義を入力してください'); return; }
+  }
+  if (writeUriage && !document.getElementById('inv_visit_date').value) {
+    showError('issue_error', '訪問日を入力してください'); return;
+  }
+  if (fromScratch && getFsItems().length === 0) {
+    showError('issue_error', '請求明細を1件以上入力してください（品目名・単価・数量）'); return;
+  }
+  document.getElementById('issue_error').style.display = 'none';
+
+  var selectedItems = selections.map(function(idx) { return allItems[idx]; });
+  var customer = getInvoiceCustomerFields();
+  if (!customer.name && !fromScratch) customer.name = selectedItems[0].name || '';
+  var custDisplay = buildInvoiceCustomerDisplay(customer);
+
+  // items の取得元：from_scratch は明細入力UI、通常は選択データをマージ
+  var allLineItems = [];
+  if (fromScratch) {
+    allLineItems = getFsItems();
+  } else {
+    selectedItems.forEach(function(s) {
+      if (s.items && s.items.length > 0) {
+        s.items.forEach(function(it) { allLineItems.push(it); });
+      }
+    });
+  }
+
+  var subtotalEx = 0;
+  allLineItems.forEach(function(it) { subtotalEx += (it.subtotal || it.price * (it.qty||1)); });
+  var tax = Math.round(subtotalEx * 0.1);
+  var grandTotal = subtotalEx + tax;
+  if (allLineItems.length === 0 && !fromScratch) {
+    selectedItems.forEach(function(s) { subtotalEx += (s.amount_ex || Math.round((s.amount||0)/1.1)); });
+    tax = Math.round(subtotalEx * 0.1);
+    grandTotal = subtotalEx + tax;
+  }
+
+  // 確認画面（見積書フォームと同じシンプルな内容確認）
+  var rowStyle = 'padding:8px 0;border-bottom:1px solid #eee';
+  var h = '';
+  h += '<div style="' + rowStyle + '"><b>案件番号:</b> ' + escapeHtml(searchCaseId) + '</div>';
+  h += '<div style="' + rowStyle + '"><b>お客様:</b> ' + custDisplay + '</div>';
+  h += '<div style="' + rowStyle + '"><b>送信先メール:</b> ' + (email ? escapeHtml(email) : '<span style="color:#c62828">未入力</span>') + '</div>';
+  var ccList = getCcEmails();
+  if (ccList.length > 0) h += '<div style="' + rowStyle + '"><b>CC:</b> ' + escapeHtml(ccList.join(', ')) + '</div>';
+
+  // 内訳
+  if (allLineItems.length > 0) {
+    h += '<div style="padding:8px 0"><b>内訳:</b></div>';
+    allLineItems.forEach(function(it) {
+      var sub = it.subtotal || it.price * (it.qty||1);
+      h += '<div style="padding:2px 12px;font-size:.85rem">・' + escapeHtml(it.name) + ' ×' + (it.qty||1) + ' ' + fmtYen(sub) + '</div>';
+    });
+  } else {
+    h += '<div style="padding:8px 0;color:#999;font-size:.85rem">（内訳取得失敗：実際のPDFには内訳が反映されます）</div>';
+  }
+
+  h += '<div style="' + rowStyle + ';margin-top:8px"><b>小計（税抜）:</b> ' + fmtYen(subtotalEx) + '</div>';
+  h += '<div style="' + rowStyle + '"><b>消費税（10%）:</b> ' + fmtYen(tax) + '</div>';
+  h += '<div style="padding:8px 0;font-weight:700;color:#5c2d91;font-size:1.1rem">ご請求金額（税込）: ' + fmtYen(grandTotal) + '</div>';
+
+  var paymentSummary = getSingleContractPaymentSummary();
+  if (paymentSummary) {
+    h += renderPaymentBreakdownHtml(paymentSummary);
+    if (paymentSummary.hasTransfer) {
+      var previewDeadline = paymentSummary.transferDeadline || deadline;
+      var previewTransferName = paymentSummary.transferName || transferName;
+      h += '<div style="background:#f9f9f9;border:1px solid #ddd;border-radius:6px;padding:10px 12px;margin:10px 0;font-size:.9rem">';
+      h += '<b>お振込み金額：<span class="transfer-amount">¥' + paymentSummary.transferTotalFormatted + '</span></b><br>';
+      h += 'こちらをお振込みください。<br>';
+      h += '<div style="padding-top:6px"><b>振込期限:</b> ' + escapeHtml(previewDeadline) + '</div>';
+      if (previewTransferName) h += '<div><b>振込名義:</b> ' + escapeHtml(previewTransferName) + '</div>';
+      h += '</div>';
+    }
+  } else {
+    h += '<div style="' + rowStyle + ';margin-top:8px"><b>お支払い方法:</b> ' + escapeHtml(paymentMethod) + '</div>';
+    if (isBank) {
+      h += '<div style="' + rowStyle + '"><b>振込期限:</b> ' + escapeHtml(deadline) + '</div>';
+      h += '<div style="' + rowStyle + '"><b>振込名義:</b> ' + escapeHtml(transferName) + '</div>';
+    }
+  }
+
+  if (writeUriage) {
+    h += '<div style="margin-top:12px;background:#e8f5e9;border:2px solid #66bb6a;border-radius:8px;padding:10px;font-size:.9rem">';
+    h += '<b style="color:#2e7d32">✅ 売上報告あり</b> — 訪問日: ' + escapeHtml(document.getElementById('inv_visit_date').value);
+    h += '</div>';
+  }
+
+  document.getElementById('preview_content').innerHTML = h;
+  // 入力画面を全て隠して確認画面のみ表示
+  document.getElementById('step1').classList.add('hidden');
+  document.getElementById('step2').classList.add('hidden');
+  document.getElementById('step_uriage').classList.add('hidden');
+  document.getElementById('step3').classList.add('hidden');
+  document.getElementById('step_preview').classList.remove('hidden');
+  window.scrollTo(0, 0);
+}
+
+async function issueInvoice() {
+  if (invoiceP1SfBlocked_('preview_error')) return;
+  if (!fromScratch && selections.length === 0) { showError('issue_error', '元データを選択してください'); return; }
+  var email = document.getElementById('inv_email').value.trim();
+  var deadline = document.getElementById('inv_deadline').value;
+  var transferName = document.getElementById('inv_transfer_name').value.trim();
+
+  var btn = document.getElementById('btn_issue');
+  btn.disabled = true; btn.textContent = '発行中...';
+
+  var customer = getInvoiceCustomerFields();
+  var payload;
+
+  if (fromScratch) {
+    // ---- 一から作る：元データなしの payload ----
+    var fsItems = getFsItems();
+    if (fsItems.length === 0) {
+      showError('preview_error', '請求明細を1件以上入力してください');
+      btn.disabled = false; btn.textContent = '📑 発行する';
+      return;
+    }
+    var fsSubEx = fsItems.reduce(function(s, it) { return s + it.subtotal; }, 0);
+    var fsTotal = fsSubEx + Math.round(fsSubEx * TAX_RATE);
+    var fsPaymentMethod = getFsPaymentMethod();
+    var fsIsBank = (fsPaymentMethod === '銀行振り込み');
+
+    payload = {
+      form_type: 'generate_doc',
+      doc_type: 'invoice',
+      from_scratch: true,
+      case_id: searchCaseId,
+      // contract_ids / quote_vers は含めない
+      name: customer.name,
+      email: email,
+      cc_emails: getCcEmails(),
+      staff_id: (window.ECOPITA_SESSION ? window.ECOPITA_SESSION.staffId : ''),
+      payment_method: fsPaymentMethod,
+      transfer_deadline: fsIsBank ? deadline : '',
+      transfer_name: fsIsBank ? transferName : '',
+      write_uriage: writeUriage,
+      visit_date: writeUriage ? document.getElementById('inv_visit_date').value : '',
+      tel: customer.tel,
+      address: customer.address,
+      banchi: customer.banchi,
+      building: customer.building,
+      equipment: lookupData.equipment || '',
+      customer_type: customer.customer_type,
+      company_name: customer.company_name,
+      contact_name: customer.contact_name,
+      items: fsItems,
+      amount_ex: fsSubEx,
+      total: fsTotal
+    };
+  } else {
+    // ---- これをもとに作る（既存フロー・変更なし） ----
+    // 選択データを配列化
+    var selectedItems = selections.map(function(idx) { return allItems[idx]; });
+    if (!customer.name) customer.name = selectedItems[0].name || '';
+    var contractIds = selectedItems.filter(function(s) { return s.type === 'contract'; }).map(function(s) { return s.contract_id; });
+    var quoteVers = selectedItems.filter(function(s) { return s.type === 'version'; }).map(function(s) { return { ver: s.quote_ver, type: s.quote_type }; });
+
+    // 振込情報変更チェック（契約書を含む場合）→ 問答無用で管理通知
+    var notify_payment_change = false;
+    if (contractIds.length > 0) {
+      var origDeadlines = selectedItems.filter(function(s) { return s.type === 'contract'; }).map(function(s) { return s.transfer_deadline || ''; });
+      var origNames = selectedItems.filter(function(s) { return s.type === 'contract'; }).map(function(s) { return s.transfer_name || ''; });
+      notify_payment_change = origDeadlines.some(function(d) { return d && d !== deadline; })
+                           || origNames.some(function(n) { return n && n !== transferName; });
+    }
+
+    // 全選択のitemsをマージして金額計算
+    var allLineItemsForSubmit = [];
+    selectedItems.forEach(function(s) {
+      if (s.items && s.items.length > 0) {
+        s.items.forEach(function(it) { allLineItemsForSubmit.push(it); });
+      }
+    });
+    var subtotalExForSubmit = 0;
+    allLineItemsForSubmit.forEach(function(it) {
+      subtotalExForSubmit += (it.subtotal || (it.price || 0) * (it.qty || 1));
+    });
+    var totalIncForSubmit = subtotalExForSubmit + Math.round(subtotalExForSubmit * 0.1);
+
+    payload = {
+      form_type: 'generate_doc',
+      doc_type: 'invoice',
+      case_id: searchCaseId,
+      contract_ids: contractIds,
+      contract_id: contractIds[0] || '',
+      quote_vers: quoteVers,
+      quote_ver: quoteVers.length > 0 ? quoteVers[0].ver : '',
+      quote_type: quoteVers.length > 0 ? quoteVers[0].type : '',
+      name: customer.name,
+      email: email,
+      cc_emails: getCcEmails(),
+      staff_id: (window.ECOPITA_SESSION ? window.ECOPITA_SESSION.staffId : ''),
+      payment_method: '銀行振り込み',
+      transfer_deadline: deadline,
+      transfer_name: transferName,
+      write_uriage: writeUriage,
+      notify_payment_change: notify_payment_change,
+      notify_uriage_choice: hasVersionSelected(),
+      visit_date: writeUriage ? document.getElementById('inv_visit_date').value : '',
+      tel: customer.tel,
+      address: customer.address,
+      banchi: customer.banchi,
+      building: customer.building,
+      equipment: lookupData.equipment || '',
+      customer_type: customer.customer_type,
+      company_name: customer.company_name,
+      contact_name: customer.contact_name,
+      multi_select: selections.length > 1,
+      items: allLineItemsForSubmit,
+      total: totalIncForSubmit
+    };
+  }
+
+  try {
+    // Phase 1: データ補完・検証（即応答）
+    var r = await gasCall(payload, { mode: 'submit', url: GAS_URL });
+    if (!r.ok) {
+      showError('preview_error', r.error || '発行に失敗しました');
+      btn.disabled = false; btn.textContent = '📑 発行する';
+      return;
+    }
+    var enriched = r.enriched || {};
+    var asyncPayload = Object.assign({}, payload, enriched, { form_type: 'generate_doc_async' });
+    var statusMode = writeUriage && r.write_async_status_enabled === true;
+    var asyncResult = null;
+    // 状態表示modeでは、売上DB commitを行うPhase 2の応答前に「保存」を表示しない。
+    if (statusMode) {
+      asyncResult = await gasCall(asyncPayload, { mode: 'submit', url: GAS_URL });
+      if (!asyncResult || asyncResult.ok !== true || !asyncResult.write_async_status ||
+          asyncResult.write_async_status.enabled !== true) {
+        showError('preview_error', '売上の記録状況を確認できませんでした。もう一度お試しください。');
+        btn.disabled = false; btn.textContent = '📑 発行する';
+        return;
+      }
+    }
+    // 完了画面はPhase 1成功後、売上記録があるstatus modeではDB commit応答後に表示。
+    document.getElementById('step1').classList.add('hidden');
+    document.getElementById('step2').classList.add('hidden');
+    document.getElementById('step_uriage').classList.add('hidden');
+    document.getElementById('step3').classList.add('hidden');
+    document.getElementById('step_preview').classList.add('hidden');
+    document.getElementById('step4').classList.remove('hidden');
+    var resultName = (customer.customer_type === '法人・団体' && customer.company_name)
+      ? (customer.company_name + ' ' + (customer.contact_name || '')).trim()
+      : customer.name;
+    var resultText = searchCaseId + ' ／ ' + resultName + ' 様';
+    resultText += '\n' + payload.email + ' に請求書を送信しました。';
+    if (selections.length > 1) resultText += '\n（' + selections.length + '件合算）';
+    if (writeUriage && !statusMode) resultText += '\n✅ 売上管理にも記録します';
+    if (notify_payment_change) resultText += '\n📋 支払情報の変更を管理者に通知します';
+    document.getElementById('result_detail').textContent = resultText;
+    var invoiceWriteStatus = document.getElementById('invoice_write_status');
+    invoiceWriteStatus.textContent = '';
+    if (statusMode && window.WriteAsyncStatusV1) {
+      window.WriteAsyncStatusV1.start({
+        acceptance: asyncResult.write_async_status,
+        target: invoiceWriteStatus,
+        pendingMessage: window.WriteAsyncStatusV1.COPY.invoicePending,
+        callStatus: function(operationIds) {
+          return window.WriteAsyncStatusV1.callGasStatus(GAS_URL, operationIds);
+        }
+      });
+    } else if (statusMode) {
+      invoiceWriteStatus.textContent = '反映の状況が確認できませんでした。もう一度確認してください。';
+    }
+    window.scrollTo(0, 0);
+
+    // Phase 2: PDF生成・メール送信・LW通知・書類シート・売上管理（バックグラウンド）
+    if (!statusMode) fetch(GAS_URL, { method: 'POST', body: JSON.stringify(asyncPayload) })
+      .then(function(x) { return x.json(); })
+      .then(function(res) {
+        if (res && res.ok === false) {
+          fetch(GAS_URL, { method: 'POST', body: JSON.stringify({
+            form_type: 'async_fail_report',
+            case_id: searchCaseId, reason: 'generate_doc_async returned not-ok'
+          }) }).catch(function(){});
+        }
+      })
+      .catch(function(){ /* Safari Load failed等は偽陽性が多いため黙殺 */ });
+  } catch(e) {
+    showError('preview_error', gasCallErrorMessage(e));
+    btn.disabled = false; btn.textContent = '📑 発行する';
+  }
+}
+
+onPrefixChange();
+</script>
+<script src="./shared-nav.js"></script>
+<script src="./shared-email-check.js"></script>
+</body>
+</html>

@@ -1,0 +1,1221 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<script src="./shared-site-config.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>会社収益ダッシュボード</title>
+<script src="./shared-auth.js"></script>
+<style>
+:root{
+  --bg:#0f172a;--bg2:#111827;--surface:#ffffff;--surface2:#f4f7fb;--border:#d9e1eb;
+  --text:#18212f;--muted:#667085;--accent:#0f766e;--accent2:#115e59;--green:#15803d;
+  --red:#b42318;--blue:#1d4ed8;--amber:#b45309;--shadow:0 10px 30px rgba(15,23,42,.08);
+  --radius:16px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Hiragino Sans","Noto Sans JP",sans-serif;background:linear-gradient(180deg,var(--bg),var(--bg2));color:var(--text);min-height:100vh}
+.hero{padding:28px 20px 22px;color:#fff}
+.hero-top{display:flex;align-items:center;justify-content:space-between;gap:12px;max-width:1180px;margin:0 auto}
+.hero h1{font-size:1.45rem;font-weight:800;letter-spacing:.02em}
+.hero p{margin-top:8px;color:rgba(255,255,255,.78);font-size:.92rem}
+.admin-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.18);padding:7px 12px;border-radius:999px;font-size:.82rem;font-weight:700;white-space:nowrap}
+.wrap{max-width:1180px;margin:0 auto;padding:18px 18px 28px}
+.panel{background:var(--surface);border:1px solid rgba(255,255,255,.2);border-radius:20px;box-shadow:var(--shadow)}
+.toolbar{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;padding:18px}
+.field{display:flex;flex-direction:column;gap:6px}
+.field label{font-size:.78rem;font-weight:700;color:var(--muted)}
+.seg{display:flex;gap:6px;background:var(--surface2);padding:4px;border-radius:12px}
+.seg button,.ghost,.primary,.sort-btn,.tab-btn{font-family:inherit}
+.seg button{border:none;background:transparent;color:var(--muted);padding:9px 14px;border-radius:10px;font-size:.88rem;font-weight:700;cursor:pointer}
+.seg button.active{background:#fff;color:var(--accent);box-shadow:0 2px 8px rgba(15,23,42,.08)}
+.seg-short{display:none}
+input[type="date"]{height:42px;padding:0 12px;border:1px solid var(--border);border-radius:12px;background:#fff;font:inherit;color:var(--text)}
+#groupSelect{height:42px;padding:0 12px;border:1px solid var(--border);border-radius:12px;background:#fff;font:inherit;color:var(--text);max-width:100%}
+.shortcut-row{display:flex;gap:8px;flex-wrap:wrap}
+.ghost,.primary{height:42px;border-radius:12px;padding:0 14px;font-size:.88rem;font-weight:700;cursor:pointer}
+.ghost{border:1px solid var(--border);background:#fff;color:var(--muted)}
+.primary{border:none;background:var(--accent);color:#fff}
+.primary:hover{background:var(--accent2)}
+.toolbar-period{order:1}
+.toolbar-date{order:2}
+.toolbar-region{order:3}
+.toolbar-shortcuts{order:4}
+#reloadBtn{order:5}
+.meta{padding:0 18px 18px;color:var(--muted);font-size:.84rem}
+.kpi-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;padding:0 18px 18px}
+.kpi.wide{grid-column:span 2}
+.kpi{background:var(--surface2);border:1px solid var(--border);border-radius:16px;padding:16px;min-width:0;overflow:hidden}
+.kpi .label{font-size:.77rem;font-weight:700;color:var(--muted);margin-bottom:8px}
+.kpi .value{font-size:clamp(1.05rem,4.5vw,1.7rem);font-weight:800;line-height:1.15;letter-spacing:-.02em;word-break:break-all;overflow-wrap:anywhere}
+.kpi .sub{margin-top:6px;font-size:.76rem;color:var(--muted)}
+.kpi .sub.loss{color:#dc2626;font-weight:700}
+.loss-link{border:none;background:transparent;padding:0;font:inherit;color:#dc2626;font-weight:700;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.loss-link:hover{color:#b91c1c}
+.kpi.accent{background:rgba(15,118,110,.08);border-color:rgba(15,118,110,.18)}
+.kpi.accent .value{color:var(--accent)}
+.content{padding:0 18px 18px}
+.tab-bar{display:flex;gap:0;border-bottom:2px solid var(--border);margin:6px 0 16px}
+.tab-btn{border:none;background:transparent;color:var(--muted);padding:10px 18px;font-size:.9rem;font-weight:700;cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px}
+@media(max-width:760px){.tab-btn{flex:1;text-align:center;padding:10px 4px}}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
+.section-title{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:6px 0 12px}
+.section-title h2{font-size:1rem;font-weight:800}
+.table-wrap{overflow:auto;border:1px solid var(--border);border-radius:18px;background:#fff}
+table{width:100%;border-collapse:collapse;min-width:1260px}
+#rankingSection.group-view table{min-width:760px}
+thead th{background:var(--surface2);padding:12px 14px;border-bottom:1px solid var(--border);font-size:.78rem;color:var(--muted);text-align:left;white-space:nowrap}
+tbody td{padding:12px 14px;border-bottom:1px solid #edf1f6;font-size:.9rem;white-space:nowrap}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover{background:#f8fbff}
+tbody tr.total-row td{background:#f1f5f9;font-weight:800;border-top:1px solid var(--border)}
+tbody tr.total-row td:nth-child(1),tbody tr.total-row td:nth-child(2){background:#f1f5f9}
+/* 担当者別 sticky行・列 */
+.table-wrap table thead th{position:sticky;top:0;z-index:2;background:var(--surface2)}
+.table-wrap table thead th:nth-child(1){left:0;z-index:4}
+.table-wrap table thead th:nth-child(2){left:52px;z-index:4}
+.table-wrap table tbody td:nth-child(1),.table-wrap table tbody td:nth-child(2){position:sticky;background:#fff;z-index:1}
+.table-wrap table tbody td:nth-child(1){left:0}
+.table-wrap table tbody td:nth-child(2){left:52px}
+.table-wrap table tbody tr:hover td:nth-child(1),.table-wrap table tbody tr:hover td:nth-child(2){background:#f8fbff}
+/* クロス集計カード */
+.cross-cards{display:flex;flex-direction:column}
+.cross-card{border:1px solid var(--border);border-radius:14px;background:#fff;margin-bottom:10px}
+.cross-card:last-child{margin-bottom:0}
+.cross-card-pref{font-weight:800;font-size:.95rem;padding:10px 14px;background:var(--surface2);border-bottom:1px solid var(--border);border-radius:14px 14px 0 0}
+.cross-card-pref.grand-total{background:#eef6ff}
+.cross-card.grand-total-card table thead th{background:#eef6ff}
+.cross-card.grand-total-card table thead th:first-child{background:#eef6ff}
+.cross-card-scroll{overflow:auto;border-radius:0 0 14px 14px}
+.cross-card table{min-width:0;width:100%;border-radius:0}
+.cross-card table thead th{background:var(--surface2);padding:8px 12px;font-size:.76rem;text-align:center}
+.cross-card table thead th:first-child{text-align:center;position:sticky;left:0;z-index:2;background:var(--surface2)}
+.cross-card table tbody td{padding:8px 12px;font-size:.85rem;text-align:right;font-variant-numeric:tabular-nums}
+.cross-card table tbody td:first-child{text-align:center;font-size:.8rem;color:var(--muted);font-weight:700;white-space:nowrap;position:sticky;left:0;z-index:1;background:#fff}
+.cross-card table tbody td.count-cell{text-align:center}
+.cross-card table tbody td.card-total{font-weight:800;background:#eef6ff}
+.cross-card table thead th.card-total{font-weight:800;background:#eef6ff}
+.cross-card table tbody td.zero-count{color:#94a3b8}
+.cross-card table tbody td.zero-money{color:#cbd5e1}
+.cross-note{margin:-4px 0 12px;font-size:.8rem;color:var(--muted)}
+.adv-grid{display:block}
+.adv-block{margin-bottom:16px}
+.adv-block h3{font-size:.9rem;font-weight:800;margin:0 0 8px}
+/* 表の見た目・挙動は既存タブ（担当者別）と完全に同一に揃える（iOS実機で表示実績のある構造） */
+.adv-state{border:1px dashed var(--border);border-radius:14px;background:var(--surface2);padding:28px 16px;text-align:center;color:var(--muted)}
+.rank{font-weight:800;color:var(--muted);text-align:center}
+.num{text-align:right;font-variant-numeric:tabular-nums}
+.center{text-align:center}
+.name-cell{display:flex;flex-direction:column;gap:3px;align-items:center}
+.staff-id{font-size:.75rem;color:var(--muted)}
+thead th.center,thead th.center .sort-btn{justify-content:center}
+thead th.num,thead th.num .sort-btn{justify-content:flex-end}
+.sort-btn{border:none;background:transparent;color:inherit;font:inherit;font-weight:inherit;display:inline-flex;align-items:center;gap:6px;cursor:pointer;padding:2px 0;border-radius:4px;transition:color .15s}
+.sort-btn:hover{color:var(--accent)}
+.sort-ind{font-size:.74rem;color:var(--muted)}
+.state{padding:56px 18px;text-align:center;color:#fff}
+.state .box{max-width:420px;margin:0 auto;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:20px;padding:28px}
+.state h2{font-size:1.2rem;margin-bottom:10px}
+.state p{color:rgba(255,255,255,.8);line-height:1.7}
+.spinner{width:34px;height:34px;border-radius:50%;border:3px solid rgba(255,255,255,.18);border-top-color:#fff;animation:spin .8s linear infinite;margin:0 auto 14px}
+.modal-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.58);display:flex;align-items:center;justify-content:center;padding:18px;z-index:30}
+.modal-backdrop[hidden]{display:none}
+.loss-modal{width:min(980px,100%);max-height:min(84vh,820px);background:#fff;border:1px solid var(--border);border-radius:18px;box-shadow:0 24px 70px rgba(15,23,42,.28);display:flex;flex-direction:column;overflow:hidden}
+.modal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:18px;border-bottom:1px solid var(--border);background:var(--surface2)}
+.modal-head h2{font-size:1.05rem;font-weight:800}
+.modal-head p{margin-top:4px;color:var(--muted);font-size:.82rem}
+.modal-close{width:34px;height:34px;border:1px solid var(--border);border-radius:10px;background:#fff;color:var(--muted);font-size:1.25rem;line-height:1;cursor:pointer}
+.modal-close:hover{color:var(--text);border-color:#b9c4d3}
+.modal-body{overflow:auto;padding:16px 18px 18px}
+.loss-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+.loss-stat{border:1px solid var(--border);border-radius:12px;background:var(--surface2);padding:12px}
+.loss-stat .stat-label{font-size:.75rem;font-weight:700;color:var(--muted);margin-bottom:5px}
+.loss-stat .stat-value{font-size:1.2rem;font-weight:800}
+.loss-bars{display:flex;flex-direction:column;gap:8px;margin-bottom:16px}
+.loss-bar-row{display:grid;grid-template-columns:minmax(130px,1.1fr) minmax(160px,2fr) minmax(112px,.8fr);gap:10px;align-items:center;border:1px solid #edf1f6;border-radius:12px;padding:10px}
+.loss-type-name{font-weight:800;font-size:.86rem;overflow-wrap:anywhere}
+.loss-bar-track{height:10px;border-radius:999px;background:#edf2f7;overflow:hidden}
+.loss-bar-fill{height:100%;border-radius:999px;background:var(--accent)}
+.loss-bar-row.unrecorded .loss-bar-fill{background:#dc2626}
+.loss-bar-meta{text-align:right;color:var(--muted);font-size:.82rem;font-variant-numeric:tabular-nums}
+.loss-table-wrap{overflow:auto;border:1px solid var(--border);border-radius:14px}
+.loss-table{min-width:680px}
+.loss-table th,.loss-table td{padding:10px 12px}
+.loss-unrecorded{color:#dc2626;font-weight:800}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media(max-width:760px){
+  .hero{padding:24px 14px 18px}
+  .wrap{padding:14px 12px 20px}
+  .hero-top{align-items:flex-start;flex-direction:column}
+  .toolbar{padding:14px;gap:10px;align-items:stretch}
+  .toolbar-period,.toolbar-region{flex:1 1 calc(50% - 5px)}
+  .toolbar-period{order:1;min-width:0}
+  .toolbar-region{order:2;min-width:0}
+  .toolbar-date{order:3;flex:1 1 100%;min-width:0;width:100%}
+  .toolbar-shortcuts{order:4;flex:1 1 100%;min-width:0;width:100%}
+  #reloadBtn{order:5;flex:1 1 100%;width:100%;height:44px}
+  .meta,.kpi-grid,.content{padding-left:14px;padding-right:14px}
+  .seg{width:100%;overflow:auto}
+  .seg button{flex:1 1 0;padding:9px 8px;min-width:0}
+  .seg-full{display:none}
+  .seg-short{display:inline}
+  #baseDate,#regionSelect{display:block;width:100%;max-width:100%;min-width:0;height:44px;font-size:15px}
+  #baseDate{-webkit-appearance:none;appearance:none;padding:0 12px;line-height:44px;background:#fff}
+  #regionSelect{padding:0 36px 0 12px;border:1px solid var(--border);border-radius:12px;background:#fff;color:var(--text);font-family:inherit}
+  .shortcut-row{width:100%;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+  .shortcut-row .ghost{width:100%;height:40px;padding:0 6px;font-size:.84rem}
+  .kpi-grid{grid-template-columns:repeat(2,1fr);gap:10px}
+  .kpi{padding:12px}
+  .loss-summary{grid-template-columns:1fr}
+  .loss-bar-row{grid-template-columns:1fr;gap:6px}
+  .loss-bar-meta{text-align:left}
+  .loss-modal{max-height:88vh}
+}
+</style>
+<script src="./shared-gas-call.js?v=20260914-read-v1"></script>
+</head>
+<body>
+<div id="loadingState" class="state">
+  <div class="box">
+    <div class="spinner"></div>
+    <h2>会社収益ダッシュボードを読み込み中</h2>
+  </div>
+</div>
+
+<div id="errorState" class="state" style="display:none">
+  <div class="box">
+    <h2 id="errorTitle">表示できません</h2>
+    <p id="errorText">データの読み込みに失敗しました。</p>
+  </div>
+</div>
+
+<div id="app" style="display:none">
+  <div class="hero">
+    <div class="hero-top">
+      <div>
+        <h1 id="dashboardTitle">会社収益ダッシュボード</h1>
+      </div>
+      <div class="admin-badge">管理者専用</div>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <div class="panel">
+      <div class="toolbar">
+        <div class="field" id="groupSelectField" style="display:none">
+          <label for="groupSelect">表示</label>
+          <select id="groupSelect"><option value="all">全体</option></select>
+        </div>
+        <div class="field toolbar-period">
+          <label>期間種別</label>
+          <div class="seg">
+            <button type="button" data-period="day" class="active"><span class="seg-full">日別</span><span class="seg-short">日</span></button>
+            <button type="button" data-period="week"><span class="seg-full">週別</span><span class="seg-short">週</span></button>
+            <button type="button" data-period="month"><span class="seg-full">月別</span><span class="seg-short">月</span></button>
+          </div>
+        </div>
+        <div class="field toolbar-region">
+          <label>地域</label>
+          <select id="regionSelect">
+            <option value="全体">全体</option>
+            <option value="東北">東北</option>
+            <option value="北陸">北陸</option>
+            <option value="関東">関東</option>
+            <option value="東海">東海</option>
+            <option value="関西">関西</option>
+            <option value="九州">九州</option>
+            <option value="その他">その他</option>
+          </select>
+        </div>
+        <div class="field toolbar-date">
+          <label>基準日 <span id="baseDateDow" style="color:var(--muted);font-weight:600"></span></label>
+          <input type="date" id="baseDate">
+        </div>
+        <div class="field toolbar-shortcuts">
+          <label>ショートカット</label>
+          <div class="shortcut-row">
+            <button type="button" class="ghost" data-shortcut="today">今日</button>
+            <button type="button" class="ghost" data-shortcut="this_week">今週</button>
+            <button type="button" class="ghost" data-shortcut="this_month">今月</button>
+            <button type="button" class="ghost" data-shortcut="last_month">先月</button>
+          </div>
+        </div>
+        <button type="button" class="primary" id="reloadBtn">表示</button>
+      </div>
+
+      <div class="meta" id="periodMeta"></div>
+
+      <div class="kpi-grid" id="kpiGrid"></div>
+
+      <div class="content">
+        <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+          <a id="dashboardGraphLink" href="company_dashboard_graph.html" class="ghost" style="display:inline-flex;align-items:center;gap:6px;text-decoration:none;font-size:.88rem">📊 グラフを見る</a>
+        </div>
+        <div class="tab-bar">
+          <button type="button" class="tab-btn active" data-tab="ranking">担当者別</button>
+          <button type="button" class="tab-btn" data-tab="cross">地域×広告会社</button>
+          <button type="button" class="tab-btn" data-tab="advconfirm">不通案件</button>
+        </div>
+
+        <div id="rankingSection">
+          <div class="section-title">
+            <h2>担当者別ランキング</h2>
+            <span id="rankingMeta" style="font-size:.8rem;color:var(--muted)"></span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th class="center">順位</th>
+                  <th class="center"><button type="button" class="sort-btn" data-sort="staff_name">担当者 <span class="sort-ind" data-ind="staff_name"></span></button></th>
+                  <th class="center"><button type="button" class="sort-btn" data-sort="juchu_count">受注 <span class="sort-ind" data-ind="juchu_count"></span></button></th>
+                  <th class="center"><button type="button" class="sort-btn" data-sort="uriage_count">売上件数 <span class="sort-ind" data-ind="uriage_count"></span></button></th>
+                  <th class="center"><button type="button" class="sort-btn" data-sort="lost_count">失注 <span class="sort-ind" data-ind="lost_count"></span></button></th>
+                  <th class="center"><button type="button" class="sort-btn" data-sort="yoyaku_count">予約 <span class="sort-ind" data-ind="yoyaku_count"></span></button></th>
+                  <th class="center"><button type="button" class="sort-btn" data-sort="hold_count">保留 <span class="sort-ind" data-ind="hold_count"></span></button></th>
+                  <th class="num"><button type="button" class="sort-btn" data-sort="uriage_amount">売上金額 <span class="sort-ind" data-ind="uriage_amount"></span></button></th>
+                  <th class="num"><button type="button" class="sort-btn" data-sort="koukoku_rieki">広告利益 <span class="sort-ind" data-ind="koukoku_rieki"></span></button></th>
+                  <th class="num"><button type="button" class="sort-btn" data-sort="reward">報酬 <span class="sort-ind" data-ind="reward"></span></button></th>
+                  <th class="num"><button type="button" class="sort-btn" data-sort="royalty">ロイヤリティ <span class="sort-ind" data-ind="royalty"></span></button></th>
+                  <th class="num"><button type="button" class="sort-btn" data-sort="card_fee_profit">手数料利益 <span class="sort-ind" data-ind="card_fee_profit"></span></button></th>
+                  <th class="num"><button type="button" class="sort-btn" data-sort="total">合計 <span class="sort-ind" data-ind="total"></span></button></th>
+                </tr>
+              </thead>
+              <tbody id="rankingBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="crossSection" style="display:none">
+          <div class="section-title">
+            <h2>地域×広告会社クロス集計</h2>
+            <span id="crossMeta" style="font-size:.8rem;color:var(--muted)"></span>
+          </div>
+          <div class="cross-note" id="crossNote"></div>
+          <div id="crossCards" class="cross-cards"></div>
+        </div>
+
+        <div id="advconfirmSection" style="display:none">
+          <div class="section-title">
+            <h2>不通案件</h2>
+            <span id="advConfirmMeta" style="font-size:.8rem;color:var(--muted)"></span>
+          </div>
+          <div id="advConfirmArea"><div class="adv-state">タブを開くとデータを読み込みます。</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="lossModal" class="modal-backdrop" hidden>
+  <div class="loss-modal" role="dialog" aria-modal="true" aria-labelledby="lossModalTitle">
+    <div class="modal-head">
+      <div>
+        <h2 id="lossModalTitle">損益内訳</h2>
+        <p id="lossModalPeriod"></p>
+      </div>
+      <button type="button" class="modal-close" id="lossModalClose" aria-label="閉じる">&times;</button>
+    </div>
+    <div class="modal-body" id="lossModalBody"></div>
+  </div>
+</div>
+
+<script>
+var GAS_API_URL = 'https://script.google.com/macros/s/AKfycbyvjri6i0fe11hzfoqfhSxWCsn1aP2WyT9ELZOzNMrVyEOx-ZsKqlhJQONzlaFLmPw/exec';
+var SESSION = window.ECOPITA_SESSION || null;
+
+if (SESSION && !canUseDashboard_()) {
+  location.replace(window.ECOPITA_SITE.baseUrl + '/portal.html');
+}
+var STATE = {
+  mode: 'all',
+  group: null,
+  groups: [],
+  groupSelection: 'all',
+  pendingSavedGroup: '',
+  groupProfits: {},
+  periodType: 'day',
+  baseDate: todayKey_(),
+  sortKey: 'total',
+  sortDir: 'desc',
+  viewTab: 'ranking',
+  region: '全体',
+  rows: [],
+  kpi: null,
+  period: null,
+  crossTable: null,
+  lossDetail: null,
+  advConfirm: null,
+  advConfirmError: '',
+  advConfirmLoading: false,
+  advConfirmVersion: 0,
+  dashboardRequestVersion: 0
+};
+
+var DASHBOARD_CLIENT_TIMING_STORAGE_KEY_ = 'ecopita_company_dashboard_client_timing_v1';
+
+function todayKey_() {
+  var d = new Date();
+  return formatDate_(d);
+}
+
+function isAdminSession_() {
+  return !!(SESSION && (SESSION.isAdmin === true || SESSION.role === 'admin'));
+}
+
+function canUseDashboard_() {
+  return isAdminSession_() || !!(SESSION && SESSION.groupAdmin === true);
+}
+function isGroupDashboard_() { return STATE.mode === 'group'; }
+function groupViewRequested_() {
+  return isGroupDashboard_() || (STATE.groupSelection && STATE.groupSelection !== 'all') || (!isAdminSession_() && SESSION && SESSION.groupAdmin === true);
+}
+function groupSelectionStorageKey_() { return 'ecopita_company_dashboard_group_v1:' + String(SESSION && SESSION.staffId || ''); }
+function groupSelectionValue_(id) { return id === 'all' ? 'group:all' : id; }
+function renderGroupControls_() {
+  var groupMode = isGroupDashboard_();
+  document.getElementById('rankingSection').classList.toggle('group-view', groupMode);
+  document.getElementById('dashboardTitle').textContent = groupMode ? String(STATE.group && STATE.group.display_name || '') + ' ダッシュボード' : '会社収益ダッシュボード';
+  var select = document.getElementById('groupSelect');
+  document.getElementById('groupSelectField').style.display = isAdminSession_() ? '' : 'none';
+  if (isAdminSession_()) {
+    select.innerHTML = '<option value="all">全体</option>' + STATE.groups.map(function(group) {
+      return '<option value="' + esc_(groupSelectionValue_(group.id)) + '">' + esc_(group.display_name) + '</option>';
+    }).join('');
+    select.value = STATE.groupSelection || 'all';
+  }
+  document.getElementById('dashboardGraphLink').style.display = groupMode || !isAdminSession_() ? 'none' : 'inline-flex';
+  document.querySelectorAll('.tab-btn').forEach(function(btn) {
+    btn.style.display = groupMode && btn.getAttribute('data-tab') !== 'ranking' ? 'none' : '';
+  });
+  document.querySelectorAll('#rankingSection [data-sort]').forEach(function(btn) {
+    var groupColumn = ['staff_name','juchu_count','uriage_count','lost_count','yoyaku_count','hold_count','uriage_amount'].indexOf(btn.getAttribute('data-sort')) >= 0;
+    btn.closest('th').style.display = groupMode && !groupColumn ? 'none' : '';
+  });
+  if (groupMode) {
+    STATE.viewTab = 'ranking';
+    STATE.crossTable = null; STATE.lossDetail = null;
+    STATE.advConfirmVersion++; STATE.advConfirm = null; STATE.advConfirmLoading = false;
+    document.getElementById('crossCards').innerHTML = '';
+    document.getElementById('advConfirmArea').innerHTML = '';
+    closeLossModal_();
+  }
+}
+
+function groupRankingTotals_(rows) {
+  var total = {juchu_count:0,loss_count:0,uriage_count:0,uriage_amount:0,ad_cost:0,lost_count:0,yoyaku_count:0,hold_count:0,lost_breakdown:{lost:0,phone_lost:0,hold:0,yoyaku:0}};
+  rows.forEach(function(row) {
+    Object.keys(total).forEach(function(key) { if (key !== 'lost_breakdown') total[key] += Number(row[key] || 0); });
+    Object.keys(total.lost_breakdown).forEach(function(key) { total.lost_breakdown[key] += Number(row.lost_breakdown && row.lost_breakdown[key] || 0); });
+  });
+  return total;
+}
+function renderGroupKpi_() {
+  var k = STATE.kpi || {}, regional = STATE.region !== '全体', view = regional ? groupRankingTotals_(visibleRows_()) : k;
+  var loss = view.lost_breakdown || {}, suffix = regional ? '（全体）' : '';
+  document.getElementById('kpiGrid').innerHTML = [
+    kpiCard_('受注件数', fmtNumber_(view.juchu_count) + '件', '損益 ' + fmtNumber_(view.loss_count) + '件（別枠）'),
+    kpiCard_('売上件数', fmtNumber_(view.uriage_count) + '件'),
+    kpiCard_('売上金額', fmtMoney_(view.uriage_amount), '税込', false, true),
+    kpiCard_('広告費', fmtMoney_(view.ad_cost)),
+    kpiCard_('経費' + suffix, fmtMoney_(k.keihi)),
+    kpiCard_('吉田さんロイヤリティ' + suffix, fmtMoney_(k.royalty_yoshida)),
+    kpiCard_('手残り' + suffix, fmtMoney_(k.tenokori), '', true),
+    kpiCard_('失注件数', fmtNumber_(view.lost_count) + '件', '失注 ' + fmtNumber_(loss.lost) + ' / 電話失注 ' + fmtNumber_(loss.phone_lost) + ' / 不通・保留 ' + fmtNumber_(loss.hold) + ' / 予約 ' + fmtNumber_(loss.yoyaku))
+  ].join('');
+}
+function companyAdProfitCard_(value, lossSub) {
+  var card = kpiCard_('広告利益', fmtMoney_(value), lossSub);
+  var parts = STATE.groups.filter(function(group) { return Object.prototype.hasOwnProperty.call(STATE.groupProfits, group.id); }).map(function(group) {
+    return 'うち ' + group.display_name + ' ' + fmtMoney_(STATE.groupProfits[group.id]);
+  });
+  if (!parts.length) return card;
+  return card.slice(0,-6) + '<div class="sub">' + esc_((STATE.region !== '全体' ? '（全体）' : '') + parts.join(' / ')) + '</div></div>';
+}
+
+function renderGroupRanking_() {
+  var rows = sortedRows_(), total = groupRankingTotals_(rows);
+  function cells(row, rank, name, id, totalRow) {
+    return '<tr' + (totalRow ? ' class="total-row"' : '') + '><td class="rank">' + rank + '</td>'
+      + '<td class="center"><div class="name-cell"><strong>' + esc_(name) + '</strong>' + (id ? '<span class="staff-id">' + esc_(id) + '</span>' : '') + '</div></td>'
+      + ['juchu_count','uriage_count','lost_count','yoyaku_count','hold_count'].map(function(key) { return '<td class="center">' + fmtNumber_(row[key]) + '</td>'; }).join('')
+      + '<td class="num">' + fmtMoney_(row.uriage_amount) + '</td></tr>';
+  }
+  document.getElementById('rankingBody').innerHTML = rows.length ? rows.map(function(row,index) { return cells(row,index+1,row.staff_name || '不明',row.staff_id,false); }).join('') + cells(total,'合計',STATE.region,'',true)
+    : '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:28px">対象期間のデータはありません。</td></tr>';
+  document.getElementById('rankingMeta').textContent = (STATE.region === '全体' ? '' : STATE.region + ' / ') + rows.length + '名';
+  renderSortIndicators_();
+}
+
+function formatDate_(d) {
+  var y = d.getFullYear();
+  var m = ('0' + (d.getMonth() + 1)).slice(-2);
+  var day = ('0' + d.getDate()).slice(-2);
+  return y + '-' + m + '-' + day;
+}
+
+function parseDateKey_(value) {
+  var m = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+}
+
+function startOfWeek_(date) {
+  var d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  var diff = d.getDay() >= 4 ? d.getDay() - 4 : d.getDay() + 3;
+  d.setDate(d.getDate() - diff);
+  return d;
+}
+
+function rangeFromState_() {
+  var base = parseDateKey_(STATE.baseDate) || new Date();
+  var start = new Date(base.getFullYear(), base.getMonth(), base.getDate());
+  var end = new Date(start.getTime());
+  if (STATE.periodType === 'week') {
+    start = startOfWeek_(start);
+    end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 6);
+  } else if (STATE.periodType === 'month') {
+    start = new Date(start.getFullYear(), start.getMonth(), 1);
+    end = new Date(start.getFullYear(), start.getMonth() + 1, 0);
+  }
+  return { start: formatDate_(start), end: formatDate_(end) };
+}
+
+function setStateFromShortcut_(shortcut) {
+  var now = new Date();
+  if (shortcut === 'today') {
+    STATE.periodType = 'day';
+    STATE.baseDate = formatDate_(now);
+  } else if (shortcut === 'this_week') {
+    STATE.periodType = 'week';
+    STATE.baseDate = formatDate_(startOfWeek_(now));
+  } else if (shortcut === 'this_month') {
+    STATE.periodType = 'month';
+    STATE.baseDate = formatDate_(new Date(now.getFullYear(), now.getMonth(), 1));
+  } else if (shortcut === 'last_month') {
+    var prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    STATE.periodType = 'month';
+    STATE.baseDate = formatDate_(prev);
+  }
+}
+
+async function callApi_(payload) {
+  var encoded = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+  var url = GAS_API_URL + '?_portal_data=' + encodeURIComponent(encoded);
+  var res = await gasReadFetch(url, { redirect: 'follow' }, { onStatus: gasReadStatusTarget(document.querySelector(payload.action === 'company_dashboard_advconfirm' ? '#advConfirmArea .adv-state' : '#loadingState h2')) });
+  var text = await res.text();
+  return JSON.parse(text);
+}
+
+function dashboardPerformanceNow_() {
+  return window.performance && typeof window.performance.now === 'function'
+    ? window.performance.now() : Date.now();
+}
+
+function sanitizeDashboardClientTiming_(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  var safe = {};
+  ['wait_to_fetch_ms', 'fetch_to_response_ms', 'response_to_render_ms', 'total_ms'].forEach(function(key) {
+    var value = Number(raw[key]);
+    if (isFinite(value) && value >= 0 && value <= 600000) safe[key] = Math.round(value);
+  });
+  var completedAt = Number(raw.completed_at_epoch_ms);
+  if (isFinite(completedAt) && completedAt > 0) safe.completed_at_epoch_ms = Math.round(completedAt);
+  return Object.keys(safe).length ? safe : null;
+}
+
+function takePreviousDashboardClientTiming_() {
+  try {
+    var raw = sessionStorage.getItem(DASHBOARD_CLIENT_TIMING_STORAGE_KEY_);
+    sessionStorage.removeItem(DASHBOARD_CLIENT_TIMING_STORAGE_KEY_);
+    return sanitizeDashboardClientTiming_(raw ? JSON.parse(raw) : null);
+  } catch (e) {
+    return null;
+  }
+}
+
+function storeDashboardClientTiming_(timing) {
+  try {
+    var safe = sanitizeDashboardClientTiming_(timing);
+    if (safe) sessionStorage.setItem(DASHBOARD_CLIENT_TIMING_STORAGE_KEY_, JSON.stringify(safe));
+  } catch (e) {}
+}
+
+function scheduleDashboardClientTiming_(requestVersion, interactionStartedAt, fetchStartedAt, responseReceivedAt) {
+  var schedule = typeof requestAnimationFrame === 'function'
+    ? requestAnimationFrame : function(callback) { setTimeout(callback, 0); };
+  schedule(function() {
+    schedule(function() {
+      if (requestVersion !== STATE.dashboardRequestVersion) return;
+      var renderFinishedAt = dashboardPerformanceNow_();
+      storeDashboardClientTiming_({
+        wait_to_fetch_ms: Math.max(0, fetchStartedAt - interactionStartedAt),
+        fetch_to_response_ms: Math.max(0, responseReceivedAt - fetchStartedAt),
+        response_to_render_ms: Math.max(0, renderFinishedAt - responseReceivedAt),
+        total_ms: Math.max(0, renderFinishedAt - interactionStartedAt),
+        completed_at_epoch_ms: Date.now()
+      });
+    });
+  });
+}
+
+function showState_(mode, title, text) {
+  document.getElementById('loadingState').style.display = mode === 'loading' ? '' : 'none';
+  document.getElementById('errorState').style.display = mode === 'error' ? '' : 'none';
+  document.getElementById('app').style.display = mode === 'app' ? '' : 'none';
+  if (mode === 'error') {
+    document.getElementById('errorTitle').textContent = title || '表示できません';
+    document.getElementById('errorText').textContent = text || 'データの読み込みに失敗しました。';
+  }
+}
+
+function fmtMoney_(value) {
+  var n = Math.round(Number(value) || 0);
+  var s = '¥' + Math.abs(n).toLocaleString('ja-JP');
+  return n < 0 ? '-' + s : s;
+}
+
+function fmtNumber_(value) {
+  return Number(value || 0).toLocaleString('ja-JP');
+}
+
+function visibleRows_() {
+  if (STATE.region === '全体') return STATE.rows.slice();
+  return STATE.rows.filter(function(row) {
+    return row.area === STATE.region;
+  });
+}
+
+function sumRankingRows_(rows) {
+  var total = {
+    juchu_count: 0,
+    uriage_count: 0,
+    lost_count: 0,
+    yoyaku_count: 0,
+    hold_count: 0,
+    uriage_amount: 0,
+    koukoku_rieki: 0,
+    reward: 0,
+    royalty: 0,
+    card_fee_profit: 0,
+    total: 0
+  };
+  rows.forEach(function(row) {
+    total.juchu_count += Number(row.juchu_count || 0);
+    total.uriage_count += Number(row.uriage_count || 0);
+    total.lost_count += Number(row.lost_count || 0);
+    total.yoyaku_count += Number(row.yoyaku_count || 0);
+    total.hold_count += Number(row.hold_count || 0);
+    total.uriage_amount += Number(row.uriage_amount || 0);
+    total.koukoku_rieki += Number(row.koukoku_rieki || 0);
+    total.reward += Number(row.reward || 0);
+    total.royalty += Number(row.royalty || 0);
+    total.card_fee_profit += Number(row.card_fee_profit || 0);
+    total.total += Number(row.total || 0);
+  });
+  return total;
+}
+
+function kpiCard_(label, value, sub, accent, wide) {
+  var isLossSub = !!(!isGroupDashboard_() && sub && /^うち損益/.test(sub) && STATE.kpi && Number(STATE.kpi.loss_count || 0) > 0);
+  var subClass = isLossSub ? 'sub loss' : 'sub';
+  return '<div class="kpi' + (accent ? ' accent' : '') + (wide ? ' wide' : '') + '">'
+    + '<div class="label">' + esc_(label) + '</div>'
+    + '<div class="value">' + esc_(value) + '</div>'
+    + (sub ? '<div class="' + subClass + '">' + (isLossSub ? '<button type="button" class="loss-link" data-loss-modal="1">' + esc_(sub) + '</button>' : esc_(sub)) + '</div>' : '')
+    + '</div>';
+}
+
+function renderKpi_() {
+  if (isGroupDashboard_()) { renderGroupKpi_(); return; }
+  var k = STATE.kpi || {};
+  var regional = STATE.region !== '全体';
+  var regionTotals = regional ? sumRankingRows_(visibleRows_()) : null;
+  var viewK = regional ? {
+    juchu_count: regionTotals.juchu_count,
+    uriage_count: regionTotals.uriage_count,
+    uriage_amount: regionTotals.uriage_amount,
+    koukoku_rieki: regionTotals.koukoku_rieki,
+    card_fee_profit: regionTotals.card_fee_profit,
+    royalty: regionTotals.royalty
+  } : k;
+  var lossCntSub = (!regional && k.loss_count > 0) ? ('うち損益 ' + k.loss_count + '件') : '';
+  var lossAmtSub = (!regional && k.loss_count > 0) ? ('うち損益 ' + fmtMoney_(k.loss_amount)) : '';
+  var globalSuffix = regional ? '（全体）' : '';
+  document.getElementById('kpiGrid').innerHTML = [
+    kpiCard_('受注件数',      String(viewK.juchu_count || 0) + '件', lossCntSub),
+    kpiCard_('売上件数',      String(viewK.uriage_count || 0) + '件'),
+    kpiCard_('売上金額',      fmtMoney_(viewK.uriage_amount), '', false, true),
+    companyAdProfitCard_(viewK.koukoku_rieki, lossAmtSub),
+    kpiCard_('手数料利益',    fmtMoney_(viewK.card_fee_profit || 0)),
+    kpiCard_('経費合計' + globalSuffix,      fmtMoney_(k.keihi)),
+    kpiCard_('差し戻し確認中' + globalSuffix, fmtMoney_(k.pending_amount || 0), String(k.pending_count || 0) + '件'),
+    kpiCard_('ロイヤリティ',   fmtMoney_(viewK.royalty)),
+    kpiCard_('手残り' + globalSuffix,        fmtMoney_(k.tenokori), '', true)
+  ].join('');
+}
+
+function compareValue_(a, b, dir) {
+  var av = a == null ? '' : a;
+  var bv = b == null ? '' : b;
+  var m = dir === 'asc' ? 1 : -1;
+  if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * m;
+  return String(av).localeCompare(String(bv), 'ja') * m;
+}
+
+function sortedRows_() {
+  var key = STATE.sortKey;
+  var dir = STATE.sortDir;
+  return visibleRows_().sort(function(a, b) {
+    var primary = compareValue_(a[key], b[key], dir);
+    if (primary) return primary;
+    return compareValue_(a.total, b.total, 'desc') || compareValue_(a.staff_name, b.staff_name, 'asc');
+  });
+}
+
+function renderSortIndicators_() {
+  var nodes = document.querySelectorAll('[data-ind]');
+  nodes.forEach(function(node) {
+    if (node.getAttribute('data-ind') !== STATE.sortKey) {
+      node.textContent = '▽';
+      node.style.color = '#9ca3af';
+      node.style.opacity = '1';
+      return;
+    }
+    node.textContent = STATE.sortDir === 'asc' ? '▲' : '▼';
+    node.style.color = '';
+    node.style.opacity = '1';
+  });
+}
+
+function renderRanking_() {
+  if (isGroupDashboard_()) { renderGroupRanking_(); return; }
+  var rows = sortedRows_();
+  var body = document.getElementById('rankingBody');
+  if (!rows.length) {
+    body.innerHTML = '<tr><td colspan="13" style="text-align:center;color:var(--muted);padding:28px">対象期間のデータはありません。</td></tr>';
+    document.getElementById('rankingMeta').textContent = (STATE.region === '全体' ? '' : STATE.region + ' / ') + '0名';
+    renderSortIndicators_();
+    return;
+  }
+  var total = sumRankingRows_(rows);
+  var rowHtml = rows.map(function(row, idx) {
+    return '<tr>'
+      + '<td class="rank">' + (idx + 1) + '</td>'
+      + '<td class="center"><div class="name-cell"><strong>' + esc_(row.staff_name || '不明') + '</strong><span class="staff-id">' + esc_(row.staff_id || '') + '</span></div></td>'
+      + '<td class="center">' + fmtNumber_(row.juchu_count) + '</td>'
+      + '<td class="center">' + fmtNumber_(row.uriage_count) + '</td>'
+      + '<td class="center">' + fmtNumber_(row.lost_count || 0) + '</td>'
+      + '<td class="center">' + fmtNumber_(row.yoyaku_count || 0) + '</td>'
+      + '<td class="center">' + fmtNumber_(row.hold_count || 0) + '</td>'
+      + '<td class="num">' + fmtMoney_(row.uriage_amount) + '</td>'
+      + '<td class="num">' + fmtMoney_(row.koukoku_rieki) + '</td>'
+      + '<td class="num">' + fmtMoney_(row.reward || 0) + '</td>'
+      + '<td class="num">' + fmtMoney_(row.royalty) + '</td>'
+      + '<td class="num">' + fmtMoney_(row.card_fee_profit || 0) + '</td>'
+      + '<td class="num"><strong>' + fmtMoney_(row.total) + '</strong></td>'
+      + '</tr>';
+  }).join('');
+  var totalHtml = '<tr class="total-row">'
+    + '<td class="rank">合計</td>'
+    + '<td class="center">' + esc_(STATE.region === '全体' ? '全体' : STATE.region) + '</td>'
+    + '<td class="center">' + fmtNumber_(total.juchu_count) + '</td>'
+    + '<td class="center">' + fmtNumber_(total.uriage_count) + '</td>'
+    + '<td class="center">' + fmtNumber_(total.lost_count) + '</td>'
+    + '<td class="center">' + fmtNumber_(total.yoyaku_count) + '</td>'
+    + '<td class="center">' + fmtNumber_(total.hold_count) + '</td>'
+    + '<td class="num">' + fmtMoney_(total.uriage_amount) + '</td>'
+    + '<td class="num">' + fmtMoney_(total.koukoku_rieki) + '</td>'
+    + '<td class="num">' + fmtMoney_(total.reward) + '</td>'
+    + '<td class="num">' + fmtMoney_(total.royalty) + '</td>'
+    + '<td class="num">' + fmtMoney_(total.card_fee_profit) + '</td>'
+    + '<td class="num">' + fmtMoney_(total.total) + '</td>'
+    + '</tr>';
+  body.innerHTML = rowHtml + totalHtml;
+  document.getElementById('rankingMeta').textContent = (STATE.region === '全体' ? '' : STATE.region + ' / ') + rows.length + '名';
+  renderSortIndicators_();
+}
+
+function showTabView_(tab) {
+  if (groupViewRequested_()) tab = 'ranking';
+  STATE.viewTab = tab;
+  document.getElementById('rankingSection').style.display = tab === 'ranking' ? '' : 'none';
+  document.getElementById('crossSection').style.display = tab === 'cross' ? '' : 'none';
+  document.getElementById('advconfirmSection').style.display = tab === 'advconfirm' ? '' : 'none';
+  document.querySelectorAll('.tab-btn').forEach(function(btn) {
+    btn.classList.toggle('active', btn.getAttribute('data-tab') === tab);
+  });
+  if (tab === 'advconfirm') loadAdvConfirm_();
+}
+
+function renderCrossTable_() {
+  var cross = STATE.crossTable;
+  var container = document.getElementById('crossCards');
+  var meta = document.getElementById('crossMeta');
+  var note = document.getElementById('crossNote');
+  if (!cross || !cross.prefectures || !cross.prefectures.length || !cross.companies || !cross.companies.length) {
+    container.innerHTML = '<div style="text-align:center;color:var(--muted);padding:28px">対象期間のデータはありません。</div>';
+    meta.textContent = '0地域 / 0媒体';
+    note.textContent = '';
+    return;
+  }
+  var royaltyLabel = cross.royalty_approx ? 'ロイヤリティ（概算）' : 'ロイヤリティ';
+  note.textContent = cross.royalty_approx ? 'ロイヤリティは広告利益 × 20% の概算値です。' : '';
+  meta.textContent = cross.prefectures.length + '地域 / ' + cross.companies.length + '媒体';
+
+  function buildCardTable_(prefData, totals, isGrandTotal) {
+    var theadCells = '<th>項目</th>'
+      + cross.companies.map(function(c) { return '<th class="' + (isGrandTotal ? 'card-total' : '') + '">' + esc_(c) + '</th>'; }).join('')
+      + '<th class="card-total">合計</th>';
+    var tbodyRows = ['count', 'rieki', 'royalty', 'profit_total'].map(function(metric) {
+      var label = getCrossMetricLabel_(metric, royaltyLabel);
+      var dataCells = cross.companies.map(function(company) {
+        var bucket = (prefData[company]) || { count: 0, rieki: 0, royalty: 0 };
+        return renderCrossValueCell_(metric, getCrossMetricValue_(metric, bucket), isGrandTotal);
+      }).join('');
+      var totalVal = totals ? getCrossMetricValue_(metric, totals) : 0;
+      return '<tr><td>' + esc_(label) + '</td>' + dataCells + renderCrossValueCell_(metric, totalVal, true) + '</tr>';
+    }).join('');
+    return '<table><thead><tr>' + theadCells + '</tr></thead><tbody>' + tbodyRows + '</tbody></table>';
+  }
+
+  var cards = cross.prefectures.map(function(pref) {
+    var prefData = (cross.data && cross.data[pref]) || {};
+    var prefTotals = (cross.totals && cross.totals.byPref && cross.totals.byPref[pref]) || { count: 0, rieki: 0, royalty: 0 };
+    return '<div class="cross-card"><div class="cross-card-pref">' + esc_(pref) + '</div>'
+      + '<div class="cross-card-scroll">' + buildCardTable_(prefData, prefTotals, false) + '</div></div>';
+  });
+
+  // 総計カード
+  var grandTotals = (cross.totals && cross.totals.all) || { count: 0, rieki: 0, royalty: 0 };
+  var grandData = (cross.totals && cross.totals.byCompany) || {};
+  cards.push('<div class="cross-card grand-total-card"><div class="cross-card-pref grand-total">総計</div>'
+    + '<div class="cross-card-scroll">' + buildCardTable_(grandData, grandTotals, true) + '</div></div>');
+
+  container.innerHTML = cards.join('');
+}
+
+function getCrossMetricLabel_(metric, royaltyLabel) {
+  if (metric === 'count') return '件数';
+  if (metric === 'rieki') return '広告利益';
+  if (metric === 'royalty') return royaltyLabel;
+  if (metric === 'profit_total') return '利益合計';
+  return metric;
+}
+
+function getCrossMetricValue_(metric, bucket) {
+  bucket = bucket || {};
+  if (metric === 'profit_total') {
+    return Number(bucket.rieki || 0) + Number(bucket.royalty || 0);
+  }
+  return bucket[metric] || 0;
+}
+
+function renderCrossValueCell_(metric, value, isTotal) {
+  if (metric === 'count') {
+    var count = Number(value || 0);
+    var cls = 'count-cell';
+    if (count === 0) cls += ' zero-count';
+    if (isTotal) cls += ' total-cell';
+    return '<td class="' + cls + '">' + (count ? (fmtNumber_(count) + '件') : '0件') + '</td>';
+  }
+  var amount = Math.round(Number(value || 0));
+  var moneyCls = amount === 0 ? 'zero-money' : '';
+  if (isTotal) moneyCls += (moneyCls ? ' ' : '') + 'total-cell';
+  return '<td class="' + moneyCls + '">' + (amount === 0 ? '-' : fmtMoney_(amount)) + '</td>';
+}
+
+function fmtDateJP_(ymd) {
+  if (!ymd) return '';
+  var d = parseDateKey_(ymd);
+  if (!d) return ymd;
+  var days = ['日', '月', '火', '水', '木', '金', '土'];
+  return (d.getMonth() + 1) + '/' + d.getDate() + '（' + days[d.getDay()] + '）';
+}
+
+function renderPeriodMeta_() {
+  if (!STATE.period) return;
+  var typeLabel = STATE.period.type === 'week' ? '週別' : STATE.period.type === 'month' ? '月別' : '日別';
+  var startLabel = fmtDateJP_(STATE.period.start);
+  var endLabel = fmtDateJP_(STATE.period.end);
+  var rangeLabel = STATE.period.start === STATE.period.end ? startLabel : startLabel + ' 〜 ' + endLabel;
+  document.getElementById('periodMeta').textContent = typeLabel + ' / ' + rangeLabel;
+}
+
+function periodLabel_() {
+  if (!STATE.period) return '';
+  var typeLabel = STATE.period.type === 'week' ? '週別' : STATE.period.type === 'month' ? '月別' : '日別';
+  var startLabel = fmtDateJP_(STATE.period.start);
+  var endLabel = fmtDateJP_(STATE.period.end);
+  var rangeLabel = STATE.period.start === STATE.period.end ? startLabel : startLabel + ' 〜 ' + endLabel;
+  return typeLabel + ' / ' + rangeLabel;
+}
+
+function renderLossModal_() {
+  var detail = STATE.lossDetail || {};
+  var k = STATE.kpi || {};
+  var byType = detail.by_type || [];
+  var cases = detail.cases || [];
+  document.getElementById('lossModalPeriod').textContent = periodLabel_();
+  if (!cases.length) {
+    document.getElementById('lossModalBody').innerHTML = '<div style="text-align:center;color:var(--muted);padding:28px">対象期間の損益案件はありません。</div>';
+    return;
+  }
+
+  var maxCount = byType.reduce(function(max, row) { return Math.max(max, Number(row.count || 0)); }, 1);
+  var bars = byType.map(function(row) {
+    var count = Number(row.count || 0);
+    var pct = Math.max(4, Math.round(count / maxCount * 100));
+    var unrecorded = row.type_no == null;
+    return '<div class="loss-bar-row' + (unrecorded ? ' unrecorded' : '') + '">'
+      + '<div class="loss-type-name' + (unrecorded ? ' loss-unrecorded' : '') + '">' + esc_(row.type_name || '未記録') + '</div>'
+      + '<div class="loss-bar-track"><div class="loss-bar-fill" style="width:' + pct + '%"></div></div>'
+      + '<div class="loss-bar-meta">' + fmtNumber_(count) + '件 / ' + fmtMoney_(row.amount) + '</div>'
+      + '</div>';
+  }).join('');
+
+  var caseRows = cases.map(function(row) {
+    return '<tr>'
+      + '<td><strong>' + esc_(row.case_id || '') + '</strong></td>'
+      + '<td>' + esc_(row.date ? fmtDateJP_(row.date) : '') + '</td>'
+      + '<td>' + esc_(row.staff_name || '') + '</td>'
+      + '<td class="' + (row.recorded ? '' : 'loss-unrecorded') + '">' + esc_(row.type_name || '未記録') + (row.detail ? '<br><span style="color:var(--muted);font-size:.78rem">' + esc_(row.detail) + '</span>' : '') + '</td>'
+      + '<td class="num">' + fmtMoney_(row.amount) + '</td>'
+      + '</tr>';
+  }).join('');
+
+  document.getElementById('lossModalBody').innerHTML =
+    '<div class="loss-summary">'
+    + '<div class="loss-stat"><div class="stat-label">損益件数</div><div class="stat-value">' + fmtNumber_(k.loss_count || cases.length) + '件</div></div>'
+    + '<div class="loss-stat"><div class="stat-label">損益金額</div><div class="stat-value">' + fmtMoney_(k.loss_amount || 0) + '</div></div>'
+    + '<div class="loss-stat"><div class="stat-label">未記録</div><div class="stat-value">' + fmtNumber_(detail.unrecorded_count || 0) + '件</div></div>'
+    + '</div>'
+    + '<div class="loss-bars">' + bars + '</div>'
+    + '<div class="loss-table-wrap"><table class="loss-table"><thead><tr><th>案件番号</th><th>受付日</th><th>担当者</th><th>種類</th><th class="num">金額</th></tr></thead><tbody>' + caseRows + '</tbody></table></div>';
+}
+
+function openLossModal_() {
+  if (groupViewRequested_()) return;
+  renderLossModal_();
+  document.getElementById('lossModal').hidden = false;
+  document.body.style.overflow = 'hidden';
+}
+
+function closeLossModal_() {
+  document.getElementById('lossModal').hidden = true;
+  document.body.style.overflow = '';
+}
+
+function esc_(value) {
+  var div = document.createElement('div');
+  div.textContent = value == null ? '' : String(value);
+  return div.innerHTML;
+}
+
+function fmtAdvConfirmRate_(reached, total) {
+  var totalNum = Number(total || 0);
+  if (!totalNum) return '-';
+  return (Number(reached || 0) / totalNum * 100).toFixed(1) + '%';
+}
+
+// 表示/非表示の display 切替は一切使わず、毎回 innerHTML で丸ごと生成する
+// （iOS Safari が display:none 起点のテーブルを高さ0のまま固着させる実機事象への恒久対処・2026-07-25）
+function renderAdvConfirm_() {
+  var area = document.getElementById('advConfirmArea');
+  var meta = document.getElementById('advConfirmMeta');
+  if (STATE.advConfirmLoading) {
+    area.innerHTML = '<div class="adv-state">不通案件を読み込み中です…</div>';
+    meta.textContent = '';
+    return;
+  }
+  if (STATE.advConfirmError) {
+    area.innerHTML = '<div class="adv-state">' + esc_(STATE.advConfirmError) + '</div>';
+    meta.textContent = '';
+    return;
+  }
+  if (!STATE.advConfirm) {
+    area.innerHTML = '<div class="adv-state">タブを開くとデータを読み込みます。</div>';
+    meta.textContent = '';
+    return;
+  }
+
+  var data = STATE.advConfirm;
+  var daily = data.daily || [];
+  var byKind = data.by_kind || [];
+  var byStaff = data.by_staff || [];
+  var total = daily.reduce(function(sum, row) { return sum + Number(row.total || 0); }, 0);
+  var reached = daily.reduce(function(sum, row) { return sum + Number(row.reached || 0); }, 0);
+  meta.textContent = '合計 ' + fmtNumber_(total) + '件 / 折り返しあり ' + fmtNumber_(reached) + '件';
+
+  try {
+    var emptyRow4 = '<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:28px">対象期間のデータはありません。</td></tr>';
+    var emptyRow5 = '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:28px">対象期間のデータはありません。</td></tr>';
+    var dailyRows = daily.length ? daily.map(function(row) {
+      return '<tr><td>' + esc_(fmtDateJP_(row.date)) + '</td>'
+        + '<td class="num">' + fmtNumber_(row.total) + '</td>'
+        + '<td class="num">' + fmtNumber_(row.reached) + '</td>'
+        + '<td class="num">' + esc_(fmtAdvConfirmRate_(row.reached, row.total)) + '</td></tr>';
+    }).join('') : emptyRow4;
+    var kindRows = byKind.length ? byKind.map(function(row) {
+      return '<tr><td>' + esc_(fmtDateJP_(row.date)) + '</td>'
+        + '<td>' + esc_(row.kind || '他') + '</td>'
+        + '<td class="num">' + fmtNumber_(row.total) + '</td>'
+        + '<td class="num">' + fmtNumber_(row.reached) + '</td>'
+        + '<td class="num">' + esc_(fmtAdvConfirmRate_(row.reached, row.total)) + '</td></tr>';
+    }).join('') : emptyRow5;
+    var staffRows = byStaff.length ? byStaff.map(function(row) {
+      return '<tr><td>' + esc_(fmtDateJP_(row.date)) + '</td>'
+        + '<td>' + esc_(row.staff || '未設定') + '</td>'
+        + '<td class="num">' + fmtNumber_(row.total) + '</td>'
+        + '<td class="num">' + fmtNumber_(row.reached) + '</td>'
+        + '<td class="num">' + esc_(fmtAdvConfirmRate_(row.reached, row.total)) + '</td></tr>';
+    }).join('') : emptyRow5;
+
+    // 表の構造は「地域×広告会社」タブと同一の cross-card 形式を使う。
+    // iOS実機で「非表示セクション内に動的生成した table-wrap＋大型min-width表」が高さ0のまま
+    // 固着する事象があり、cross-card（min-width:0）はiOS表示実績のある唯一の動的生成表のため。
+    area.innerHTML =
+      '<div class="cross-card"><div class="cross-card-pref">日付ごと</div>'
+      + '<div class="cross-card-scroll"><table>'
+      + '<thead><tr><th>日付</th><th>不通件数</th><th>折り返しあり</th><th>率</th></tr></thead>'
+      + '<tbody>' + dailyRows + '</tbody></table></div></div>'
+      + '<div class="cross-card"><div class="cross-card-pref">日付 × 広告種別</div>'
+      + '<div class="cross-card-scroll"><table>'
+      + '<thead><tr><th>日付</th><th>種別</th><th>不通件数</th><th>折り返しあり</th><th>率</th></tr></thead>'
+      + '<tbody>' + kindRows + '</tbody></table></div></div>'
+      + '<div class="cross-card"><div class="cross-card-pref">日付 × 担当者</div>'
+      + '<div class="cross-card-scroll"><table>'
+      + '<thead><tr><th>日付</th><th>担当者</th><th>不通件数</th><th>折り返しあり</th><th>率</th></tr></thead>'
+      + '<tbody>' + staffRows + '</tbody></table></div></div>';
+  } catch (renderErr) {
+    area.innerHTML = '<div class="adv-state">表の描画でエラーが発生しました: '
+      + esc_(String(renderErr && renderErr.message ? renderErr.message : renderErr)) + '</div>';
+  }
+}
+
+function invalidateAdvConfirm_() {
+  STATE.advConfirmVersion += 1;
+  STATE.advConfirm = null;
+  STATE.advConfirmError = '';
+  STATE.advConfirmLoading = false;
+  renderAdvConfirm_();
+}
+
+async function loadAdvConfirm_() {
+  if (groupViewRequested_() || STATE.advConfirm || STATE.advConfirmLoading || !isAdminSession_()) return;
+  var version = STATE.advConfirmVersion;
+  var range = rangeFromState_();
+  STATE.advConfirmLoading = true;
+  STATE.advConfirmError = '';
+  renderAdvConfirm_();
+  try {
+    var res = await callApi_({
+      action: 'company_dashboard_advconfirm',
+      sessionToken: SESSION ? SESSION.token : '',
+      period_type: STATE.periodType,
+      start_date: range.start,
+      end_date: range.end,
+      ua: navigator.userAgent || ''
+    });
+    if (version !== STATE.advConfirmVersion) return;
+    if (!res || !res.ok) {
+      if (res && (res.error === 'permission_denied' || res.reason === 'permission_denied' || res.error === 'unavailable')) {
+        STATE.advConfirmError = '管理者のみ閲覧できます。権限または公開状態を確認してください。';
+      } else {
+        STATE.advConfirmError = '不通案件の取得に失敗しました。' + (res && (res.error || res.reason) ? ' ' + (res.error || res.reason) : '');
+      }
+      return;
+    }
+    STATE.advConfirm = res;
+  } catch (err) {
+    if (version === STATE.advConfirmVersion) {
+      STATE.advConfirmError = '不通案件の取得に失敗しました。' + (err && err.message ? ' ' + err.message : '');
+    }
+  } finally {
+    if (version === STATE.advConfirmVersion) {
+      STATE.advConfirmLoading = false;
+      renderAdvConfirm_();
+    }
+  }
+}
+
+function reloadDashboard_(interactionStartedAt) {
+  invalidateAdvConfirm_();
+  loadDashboard_(interactionStartedAt);
+  if (STATE.viewTab === 'advconfirm') loadAdvConfirm_();
+}
+
+async function loadDashboard_(interactionStartedAt) {
+  if (window.ECOPITA_SITE_BLOCKED) return;
+  if (SESSION && !canUseDashboard_()) {
+    location.replace(window.ECOPITA_SITE.baseUrl + '/portal.html');
+    return;
+  }
+  var requestVersion = ++STATE.dashboardRequestVersion;
+  var requestStartedAt = Number(interactionStartedAt);
+  if (!isFinite(requestStartedAt) || requestStartedAt < 0) requestStartedAt = dashboardPerformanceNow_();
+  showState_('loading');
+  var range = rangeFromState_();
+  var payload = {
+    action: 'company_dashboard',
+    token: SESSION ? SESSION.token : '',
+    period_type: STATE.periodType,
+    start_date: range.start,
+    end_date: range.end,
+    group: isAdminSession_() ? (STATE.groupSelection || 'all') : '',
+    ua: navigator.userAgent || ''
+  };
+  var previousClientTiming = takePreviousDashboardClientTiming_();
+  if (previousClientTiming) payload.previous_client_timing = previousClientTiming;
+  var fetchStartedAt = dashboardPerformanceNow_();
+  try {
+    var res = await callApi_(payload);
+    var responseReceivedAt = dashboardPerformanceNow_();
+    if (requestVersion !== STATE.dashboardRequestVersion) return;
+    if (!res || !res.ok) {
+      if (res && (res.error === 'permission_denied' || res.reason === 'permission_denied' || res.error === 'unavailable')) {
+        showState_('error', '管理者のみ閲覧できます', '権限がないため会社収益ダッシュボードは開けません。業務成績ポータルへ戻ります。');
+        setTimeout(function() {
+          location.replace(window.ECOPITA_SITE.baseUrl + '/portal.html');
+        }, 1800);
+        return;
+      }
+      throw new Error((res && (res.error || res.reason)) || 'データの取得に失敗しました。');
+    }
+    if (res.mode !== 'group' && isAdminSession_()) {
+      STATE.groups = Array.isArray(res.groups) ? res.groups : [];
+      if (STATE.pendingSavedGroup) {
+        var savedGroup = STATE.pendingSavedGroup;
+        STATE.pendingSavedGroup = '';
+        if (STATE.groups.some(function(group) { return groupSelectionValue_(group.id) === savedGroup; })) {
+          STATE.groupSelection = savedGroup;
+          return loadDashboard_(interactionStartedAt);
+        }
+      }
+    }
+    var mode = res.mode === 'group' ? 'group' : 'all';
+    if (STATE.mode !== mode) { STATE.sortKey = mode === 'group' ? 'uriage_amount' : 'total'; STATE.sortDir = 'desc'; }
+    STATE.mode = mode;
+    STATE.group = mode === 'group' ? res.group : null;
+    STATE.groupProfits = mode === 'group' ? {} : (res.koukoku_rieki_by_group || {});
+    STATE.period = res.period;
+    STATE.kpi = res.kpi || {};
+    STATE.rows = res.ranking || [];
+    STATE.crossTable = res.cross_table || null;
+    STATE.lossDetail = res.loss_detail || null;
+    renderGroupControls_();
+    renderPeriodMeta_();
+    renderKpi_();
+    renderRanking_();
+    if (!isGroupDashboard_()) renderCrossTable_();
+    showTabView_(STATE.viewTab);
+    showState_('app');
+    scheduleDashboardClientTiming_(requestVersion, requestStartedAt, fetchStartedAt, responseReceivedAt);
+  } catch (err) {
+    if (requestVersion !== STATE.dashboardRequestVersion) return;
+    showState_('error', '読み込みに失敗しました', err.message || String(err));
+  }
+}
+
+function updateBaseDateDow_() {
+  var el = document.getElementById('baseDateDow');
+  if (!el) return;
+  var d = parseDateKey_(STATE.baseDate);
+  if (!d) { el.textContent = ''; return; }
+  var days = ['日', '月', '火', '水', '木', '金', '土'];
+  el.textContent = '（' + days[d.getDay()] + '）';
+}
+
+function bindEvents_() {
+  if (isAdminSession_()) {
+    try { STATE.pendingSavedGroup = sessionStorage.getItem(groupSelectionStorageKey_()) || ''; } catch(e) {}
+    if (STATE.pendingSavedGroup === 'all') STATE.pendingSavedGroup = '';
+  }
+  document.getElementById('groupSelect').addEventListener('change', function() {
+    if (!isAdminSession_()) return;
+    STATE.groupSelection = this.value || 'all'; STATE.pendingSavedGroup = '';
+    try { sessionStorage.setItem(groupSelectionStorageKey_(), STATE.groupSelection); } catch(e) {}
+    reloadDashboard_(dashboardPerformanceNow_());
+  });
+  var baseInput = document.getElementById('baseDate');
+  baseInput.value = STATE.baseDate;
+  updateBaseDateDow_();
+  baseInput.addEventListener('change', function() {
+    STATE.baseDate = this.value || todayKey_();
+    updateBaseDateDow_();
+  });
+
+  var regionSelect = document.getElementById('regionSelect');
+  regionSelect.value = STATE.region;
+  regionSelect.addEventListener('change', function() {
+    STATE.region = this.value || '全体';
+    renderKpi_();
+    renderRanking_();
+  });
+
+  document.querySelectorAll('[data-period]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      STATE.periodType = this.getAttribute('data-period');
+      document.querySelectorAll('[data-period]').forEach(function(other) {
+        other.classList.toggle('active', other === btn);
+      });
+    });
+  });
+
+  document.querySelectorAll('[data-shortcut]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var interactionStartedAt = dashboardPerformanceNow_();
+      setStateFromShortcut_(this.getAttribute('data-shortcut'));
+      document.getElementById('baseDate').value = STATE.baseDate;
+      updateBaseDateDow_();
+      document.querySelectorAll('[data-period]').forEach(function(other) {
+        other.classList.toggle('active', other.getAttribute('data-period') === STATE.periodType);
+      });
+      reloadDashboard_(interactionStartedAt);
+    });
+  });
+
+  document.getElementById('reloadBtn').addEventListener('click', function() {
+    var interactionStartedAt = dashboardPerformanceNow_();
+    STATE.baseDate = document.getElementById('baseDate').value || todayKey_();
+    updateBaseDateDow_();
+    reloadDashboard_(interactionStartedAt);
+  });
+
+  document.querySelectorAll('[data-sort]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var key = this.getAttribute('data-sort');
+      if (STATE.sortKey === key) {
+        STATE.sortDir = STATE.sortDir === 'asc' ? 'desc' : 'asc';
+      } else {
+        STATE.sortKey = key;
+        STATE.sortDir = key === 'staff_name' ? 'asc' : 'desc';
+      }
+      renderRanking_();
+    });
+  });
+
+  document.querySelectorAll('.tab-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      showTabView_(this.getAttribute('data-tab'));
+    });
+  });
+
+  document.getElementById('kpiGrid').addEventListener('click', function(ev) {
+    if (ev.target && ev.target.closest('[data-loss-modal]')) openLossModal_();
+  });
+  document.getElementById('lossModalClose').addEventListener('click', closeLossModal_);
+  document.getElementById('lossModal').addEventListener('click', function(ev) {
+    if (ev.target === this) closeLossModal_();
+  });
+  document.addEventListener('keydown', function(ev) {
+    if (ev.key === 'Escape' && !document.getElementById('lossModal').hidden) closeLossModal_();
+  });
+}
+
+bindEvents_();
+loadDashboard_();
+</script>
+<script src="./shared-nav.js"></script>
+</body>
+</html>

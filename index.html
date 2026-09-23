@@ -1,0 +1,2655 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<script src="./shared-site-config.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>注文入力フォーム</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<!-- reCAPTCHA v3（見えない認証、スパム/bot対策）。sitekey は登録後に差し替え -->
+<script src="./shared-gas-call.js?v=20260914-read-v1"></script>
+<script>
+  window.RECAPTCHA_SITE_KEY = '6Lc6D6otAAAAADVD1SF958DQkj86yw0N3yUmZA0b';
+</script>
+<script async defer>
+  (function(){
+    if (!window.RECAPTCHA_SITE_KEY || window.RECAPTCHA_SITE_KEY.indexOf('__REPLACE') === 0) return;
+    var s = document.createElement('script');
+    s.src = 'https://www.google.com/recaptcha/api.js?render=' + window.RECAPTCHA_SITE_KEY;
+    s.async = true; s.defer = true;
+    document.head.appendChild(s);
+  })();
+</script>
+<style>
+:root {
+  --blue: #0055a4; --blue-dark: #003d7a; --blue-light: #e8f2fc;
+  --green: #2e7d32; --red: #c62828; --bg: #f5f7fa; --card: #ffffff;
+  --text: #1a1a1a; --text-sub: #5f6368; --border: #dce1e8;
+  --radius: 14px; --orange-bg: #fff3e0; --orange-border: #ffcc80;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'Noto Sans JP',sans-serif; background:var(--bg); color:var(--text); line-height:1.6; padding-bottom:80px; }
+.hero { background:linear-gradient(160deg,var(--blue),var(--blue-dark)); color:#fff; padding:30px 20px; text-align:center; }
+.hero h1 { font-size:1.6rem; font-weight:700; }
+.progress-bar { display:flex; gap:5px; padding:15px 20px; max-width:500px; margin:0 auto; }
+.progress-step { flex:1; height:4px; background:var(--border); border-radius:2px; }
+.progress-step.active { background:var(--blue); }
+.progress-step.done { background:var(--green); }
+.container { max-width:500px; margin:0 auto; padding:0 20px; }
+.step { display:none; animation:fadeIn .3s ease; }
+.step.active { display:block; }
+@keyframes fadeIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+.card { background:var(--card); border-radius:var(--radius); box-shadow:0 2px 8px rgba(0,0,0,.06); padding:20px; margin-bottom:15px; border:1px solid var(--border); }
+.card-title { font-weight:700; color:var(--blue); margin-bottom:15px; display:flex; align-items:center; gap:8px; }
+.field { margin-bottom:18px; }
+.field label { display:block; font-weight:600; font-size:.9rem; margin-bottom:6px; }
+.field input, .field select, .field textarea {
+  width:100%; padding:12px; border:2px solid var(--border);
+  border-radius:10px; font-size:1rem; -webkit-appearance:none; background:#fff;
+  box-sizing:border-box;
+}
+.field input[type="date"] { max-width:100%; }
+.field-hint { font-size:.75rem; color:var(--text-sub); margin-top:5px; }
+.error-msg { color:var(--red); font-size:.8rem; display:none; margin-top:5px; }
+.field.error input, .field.error select, .field.error textarea { border-color:var(--red); background:#fff8f8; }
+.field.error .error-msg { display:block; }
+.system-fields { background:#f0f4f8; padding:15px; border-radius:10px; margin-bottom:20px; border:1px solid #dce1e8; }
+.case-id-builder { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+.case-id-builder select { padding:10px 8px; border:2px solid var(--border); border-radius:8px; font-size:1rem; font-weight:700; color:var(--blue); background:#fff; }
+#c_case_prefix { min-width:80px; }
+#c_case_alpha { min-width:64px; background:#e8f2fc !important; border-color:var(--blue) !important; }
+.case-id-sep { font-size:1.1rem; font-weight:700; color:#999; }
+#c_case_num { flex:1; min-width:130px; padding:10px; border:2px solid var(--border); border-radius:8px; font-size:1rem; }
+.case-id-preview { margin-top:6px; font-size:.8rem; color:var(--text-sub); }
+.case-id-preview span { font-weight:700; color:var(--blue); }
+.dup-guard-warn {
+  margin-top:10px; padding:12px 14px; background:var(--orange-bg);
+  border:1px solid var(--orange-border); border-left:4px solid #e65100;
+  border-radius:8px; font-size:.85rem; line-height:1.6; color:#7a4a00;
+}
+.dup-guard-warn .dup-guard-title { font-weight:700; display:block; margin-bottom:2px; }
+.dup-guard-warn .dup-guard-detail { color:var(--text-sub); font-size:.78rem; }
+.dup-guard-warn a.dup-guard-resend {
+  display:inline-block; margin-top:6px; padding:6px 12px; background:#e65100; color:#fff;
+  border-radius:6px; font-weight:700; text-decoration:none; font-size:.82rem;
+}
+.symptom-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.order-type-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+.payment-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.symptom-label, .order-type-label, .payment-label {
+  border:2px solid var(--border); border-radius:10px; padding:12px 5px; text-align:center;
+  font-size:.9rem; font-weight:600; cursor:pointer; background:#fff; transition:all .2s;
+  display:flex; align-items:center; justify-content:center; min-height:50px;
+}
+.symptom-label input, .order-type-label input, .payment-label input { display:none; }
+.symptom-label:has(input:checked), .order-type-label:has(input:checked), .payment-label:has(input:checked) {
+  border-color:var(--blue); background:var(--blue-light); color:var(--blue);
+}
+.inv-items { margin-top:8px; }
+.inv-item-row { background:#fff; border:1px solid var(--border); border-radius:8px; padding:12px; margin-bottom:6px; }
+.inv-label { font-size:.9rem; font-weight:600; margin-bottom:6px; }
+.inv-price { width:100%; padding:10px; border:2px solid var(--border); border-radius:8px; font-size:1rem; }
+#repair_options_area { margin-top:15px; padding:15px; background:var(--blue-light); border-radius:10px; display:none; }
+#investigation_options_area { display:block; margin-top:15px; padding:15px; background:#e8f5e9; border-radius:10px; }
+.repair-item-row {
+  display:flex; justify-content:space-between; align-items:center;
+  background:#fff; border:1px solid var(--border); border-radius:8px; padding:12px; margin-bottom:8px;
+}
+.repair-item-row.active { border-color:var(--blue); box-shadow:0 0 0 1px var(--blue) inset; }
+.repair-info { font-size:.9rem; font-weight:500; flex:1; padding-right:10px; }
+.repair-price { font-size:.8rem; color:var(--text-sub); display:block; }
+.counter-ui { display:flex; align-items:center; gap:10px; }
+.btn-circle { width:32px; height:32px; border-radius:50%; border:none; font-size:1.2rem; cursor:pointer; display:flex; align-items:center; justify-content:center; background:#eee; color:#555; }
+.btn-plus { background:var(--blue); color:#fff; }
+.count-num { font-weight:700; width:24px; text-align:center; }
+.discount-box { padding:15px; background:var(--orange-bg); border:1px solid var(--orange-border); border-radius:10px; }
+.btn-apply { background:#e65100; color:#fff; border:none; padding:0 15px; border-radius:8px; font-weight:bold; cursor:pointer; }
+.emergency-box { margin-top:20px; padding-top:15px; border-top:2px dashed #ddd; }
+.emergency-label { display:flex; gap:10px; align-items:center; cursor:pointer; background:#fff5f5; padding:12px; border:1px solid #ffcccc; border-radius:8px; }
+.emergency-label input { transform:scale(1.3); }
+.emergency-label span { color:var(--red); font-weight:700; }
+.agreement-box { background:#f9f9f9; padding:15px; border-radius:10px; border:1px solid #eee; margin-top:20px; }
+.checkbox-group label {
+  display:flex; gap:10px; align-items:flex-start; cursor:pointer;
+  margin-bottom:12px; font-size:.9rem; padding:10px;
+  border:1px solid var(--border); border-radius:8px; background:#fff;
+}
+.checkbox-group input[type="checkbox"] { margin-top:4px; transform:scale(1.2); flex-shrink:0; }
+.consent-input-box { padding:10px; border:1px solid var(--border); border-radius:8px; background:#fff; margin-bottom:12px; }
+.bottom-nav {
+  position:fixed; bottom:0; left:0; right:0; background:#fff;
+  padding:15px 20px; display:flex; gap:10px; justify-content:center;
+  box-shadow:0 -2px 10px rgba(0,0,0,.05); z-index:100;
+}
+.btn { padding:12px 24px; border-radius:10px; font-weight:700; border:none; cursor:pointer; flex:1; max-width:200px; text-align:center; }
+.btn-next { background:var(--blue); color:#fff; }
+.btn-back { background:#eee; color:#555; }
+.btn:disabled { opacity:.6; cursor:not-allowed; }
+.confirm-row { display:flex; border-bottom:1px solid #eee; padding:8px 0; font-size:.95rem; }
+.confirm-label { width:100px; color:var(--text-sub); flex-shrink:0; }
+.confirm-val { flex:1; font-weight:600; }
+.complete-screen { text-align:center; padding:40px 20px; }
+.complete-icon { font-size:3rem; margin-bottom:15px; }
+.total-bar {
+  background:var(--blue-light); border-left:4px solid var(--blue); border-radius:0 8px 8px 0;
+  padding:10px 14px; margin-bottom:16px; display:flex; justify-content:space-between; align-items:center;
+}
+.total-bar-label { font-size:.9rem; font-weight:600; color:var(--blue); }
+.total-bar-val { font-size:1.2rem; font-weight:700; color:var(--blue); }
+.split-payment-area { margin-top:15px; background:#f0f4f8; border:1px solid var(--border); border-radius:10px; padding:15px; }
+.split-title { font-weight:700; font-size:.9rem; color:var(--blue); margin-bottom:12px; }
+.split-row { background:#fff; border:1px solid var(--border); border-radius:8px; padding:12px; margin-bottom:10px; position:relative; }
+.split-row-header { font-size:.85rem; font-weight:700; color:var(--text-sub); margin-bottom:8px; }
+.split-row input, .split-row select {
+  width:100%; padding:10px; border:2px solid var(--border);
+  border-radius:8px; font-size:.95rem; margin-bottom:6px; background:#fff; -webkit-appearance:none;
+}
+.split-inc { font-size:.8rem; color:var(--green); font-weight:600; margin-bottom:6px; }
+.split-deadline { display:none; }
+.split-transfer-name-row { display:none; margin-top:4px; }
+.split-remove-btn {
+  position:absolute; top:10px; right:10px; background:#ff5252; color:#fff;
+  border:none; border-radius:50%; width:24px; height:24px; font-size:.9rem;
+  cursor:pointer; display:flex; align-items:center; justify-content:center;
+}
+.split-total-area {
+  background:#fff; border:1px solid var(--border); border-radius:8px;
+  padding:10px 12px; margin-top:8px; display:flex; justify-content:space-between; align-items:center;
+}
+.split-total-area.match { border-color:var(--green); }
+.split-total-label { font-size:.9rem; color:var(--text-sub); font-weight:600; }
+.split-total-val { font-size:1.1rem; font-weight:700; color:var(--blue); }
+.split-total-val.match { color:var(--green); }
+.split-diff-msg { font-size:.8rem; font-weight:600; margin-top:2px; }
+.split-common-name { margin-top:10px; }
+.split-common-name label { font-size:.85rem; font-weight:600; color:var(--text-sub); display:block; margin-bottom:4px; }
+.split-common-name input { width:100%; padding:10px; border:2px solid var(--border); border-radius:8px; font-size:.95rem; background:#fff; }
+.split-diff-name-check { display:flex; align-items:center; gap:8px; margin-top:8px; font-size:.85rem; color:var(--text-sub); cursor:pointer; max-width:100%; }
+.split-diff-name-check input[type="checkbox"] { width:18px; height:18px; padding:0; border:1px solid #999; background:#fff; -webkit-appearance:checkbox; appearance:checkbox; transform:scale(1.2); flex-shrink:0; margin:0 6px 0 0; }
+.split-diff-name-hint { font-size:.78rem; color:var(--text-sub); margin-top:4px; padding-left:20px; }
+.btn-add-split {
+  background:var(--blue-light); color:var(--blue); border:1px solid var(--blue);
+  border-radius:8px; padding:8px 16px; font-size:.88rem; font-weight:700;
+  cursor:pointer; margin-top:8px; width:100%;
+}
+.sp-br { display:none; }
+@media (max-width:600px) { .sp-br { display:inline; } }
+
+/* ===== 承諾書サイン確認オーバーレイ（毎回必須、永続化禁止） ===== */
+#signConfirmOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background: rgba(0, 0, 0, 0.88);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+#signConfirmCard {
+  max-width: 460px;
+  width: 100%;
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 28px 22px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.4);
+}
+#signConfirmCard h2 {
+  font-size: 1.15rem;
+  color: var(--red);
+  margin-bottom: 14px;
+  text-align: center;
+}
+#signConfirmCard p {
+  font-size: 0.95rem;
+  line-height: 1.75;
+  margin-bottom: 12px;
+}
+#signConfirmCard p strong {
+  color: var(--blue);
+  background: var(--blue-light);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+#signConfirmCard .sign-note {
+  font-size: 0.85rem;
+  color: var(--text-sub);
+  margin: 18px 0 12px;
+  text-align: center;
+}
+.sign-slide-track {
+  position: relative;
+  width: 100%;
+  max-width: 340px;
+  height: 60px;
+  background: #d4d4d4;
+  border-radius: 60px;
+  margin: 22px auto 8px;
+  overflow: hidden;
+  transition: background 0.3s;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+.sign-slide-track.done { background: var(--green); }
+.sign-slide-knob {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 52px;
+  height: 52px;
+  background: white;
+  color: var(--blue);
+  border-radius: 50%;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  font-weight: 700;
+  cursor: grab;
+  transition: left 0.3s, color 0.3s;
+  z-index: 2;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.sign-slide-knob:active { cursor: grabbing; }
+.sign-slide-track.done .sign-slide-knob { color: var(--green); }
+.sign-slide-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-sub);
+  font-size: 0.92rem;
+  font-weight: 700;
+  pointer-events: none;
+  z-index: 1;
+  transition: color 0.3s;
+}
+.sign-slide-track.done .sign-slide-text { color: white; }
+#signConfirmMsg {
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--text-sub);
+  margin: 10px 0 0;
+  min-height: 1.2em;
+}
+#signConfirmMsg.ok {
+  color: var(--green);
+  font-weight: 700;
+}
+</style>
+</head>
+<body>
+
+<!-- 承諾書サイン確認オーバーレイ（毎回必須、永続化禁止。担当者が紙の承諾書サインを取り忘れる事故を防止） -->
+<div id="signConfirmOverlay">
+  <div id="signConfirmCard">
+    <h2>お客様への確認事項</h2>
+    <p>恐れ入りますが、ご注文を進める前に必ず下記をご確認ください。</p>
+    <p>お客様に <strong>「契約書面提供の電磁的方法に関する承諾書」</strong> へ、お客様ご自身の手書きでご署名をいただきましたでしょうか？</p>
+    <p class="sign-note">サインをいただいてから、下のスイッチをスライドして次へお進みください。</p>
+    <div class="sign-slide-track" id="signSlideTrack">
+      <div class="sign-slide-text" id="signSlideText">右にスライドして確認 →</div>
+      <div class="sign-slide-knob" id="signSlideKnob">→</div>
+    </div>
+    <p id="signConfirmMsg">スライドしてください</p>
+  </div>
+</div>
+
+<div class="hero"><h1>注文入力フォーム</h1></div>
+<div class="progress-bar">
+  <div class="progress-step active" id="p1"></div>
+  <div class="progress-step" id="p2"></div>
+  <div class="progress-step" id="p3"></div>
+  <div class="progress-step" id="p4"></div>
+  <div class="progress-step" id="p5"></div>
+  <div class="progress-step" id="p6"></div>
+  <div class="progress-step" id="p7"></div>
+  <div class="progress-step" id="p8"></div>
+</div>
+
+<div class="container">
+  <div id="repeat_banner" style="display:none;margin-bottom:12px;padding:12px 16px;background:#fff3cd;border-left:4px solid #f0a500;border-radius:8px;font-size:.93rem;font-weight:600;color:#7a5000"></div>
+
+  <!-- STEP1 -->
+  <div class="step active" id="step1">
+    <div class="card">
+      <div class="card-title">管理情報</div>
+      <div class="system-fields">
+        <div class="field" id="f_case_id">
+          <label>案件番号 <span style="color:red;font-size:.8rem">※必須</span></label>
+          <div class="case-id-builder">
+            <select id="c_case_prefix" data-ecopita-case-prefixes onchange="onIndexPrefixChange()">
+              <option value="YA">YA</option><option value="HM">HM</option>
+              <option value="CP">CP</option><option value="EC">EC</option><option value="HC">HC</option>
+            </select>
+            <select id="c_case_alpha" onchange="updateIndexCaseIdPreview(); clearCustomerFields(); clearIndexCaseIdError(); lookupByCaseId(true);">
+              <option value="">-</option>
+              <option value="A">A</option><option value="B">B</option><option value="C">C</option>
+              <option value="D">D</option><option value="E">E</option><option value="F">F</option>
+              <option value="G">G</option><option value="H">H</option><option value="I">I</option>
+              <option value="J">J</option><option value="K">K</option><option value="L">L</option>
+              <option value="M">M</option><option value="N">N</option><option value="O">O</option>
+              <option value="P">P</option><option value="Q">Q</option><option value="R">R</option>
+              <option value="S">S</option><option value="T">T</option><option value="U">U</option>
+              <option value="V">V</option><option value="W">W</option><option value="X">X</option>
+              <option value="Y">Y</option><option value="Z">Z</option>
+            </select>
+            <span class="case-id-sep">-</span>
+            <input type="text" id="c_case_num" placeholder="例: 12345678" inputmode="numeric"
+              oninput="updateIndexCaseIdPreview(); clearCustomerFields(); clearIndexCaseIdError();"
+              onblur="clearTimeout(_lookupTimer); lookupByCaseId(true);">
+          </div>
+          <div class="case-id-preview">案件番号: <span id="c_case_id_preview">---</span></div>
+          <div class="error-msg" id="case_id_error">案件番号が正しくありません　確認してください</div>
+          <!-- 二重発行ソフト警告（送信はブロックしない） -->
+          <div id="dup_guard_warning" class="dup-guard-warn" style="display:none"></div>
+        </div>
+        <div class="field">
+          <input type="hidden" id="c_emp_id">
+        </div>
+        <div class="field" id="c_custom_diag_fee_field" style="display:none">
+          <label>故障診断費用（税抜）</label>
+          <select id="c_custom_diag_fee">
+            <option value="">自動</option>
+            <option value="10000">¥10,000</option>
+            <option value="11000">¥11,000</option>
+            <option value="12000">¥12,000</option>
+            <option value="13000">¥13,000</option>
+            <option value="14000">¥14,000</option>
+            <option value="15000">¥15,000</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP2: お客様情報 -->
+  <div class="step" id="step2">
+    <div class="card">
+      <div class="card-title">お客様情報</div>
+      <div class="field">
+        <label>お客様種別 <span style="color:red;font-size:.8rem">※必須</span></label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <label class="order-type-label" id="toggle_ind">
+            <input type="radio" name="customer_type" value="個人" checked onclick="onCustomerTypeChange()">個人
+          </label>
+          <label class="order-type-label" id="toggle_corp">
+            <input type="radio" name="customer_type" value="法人・団体" onclick="onCustomerTypeChange()">法人・団体
+          </label>
+        </div>
+      </div>
+      <div id="corp_fields" style="display:none;border:2px solid #ce93d8;border-radius:10px;padding:14px;margin-bottom:14px;background:#fdf6ff">
+        <div style="font-size:.85rem;font-weight:700;color:#7b1fa2;margin-bottom:10px">🏢 会社・団体情報</div>
+        <div class="field" id="f_company_name">
+          <label>会社・団体・店舗名 <span style="color:red;font-size:.8rem">※必須</span></label>
+          <input type="text" id="c_company_name" placeholder="例：株式会社○○">
+          <div class="error-msg">会社・団体・店舗名を入力してください</div>
+        </div>
+        <div class="field" id="f_company_kana">
+          <label>会社・団体・店舗名ふりがな <span style="color:red;font-size:.8rem">※必須</span></label>
+          <input type="text" id="c_company_kana" placeholder="例：かぶしきがいしゃまるまる">
+          <div class="error-msg">ふりがなを入力してください</div>
+        </div>
+      </div>
+      <div class="field" id="f_name">
+        <label id="label_name">お名前 <span style="color:red;font-size:.8rem">※必須</span></label>
+        <input type="text" id="c_name" placeholder="例：山田太郎">
+        <div class="error-msg">お名前を入力してください</div>
+      </div>
+      <div class="field" id="f_kana">
+        <label id="label_kana">ふりがな <span style="color:red;font-size:.8rem">※必須</span></label>
+        <input type="text" id="c_kana" placeholder="例：やまだたろう">
+        <div class="error-msg">ふりがなを入力してください</div>
+      </div>
+      <div class="field" id="f_tel">
+        <label>電話番号 <span style="color:red;font-size:.8rem">※必須</span></label>
+        <input type="tel" id="c_tel" inputmode="numeric" placeholder="例：09012345678">
+        <div class="error-msg">電話番号を入力してください</div>
+      </div>
+      <div class="field" id="f_email">
+        <label>メールアドレス <span style="color:red;font-size:.8rem">※必須</span></label>
+        <input type="email" id="c_email" inputmode="email" placeholder="例：yamada@example.com">
+        <div class="error-msg">正しいメールアドレスを入力してください</div>
+        <div id="cc_email_area"></div>
+        <button type="button" onclick="addCcEmail()" style="margin-top:6px;background:#eee;border:1px solid #ccc;border-radius:8px;padding:6px 14px;font-size:.85rem;cursor:pointer">＋ CCを追加</button>
+      </div>
+      <div class="field" id="f_zip">
+        <label>郵便番号 <span style="color:red;font-size:.8rem">※必須</span></label>
+        <input type="text" id="c_zip" inputmode="numeric" maxlength="7" placeholder="例：1730001" oninput="autoFillAddress(this.value)">
+        <div class="error-msg">郵便番号を入力してください</div>
+      </div>
+      <div class="field" id="f_address">
+        <label>住所（番地以外） <span style="color:red;font-size:.8rem">※必須</span></label>
+        <input type="text" id="c_address" placeholder="自動入力 or 手入力">
+        <div class="error-msg">住所を入力してください</div>
+      </div>
+      <div class="field" id="f_banchi">
+        <label>番地 <span style="color:red;font-size:.8rem">※必須</span></label>
+        <input type="text" id="c_banchi" placeholder="例：1-2-3">
+        <div class="error-msg">番地を入力してください</div>
+      </div>
+      <div class="field" id="f_building">
+        <label>建物名・部屋番号</label>
+        <input type="text" id="c_building" placeholder="例：○○マンション 101">
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP3: ご依頼内容-1 -->
+  <div class="step" id="step3">
+    <div class="card">
+      <div class="card-title">ご依頼内容 (1/2)</div>
+      <div class="field" id="f_equipment">
+        <label>作業対象 <span style="color:red;font-size:.8rem">※必須</span></label>
+        <select id="c_equipment" onchange="toggleWorkMenus()">
+          <option value="">選択してください</option>
+          <option value="ルームエアコン">ルームエアコン</option>
+          <option value="業務用エアコン">業務用エアコン</option>
+        </select>
+        <div class="error-msg">作業対象を選択してください</div>
+      </div>
+      <div class="card" style="margin-top:12px" id="equipment_info_card">
+        <div class="card-title" style="font-size:.95rem">対象機器の情報（分かる範囲で・契約書に載ります）</div>
+<div class="field"><label>冷媒ガスの種類</label><select id="c_gas_type" onchange="onEqInfoOther('c_gas_type')"><option value="">未選択</option><option value="R22">R22</option><option value="R410A">R410A</option><option value="R32">R32</option><option value="__other__">その他</option></select><input type="text" id="c_gas_type_other" maxlength="20" placeholder="ガスの種類を入力" style="display:none;margin-top:6px"></div>
+<div class="field"><label>冷媒ガスのグラム数</label><select id="c_gas_grams" onchange="onEqInfoOther('c_gas_grams')"><option value="">未選択</option><option value="100">100g</option><option value="200">200g</option><option value="300">300g</option><option value="400">400g</option><option value="500">500g</option><option value="600">600g</option><option value="700">700g</option><option value="800">800g</option><option value="900">900g</option><option value="1000">1000g</option><option value="1100">1100g</option><option value="1200">1200g</option><option value="1300">1300g</option><option value="1400">1400g</option><option value="1500">1500g</option><option value="1600">1600g</option><option value="1700">1700g</option><option value="1800">1800g</option><option value="1900">1900g</option><option value="2000">2000g</option><option value="2100">2100g</option><option value="2200">2200g</option><option value="2300">2300g</option><option value="2400">2400g</option><option value="2500">2500g</option><option value="2600">2600g</option><option value="2700">2700g</option><option value="2800">2800g</option><option value="2900">2900g</option><option value="3000">3000g</option><option value="__other__">その他（数値入力）</option></select><input type="number" id="c_gas_grams_other" inputmode="numeric" min="1" max="99999" placeholder="グラム数を入力" style="display:none;margin-top:6px"></div>
+<div class="field"><label>メーカー</label><select id="c_maker" onchange="onEqInfoOther('c_maker')"><option value="">未選択</option><option value="ダイキン">ダイキン</option><option value="三菱電機">三菱電機</option><option value="パナソニック">パナソニック</option><option value="日立">日立</option><option value="富士通ゼネラル">富士通ゼネラル</option><option value="東芝">東芝</option><option value="シャープ">シャープ</option><option value="コロナ">コロナ</option><option value="__other__">その他</option></select><input type="text" id="c_maker_other" maxlength="30" placeholder="メーカー名を入力" style="display:none;margin-top:6px"></div>
+<div class="field"><label>機種名</label><input type="text" id="c_model_name" maxlength="40" placeholder="例：うるさらX"></div>
+<div class="field"><label>型番</label><input type="text" id="c_model_no" maxlength="40" placeholder="例：AN22ZRS-W"></div>
+<div class="field"><label>室内機の階数</label><select id="c_indoor_floor"><option value="">未選択</option><option value="1階">1階</option><option value="2階">2階</option><option value="3階">3階</option><option value="4階以上">4階以上</option></select></div>
+<div class="field"><label>室内機の部屋</label><select id="c_indoor_room" onchange="onEqInfoOther('c_indoor_room')"><option value="">未選択</option><option value="リビング">リビング</option><option value="寝室">寝室</option><option value="子供部屋">子供部屋</option><option value="和室">和室</option><option value="洋室">洋室</option><option value="キッチン">キッチン</option><option value="事務所">事務所</option><option value="店舗">店舗</option><option value="__other__">その他</option></select><input type="text" id="c_indoor_room_other" maxlength="30" placeholder="部屋を入力" style="display:none;margin-top:6px"></div>
+<div class="field"><label>室外機の階数</label><select id="c_outdoor_floor"><option value="">未選択</option><option value="1階">1階</option><option value="2階">2階</option><option value="3階">3階</option><option value="4階以上">4階以上</option><option value="屋上">屋上</option></select></div>
+<div class="field"><label>室外機の置き場</label><select id="c_outdoor_place" onchange="onEqInfoOther('c_outdoor_place')"><option value="">未選択</option><option value="ベランダ">ベランダ</option><option value="地面置き">地面置き</option><option value="屋根置き">屋根置き</option><option value="壁面">壁面</option><option value="屋上">屋上</option><option value="__other__">その他</option></select><input type="text" id="c_outdoor_place_other" maxlength="30" placeholder="置き場を入力" style="display:none;margin-top:6px"></div>
+      </div>
+      <div class="field" id="f_symptom">
+        <label>症状（複数可） <span style="color:red;font-size:.8rem">※必須</span></label>
+        <div class="symptom-grid" id="symptom_grid">
+          <label class="symptom-label"><input type="checkbox" name="symptom" value="冷えない・暖まらない">冷えない<br>暖まらない</label>
+          <label class="symptom-label"><input type="checkbox" name="symptom" value="水漏れしている">水漏れ<br>している</label>
+          <label class="symptom-label"><input type="checkbox" name="symptom" value="電源が入らない">電源が<br>入らない</label>
+          <label class="symptom-label"><input type="checkbox" name="symptom" value="異音・においがする">異音・におい<br>がする</label>
+          <label class="symptom-label"><input type="checkbox" name="symptom" value="ランプが点滅">ランプが<br>点滅</label>
+          <label class="symptom-label"><input type="checkbox" name="symptom" value="その他" onchange="document.getElementById('symptom_other_area').style.display=this.checked?'block':'none'">その他</label>
+        </div>
+        <div id="symptom_other_area" style="display:none;margin-top:8px">
+          <input type="text" id="symptom_other_text" placeholder="その他の症状を入力" style="width:100%;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:1rem">
+        </div>
+        <div class="error-msg">症状を1つ以上選択してください</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP4: ご依頼内容-2 -->
+  <div class="step" id="step4">
+    <div class="card">
+      <div class="card-title">ご依頼内容 (2/2)</div>
+      <div class="field">
+        <label id="order_type_label">作業種別 <span style="color:red;font-size:.8rem">※必須</span></label>
+        <div class="order-type-grid" id="order_type_grid">
+          <label class="order-type-label"><input type="radio" name="order_type" value="原因究明作業" checked onclick="toggleWorkMenus()">原因究明作業</label>
+          <label class="order-type-label"><input type="radio" name="order_type" value="修理" onclick="toggleWorkMenus()">修理</label>
+          <label class="order-type-label"><input type="radio" name="order_type" value="修理（入れ替え）" onclick="toggleWorkMenus()">入れ替え</label>
+        </div>
+        <div id="diag_fee_notice" style="display:none;margin-top:8px;padding:10px 14px;background:#e8f4fd;border-left:4px solid var(--blue);border-radius:6px;font-size:.92rem;font-weight:600;color:var(--blue)">
+          故障診断費用　<span id="diag_fee_text">¥9,000（税抜）</span>
+        </div>
+        <div id="order_type_fixed" style="display:none;padding:12px;background:var(--blue-light);border:2px solid var(--blue);border-radius:10px;font-weight:700;color:var(--blue);text-align:center">
+          🧹 清掃作業<input type="hidden" name="order_type" id="order_type_hidden" value="清掃作業">
+        </div>
+        <div id="investigation_options_area">
+          <div style="font-weight:600;font-size:.9rem;margin-bottom:8px;color:var(--green)">追加条件（該当する項目に金額を入力）</div>
+          <div class="inv-items">
+            <div class="inv-item-row" data-inv-name="高所危険作業">
+              <div class="inv-label">高所危険作業</div>
+              <input type="number" class="inv-price" placeholder="金額（税抜）" inputmode="numeric">
+            </div>
+            <div class="inv-item-row" data-inv-name="室外機特殊設置">
+              <div class="inv-label">室外機特殊設置</div>
+              <input type="number" class="inv-price" placeholder="金額（税抜）" inputmode="numeric">
+            </div>
+            <div class="inv-item-row" data-inv-name="電気系統調査">
+              <div class="inv-label">電気系統調査</div>
+              <input type="number" class="inv-price" placeholder="金額（税抜）" inputmode="numeric">
+            </div>
+          </div>
+        </div>
+        <div id="repair_options_area">
+          <div class="repair-item-row" data-price="27000" data-name="冷媒ガス注入">
+            <div class="repair-info">冷媒ガス注入（500gまで）<span class="repair-price">¥27,000〜（税抜）</span></div>
+            <div class="counter-ui"><button class="btn-circle btn-minus" onclick="changeCount(this,-1)">-</button><span class="count-num">0</span><button class="btn-circle btn-plus" onclick="changeCount(this,1)">+</button></div>
+          </div>
+          <div class="repair-item-row" data-price="3000" data-name="冷媒ガス追加（100g）">
+            <div class="repair-info">冷媒ガス追加（100g）<span class="repair-price">¥3,000〜（税抜）</span></div>
+            <div class="counter-ui"><button class="btn-circle btn-minus" onclick="changeCount(this,-1)">-</button><span class="count-num">0</span><button class="btn-circle btn-plus" onclick="changeCount(this,1)">+</button></div>
+          </div>
+          <div class="repair-item-row" data-price="16000" data-name="真空引き">
+            <div class="repair-info">真空引き<span class="repair-price">¥16,000〜（税抜）</span></div>
+            <div class="counter-ui"><button class="btn-circle btn-minus" onclick="changeCount(this,-1)">-</button><span class="count-num">0</span><button class="btn-circle btn-plus" onclick="changeCount(this,1)">+</button></div>
+          </div>
+          <div class="repair-item-row" data-price="16000" data-name="フレア加工・バルブコア交換">
+            <div class="repair-info">フレア加工・バルブコア交換<span class="repair-price">¥16,000〜（税抜）</span></div>
+            <div class="counter-ui"><button class="btn-circle btn-minus" onclick="changeCount(this,-1)">-</button><span class="count-num">0</span><button class="btn-circle btn-plus" onclick="changeCount(this,1)">+</button></div>
+          </div>
+          <div class="repair-item-row" data-price="26000" data-name="水漏れ修復">
+            <div class="repair-info">水漏れ修復<span class="repair-price">¥26,000〜（税抜）</span></div>
+            <div class="counter-ui"><button class="btn-circle btn-minus" onclick="changeCount(this,-1)">-</button><span class="count-num">0</span><button class="btn-circle btn-plus" onclick="changeCount(this,1)">+</button></div>
+          </div>
+          <div class="repair-item-row" data-price="24000" data-name="四方弁動作不良解消">
+            <div class="repair-info">四方弁動作不良解消<span class="repair-price">¥24,000〜（税抜）</span></div>
+            <div class="counter-ui"><button class="btn-circle btn-minus" onclick="changeCount(this,-1)">-</button><span class="count-num">0</span><button class="btn-circle btn-plus" onclick="changeCount(this,1)">+</button></div>
+          </div>
+          <div class="repair-item-row" data-price="24000" data-name="電源部再接続">
+            <div class="repair-info">電源部再接続<span class="repair-price">¥24,000〜（税抜）</span></div>
+            <div class="counter-ui"><button class="btn-circle btn-minus" onclick="changeCount(this,-1)">-</button><span class="count-num">0</span><button class="btn-circle btn-plus" onclick="changeCount(this,1)">+</button></div>
+          </div>
+        </div>
+      </div>
+      <div class="field">
+        <label>追加項目（自由入力）</label>
+        <div id="custom_items_area">
+          <div class="custom-item-row" style="display:flex;gap:6px;margin-bottom:6px;align-items:center;flex-wrap:wrap">
+            <input type="text" class="custom-name" placeholder="項目名" style="flex:2;min-width:100px">
+            <input type="number" class="custom-price" placeholder="金額（税抜）" inputmode="numeric" style="flex:1;min-width:90px">
+            <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
+              <button type="button" class="btn-circle btn-minus" onclick="customQtyChange(this,-1)" style="width:28px;height:28px;border-radius:50%;border:none;font-size:1rem;cursor:pointer;background:#eee;color:#555">-</button>
+              <span class="custom-qty" style="font-weight:700;width:20px;text-align:center">1</span>
+              <button type="button" class="btn-circle btn-plus" onclick="customQtyChange(this,1)" style="width:28px;height:28px;border-radius:50%;border:none;font-size:1rem;cursor:pointer;background:var(--blue);color:#fff">+</button>
+            </div>
+          </div>
+        </div>
+        <button type="button" onclick="addCustomItem()" style="background:#eee;border:1px solid #ccc;border-radius:8px;padding:8px 16px;font-size:.85rem;cursor:pointer;margin-top:4px">＋ 項目を追加</button>
+      </div>
+      <div class="field">
+        <label>詳細・補足</label>
+        <textarea id="c_detail" rows="3" placeholder="型番・エラーコード・その他ご要望など"></textarea>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP5: 料金・お支払い -->
+  <div class="step" id="step5">
+    <div class="card">
+      <div class="card-title">料金・お支払い</div>
+      <div class="discount-box">
+        <label style="font-weight:600;font-size:.9rem">クーポンコード / 紹介コード</label>
+        <div style="display:flex;gap:10px;margin-top:5px">
+          <input type="text" id="c_coupon_code" placeholder="コードを入力" style="flex:1">
+          <button type="button" class="btn-apply" onclick="applyCoupon()">適用</button>
+        </div>
+        <div id="coupon_applied_msg" style="display:block;color:var(--red);font-size:.85rem;font-weight:600;margin-top:4px">※クーポン適用済</div>
+        <div id="coupon_result" style="font-size:.85rem;margin-top:5px;font-weight:bold"></div>
+      </div>
+      <div class="total-bar" style="margin-top:15px">
+        <span class="total-bar-label">請求合計（税抜）</span>
+        <span class="total-bar-val" id="step3_total_display">¥0</span>
+      </div>
+      <div class="field">
+        <label>お支払い方法 <span style="color:red;font-size:.8rem">※必須</span></label>
+        <div class="payment-grid">
+          <label class="payment-label"><input type="radio" name="payment_method" value="現金" checked>現金</label>
+          <label class="payment-label"><input type="radio" name="payment_method" value="クレジットカード">クレジットカード</label>
+          <label class="payment-label"><input type="radio" name="payment_method" value="銀行振り込み">銀行振り込み</label>
+          <label class="payment-label"><input type="radio" name="payment_method" value="ご相談">ご相談</label>
+        </div>
+        <div id="transfer_deadline_area" style="display:none;margin-top:10px">
+          <label style="font-size:.85rem;font-weight:600">振込期限 <span style="color:red;font-size:.8rem">※必須</span></label>
+          <input type="date" id="transfer_deadline" style="width:100%;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:1rem;margin-top:4px">
+        </div>
+        <div id="transfer_name_area" style="display:none;margin-top:10px">
+          <label style="font-size:.85rem;font-weight:600">振込名義 <span style="color:red;font-size:.8rem">※必須</span></label>
+          <input type="text" id="transfer_name" placeholder="例：ヤマダ タロウ" style="width:100%;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:1rem;margin-top:4px;box-sizing:border-box">
+        </div>
+        <div id="split_payment_area" style="display:none">
+          <div class="split-payment-area">
+            <div class="split-title">支払い売掛金内容を入力してください</div>
+            <div id="split_rows_container"></div>
+            <button type="button" class="btn-add-split" onclick="addSplitRow()">＋ 売掛金を追加</button>
+            <div class="split-total-area" id="split_total_area" style="margin-top:12px">
+              <div>
+                <div class="split-total-label">売掛金合計（税込）</div>
+                <div class="split-diff-msg" id="split_diff_msg"></div>
+              </div>
+              <div class="split-total-val" id="split_total_display">¥0</div>
+            </div>
+            <div class="split-common-name" id="split_common_name_area">
+              <label>振込名義（共通）</label>
+              <input type="text" id="split_transfer_name_common" placeholder="例：ヤマダ タロウ">
+            </div>
+            <label class="split-diff-name-check">
+              <input type="checkbox" id="split_diff_name_check" onchange="toggleSplitDiffName()"> 売掛金ごとに振込名義が異なる
+            </label>
+            <div class="split-diff-name-hint" id="split_diff_name_hint" style="display:none">銀行振り込みの売掛金にのみ個別入力欄が表示されます</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP6: 入力内容の確認 -->
+  <div class="step" id="step6">
+    <div class="card">
+      <div class="card-title">入力内容の確認</div>
+      <div id="confirmContent"></div>
+    </div>
+  </div>
+
+  <!-- STEP7: お見積り内容 -->
+  <div class="step" id="step7">
+    <div class="card">
+      <div class="card-title">お見積り内容</div>
+      <div style="background:#f0f7ff;border:2px solid var(--blue);border-radius:10px;padding:20px;margin-bottom:15px">
+        <div style="text-align:center;font-size:1.1rem;font-weight:bold;color:var(--blue);margin-bottom:15px">御 見 積 書</div>
+        <div id="est_customer_name" style="font-size:.95rem;margin-bottom:10px"></div>
+        <div id="est_date" style="font-size:.85rem;color:#666;margin-bottom:15px"></div>
+        <div style="background:var(--blue);color:#fff;padding:8px 12px;border-radius:4px 4px 0 0;font-size:.9rem;font-weight:600;display:flex;justify-content:space-between">
+          <span>項目</span><span>数量 × 単価 = 小計（税抜）</span>
+        </div>
+        <div id="est_items_body" style="font-size:.9rem;border:1px solid #ddd;border-top:0;border-radius:0 0 4px 4px;background:#fff"></div>
+        <div style="margin-top:15px;padding:15px;background:#fff;border-radius:8px;border:2px solid var(--blue)">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+            <span style="font-size:.95rem;color:#555">合計金額（税抜）</span>
+            <span id="est_subtotal_ex" style="font-size:1rem;color:#555"></span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid #ddd">
+            <span style="font-size:.95rem;color:#555">消費税（<span id="est_tax_rate_label">10</span>%）</span>
+            <span id="est_tax_amount" style="font-size:1rem;color:#555"></span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:1rem;font-weight:bold">合計金額（税込）</span>
+            <span id="est_total" style="font-size:1.5rem;font-weight:bold;color:var(--blue)"></span>
+          </div>
+        </div>
+      </div>
+      <div style="font-size:.85rem;color:#666">
+        <p>※上記は概算のお見積りです。現地の状況により金額が変更になる場合があります。</p>
+        <p>※追加作業が必要な場合は、別途お見積り・同意の上で実施します。</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP8: 契約同意・送信 -->
+  <div class="step" id="step8">
+    <div class="card">
+      <div class="card-title">契約・同意 <span style="color:var(--red)">(重要)</span></div>
+      <div class="field" style="background:#f9f9f9;padding:15px;border-radius:8px">
+        <label id="fee_label">費用（税込）</label>
+        <div id="fee_display_area"></div>
+        <input type="hidden" id="fee_diagnosis_val">
+        <div class="field-hint">※現地で追加作業が必要な場合は、別途お見積り・同意の上で実施します。</div>
+      </div>
+      <div class="emergency-box" style="margin-bottom:24px">
+        <label class="emergency-label">
+          <input type="checkbox" id="req_sameday" name="req_sameday" onchange="toggleServiceDatePicker()">
+          <span id="sameday_label">緊急事態につき当日の工事を希望します</span>
+        </label>
+        <div id="service_date_picker_area" style="margin-top:12px;padding:12px;background:#f9f9f9;border-radius:6px">
+          <label style="font-size:.9rem;font-weight:600">役務の提供時期(指定日) <span style="color:red;font-size:.78rem">※必須</span></label>
+          <input type="date" id="service_date_picker" style="width:100%;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:1rem;margin-top:4px">
+          <div style="font-size:.85rem;color:#666;margin-top:4px">※当日工事を希望される場合は上のチェックボックスをチェックしてください</div>
+        </div>
+      </div>
+      <div class="field" style="margin-top:16px">
+        <label>キャンセル規定</label>
+        <textarea id="cancel_rule" readonly style="height:60px;font-size:.85rem;background:#eee">ご契約後のキャンセルは費用の100%を申し受けます。</textarea>
+      </div>
+      <div class="agreement-box">
+        <div class="checkbox-group">
+          <label><input type="checkbox" id="agree_contract"><span>上記金額およびキャンセル規定に同意して申し込みます。</span></label>
+          <div style="margin-bottom:12px">
+            <div style="font-weight:700;font-size:.9rem;margin-bottom:6px">プライバシーポリシー <span style="color:red;font-size:.78rem">※必須</span></div>
+            <button type="button" onclick="openPrivacyOverlay()" id="privacy_open_btn" style="width:100%;padding:14px;background:var(--blue-light);color:var(--blue);border:2px solid var(--blue);border-radius:8px;font-weight:700;font-size:.95rem;cursor:pointer;margin-bottom:6px">プライバシーポリシーを読む</button>
+            <div id="privacy_status" style="font-size:.85rem;color:#666;margin-bottom:8px">※全文を確認してから「同意します」にチェックを入れてください</div>
+            <label id="agree_privacy_label" style="display:flex;gap:10px;align-items:flex-start;font-size:.9rem;padding:10px;border:1px solid var(--border);border-radius:8px;background:#fff;opacity:.5;cursor:not-allowed">
+              <input type="checkbox" id="agree_privacy" disabled style="margin-top:4px;transform:scale(1.2);flex-shrink:0">
+              <span>上記プライバシーポリシーの内容を確認し、同意します（業務委託先への共有を含む）</span>
+            </label>
+          </div>
+        </div>
+        <div class="field" style="margin-top:20px">
+          <label>ご署名（お名前を入力）<span style="color:red;font-size:.8rem">※必須</span></label>
+          <input type="text" id="c_signature" placeholder="例：山田太郎">
+          <div class="field-hint">お名前欄に入力したお名前と同じ内容を正確に入力してください。</div>
+        </div>
+      </div>
+      <div class="error-msg" id="agree_error" style="margin-top:10px">すべての同意事項を満たし、ご署名を入力してください</div>
+    </div>
+  </div>
+
+  <!-- 完了画面 -->
+  <div class="step" id="step9">
+    <div class="complete-screen">
+      <div class="complete-icon">🎉</div>
+      <h2>受付完了しました</h2>
+      <p>ご登録のメールアドレスに「契約書控え（PDF）」をお送りしました。<br>担当者よりご連絡いたします。</p>
+    </div>
+  </div>
+</div>
+
+<div class="bottom-nav">
+  <button class="btn btn-back" onclick="prevStep()" id="btnBack" style="display:none">戻る</button>
+  <button class="btn btn-next" onclick="nextStep()" id="btnNext">次へ</button>
+</div>
+
+<!-- ===== プライバシーポリシー オーバーレイ ===== -->
+<div id="privacy_overlay" style="display:none;position:fixed;inset:0;background:#fff;z-index:9100;overflow-y:auto;padding:20px 16px 100px" onscroll="onPrivacyOverlayScroll(this)">
+  <div style="max-width:600px;margin:0 auto">
+    <h2 style="text-align:center;color:var(--blue);margin:0 0 12px;font-size:1.2rem">プライバシーポリシー</h2>
+    <p style="margin:0 0 8px">エコピタ株式会社（以下「当社」）は、エコピタ事業（エアコン修理・設置、エコキュート、ガス給湯器等のサービス）において、お客様の個人情報を適切に取り扱うことを重要な責務と認識し、以下のとおり個人情報保護方針を定めます。</p>
+    <h3 style="color:var(--blue);font-size:1rem;margin:14px 0 4px">第1条（収集する個人情報）</h3>
+    <p style="margin:0 0 4px">当社は、サービスの提供にあたり、以下の個人情報を収集することがあります。</p>
+    <ul style="margin:0 0 6px;padding-left:20px"><li>氏名、ふりがな</li><li>住所（郵便番号を含む）</li><li>電話番号</li><li>メールアドレス</li><li>ご依頼内容（対象機器、症状、作業種別等）</li><li>お支払い情報</li></ul>
+    <h3 style="color:var(--blue);font-size:1rem;margin:14px 0 4px">第2条（利用目的）</h3>
+    <p style="margin:0 0 4px">収集した個人情報は、以下の目的で利用いたします。</p>
+    <ul style="margin:0 0 6px;padding-left:20px"><li>修理・設置サービスの提供および連絡</li><li>見積書・契約書・請求書・領収書等の書面作成および送付</li><li>アフターサービス、メンテナンスのご案内</li><li>お問い合わせへの対応</li><li>サービス品質向上のための分析（個人を特定しない形式）</li></ul>
+    <h3 style="color:var(--blue);font-size:1rem;margin:14px 0 4px">第3条（第三者提供）</h3>
+    <p style="margin:0 0 4px">当社は、以下の場合を除き、お客様の個人情報を第三者に提供いたしません。</p>
+    <ul style="margin:0 0 6px;padding-left:20px"><li>お客様の同意がある場合</li><li>業務委託先（修理技術者、協力会社等）へサービス提供に必要な範囲で共有する場合</li><li>法令に基づく場合</li></ul>
+    <p style="margin:0 0 6px">なお、業務委託先には当社と同等の個人情報保護措置を求めています。</p>
+    <h3 style="color:var(--blue);font-size:1rem;margin:14px 0 4px">第4条（安全管理）</h3>
+    <p style="margin:0 0 6px">当社は、個人情報の漏洩、滅失、毀損を防止するため、適切な安全管理措置を講じます。電子データについてはアクセス制限・暗号化等の技術的措置を実施しています。</p>
+    <h3 style="color:var(--blue);font-size:1rem;margin:14px 0 4px">第5条（電磁的方法による書面交付）</h3>
+    <p style="margin:0 0 6px">お客様の同意を得た場合、契約書面等をPDFメール（電磁的方法）により交付することがあります。書面の交付方法についてはサービスお申込み時にご確認いただきます。</p>
+    <h3 style="color:var(--blue);font-size:1rem;margin:14px 0 4px">第6条（開示・訂正・削除の請求）</h3>
+    <p style="margin:0 0 6px">お客様ご本人から個人情報の開示・訂正・削除のご請求があった場合は、ご本人確認の上、合理的な期間内に対応いたします。下記窓口までお問い合わせください。</p>
+    <h3 style="color:var(--blue);font-size:1rem;margin:14px 0 4px">第7条（Cookieについて）</h3>
+    <p style="margin:0 0 6px">当社のウェブサイトでは、サービス向上のためCookieを使用する場合があります。Cookieにより個人を特定する情報は収集しません。</p>
+    <h3 style="color:var(--blue);font-size:1rem;margin:14px 0 4px">第8条（改定）</h3>
+    <p style="margin:0 0 6px">本ポリシーは、法令の変更やサービス内容の変更に伴い、事前の通知なく改定することがあります。改定後のポリシーは本ページに掲載した時点で効力を生じます。</p>
+    <div style="margin-top:14px;padding:12px;background:#f5f5f5;border-radius:6px;font-size:.88rem">
+      <div><b>事業者名:</b> エコピタ株式会社</div>
+      <div><b>所在地:</b> 東京都千代田区神田小川町3-11-3 Eフロントビル6階</div>
+      <div><b>電話:</b> 0501-726-1769</div>
+      <div><b>メール:</b> info@ecopita.com</div>
+      <div><b>代表者:</b> 上端大輔</div>
+      <div style="margin-top:6px;text-align:right;color:#777">制定日：2026年2月24日</div>
+    </div>
+    <div id="privacy_overlay_hint" style="text-align:center;margin:20px 0 8px;font-size:.85rem;color:#e65100;font-weight:700">↑ 最後までスクロールしてください</div>
+    <button type="button" id="privacy_overlay_done_btn" onclick="closePrivacyOverlayConfirmed()" disabled style="width:100%;padding:14px;background:#ccc;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:1rem;cursor:not-allowed">確認しました（戻る）</button>
+    <button type="button" onclick="closePrivacyOverlay()" style="width:100%;padding:10px;background:transparent;color:#666;border:1px solid #ccc;border-radius:8px;font-size:.9rem;cursor:pointer;margin-top:8px">未確認で閉じる</button>
+  </div>
+</div>
+
+<script>
+const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbyvjri6i0fe11hzfoqfhSxWCsn1aP2WyT9ELZOzNMrVyEOx-ZsKqlhJQONzlaFLmPw/exec';
+const CASE_ID_INVALID_MESSAGE = '案件番号が正しくありません　確認してください';
+
+// ローカル時刻（=ブラウザTZ、JST想定）で YYYY-MM-DD を返す。toISOString はUTCで1日ずれるため使わない。
+function toLocalYMD(d) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+function toggleServiceDatePicker() {
+  const checked = document.getElementById('req_sameday').checked;
+  const area = document.getElementById('service_date_picker_area');
+  const picker = document.getElementById('service_date_picker');
+  area.style.display = checked ? 'none' : 'block';
+  if (!checked && !picker.value) {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    picker.value = toLocalYMD(tomorrow);
+  }
+}
+
+let currentStep = 1, coupons = [], couponDiscount = 0, splitDiffName = false, currentTotalInc = 0;
+let _lookupTimer = null;
+let _inflightLookupCid = null; // 照会進行中の案件番号（in-flightガード・連射防止・2026-07-12）
+let _dupGuardLastCid = '';      // 警告表示中の案件番号（同一案件の再照会で消さない・2026-07-12）
+let _dupGuardSnapshots = {};    // sync応答断時の着地確認用。案件ごとの送信前件数を保持する。
+const TAX_RATE = 0.10;
+
+// 故障診断費用（custom_diag_fee権限持ちの担当者はドロップダウンで変更可能）
+function getIndexDiagFee_(equip) {
+  var sel = document.getElementById('c_custom_diag_fee');
+  var custom = sel ? (parseInt(sel.value) || 0) : 0;
+  if (custom > 0) return custom;
+  return (equip || '').includes('業務用') ? 15000 : 9000;
+}
+
+function generateContractId() {
+  const now = new Date(), pad = n => String(n).padStart(2, '0');
+  const ts = String(now.getFullYear()).slice(2) + pad(now.getMonth()+1) + pad(now.getDate()) + '-' + pad(now.getHours()) + pad(now.getMinutes());
+  const rand = Math.random().toString(36).toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3).padEnd(3, '0');
+  return 'AC-' + ts + '-' + rand;
+}
+
+function calcTotalInc() {
+  const equip = document.getElementById('c_equipment').value, ot = getOrderType();
+  let subEx = 0;
+  if (ot === '原因究明作業') {
+    subEx += getIndexDiagFee_(equip);
+    getInvOptions().forEach(v => { if (v.price > 0) subEx += v.price; });
+  } else {
+    document.querySelectorAll('.repair-item-row').forEach(row => {
+      const cnt = parseInt(row.querySelector('.count-num').textContent);
+      if (cnt > 0) subEx += parseInt(row.dataset.price) * cnt;
+    });
+    getInvOptions().forEach(v => { if (v.price > 0) subEx += v.price; });
+  }
+  getCustomItems().forEach(c => { subEx += c.subtotal; });
+  coupons.forEach(cp => { subEx -= cp.discount; });
+  if (subEx < 0) subEx = 0;
+  return subEx + Math.round(subEx * TAX_RATE);
+}
+
+function refreshStep3Total() {
+  currentTotalInc = calcTotalInc();
+  const step3Ex = Math.round(currentTotalInc / 1.1);
+  document.getElementById('step3_total_display').innerHTML =
+    '¥' + step3Ex.toLocaleString('ja-JP') +
+    '<span style="font-size:.75rem;font-weight:500;color:#555;margin-left:6px">税込 ¥' + currentTotalInc.toLocaleString('ja-JP') + '</span>';
+  updateSplitTotal();
+}
+
+function initSplitRows() {
+  document.getElementById('split_rows_container').innerHTML = '';
+  addSplitRow(); addSplitRow();
+}
+
+function addSplitRow() {
+  const container = document.getElementById('split_rows_container');
+  const idx = container.children.length + 1;
+  const div = document.createElement('div');
+  div.className = 'split-row';
+  div.innerHTML =
+    '<div class="split-row-header">売掛金 ' + idx + '</div>' +
+    '<input type="number" class="split-amount-ex" placeholder="金額（税抜）" inputmode="numeric">' +
+    '<div class="split-inc">税込: ¥0</div>' +
+    '<select class="split-method" onchange="onSplitMethodChange(this)">' +
+      '<option value="">支払方法を選択</option>' +
+      '<option value="現金">現金</option>' +
+      '<option value="クレジットカード">クレジットカード</option>' +
+      '<option value="銀行振り込み">銀行振り込み</option>' +
+    '</select>' +
+    '<div class="split-deadline">' +
+      '<label style="font-size:.8rem;color:var(--text-sub);font-weight:600;display:block;margin-bottom:4px">振込期限 <span style="color:red">※必須</span></label>' +
+      '<input type="date" class="split-deadline-input">' +
+    '</div>' +
+    '<div class="split-transfer-name-row">' +
+      '<label style="font-size:.8rem;color:var(--text-sub);font-weight:600;display:block;margin-bottom:4px">振込名義</label>' +
+      '<input type="text" class="split-transfer-name-input" placeholder="例：ヤマダ タロウ">' +
+    '</div>' +
+    '<button class="split-remove-btn" onclick="removeSplitRow(this)" type="button">×</button>';
+  container.appendChild(div);
+  div.querySelector('.split-amount-ex').addEventListener('input', function() {
+    const ex = parseInt(this.value) || 0, inc = ex + Math.round(ex * TAX_RATE);
+    div.querySelector('.split-inc').textContent = '税込: ¥' + inc.toLocaleString('ja-JP');
+    _debouncedUpdateSplitTotal(); // 全行合計は300msディバウンス
+  });
+  updateSplitRowHeaders();
+  updateSplitTotal();
+  if (splitDiffName) {
+    const m = div.querySelector('.split-method').value;
+    if (m === '銀行振り込み') div.querySelector('.split-transfer-name-row').style.display = 'block';
+  }
+}
+
+function removeSplitRow(btn) {
+  const c = document.getElementById('split_rows_container');
+  if (c.children.length <= 1) { alert('最低1つは必要です'); return; }
+  btn.closest('.split-row').remove();
+  updateSplitRowHeaders();
+  updateSplitTotal();
+}
+
+function updateSplitRowHeaders() {
+  document.querySelectorAll('.split-row').forEach(function(row, i) {
+    row.querySelector('.split-row-header').textContent = '売掛金 ' + (i + 1);
+  });
+}
+
+function onSplitMethodChange(sel) {
+  const row = sel.closest('.split-row'), isT = sel.value === '銀行振り込み';
+  row.querySelector('.split-deadline').style.display = isT ? 'block' : 'none';
+  if (isT && !row.querySelector('.split-deadline-input').value) {
+    var d3 = new Date(); d3.setDate(d3.getDate() + 3);
+    row.querySelector('.split-deadline-input').value = toLocalYMD(d3);
+  }
+  if (splitDiffName) row.querySelector('.split-transfer-name-row').style.display = isT ? 'block' : 'none';
+  updateSplitTotal();
+}
+
+function toggleSplitDiffName() {
+  splitDiffName = document.getElementById('split_diff_name_check').checked;
+  document.getElementById('split_common_name_area').style.display = splitDiffName ? 'none' : 'block';
+  document.getElementById('split_diff_name_hint').style.display = splitDiffName ? 'block' : 'none';
+  document.querySelectorAll('.split-row').forEach(function(row) {
+    const isT = row.querySelector('.split-method').value === '銀行振り込み';
+    row.querySelector('.split-transfer-name-row').style.display = (splitDiffName && isT) ? 'block' : 'none';
+  });
+}
+
+// 分割払い合計更新のディバウンス版（入力中の連続再計算を抑制）
+var _splitTotalTimer = null;
+function _debouncedUpdateSplitTotal() {
+  clearTimeout(_splitTotalTimer);
+  _splitTotalTimer = setTimeout(updateSplitTotal, 300);
+}
+
+function updateSplitTotal() {
+  let total = 0;
+  document.querySelectorAll('.split-row').forEach(function(row) {
+    const ex = parseInt(row.querySelector('.split-amount-ex').value) || 0;
+    total += ex + Math.round(ex * TAX_RATE);
+  });
+  const valEl = document.getElementById('split_total_display');
+  const areaEl = document.getElementById('split_total_area');
+  const diffMsg = document.getElementById('split_diff_msg');
+  valEl.textContent = fmtYen(total);
+  if (currentTotalInc > 0) {
+    if (total === currentTotalInc) {
+      valEl.className = 'split-total-val match';
+      areaEl.className = 'split-total-area match';
+      diffMsg.textContent = '✓ 請求合計と一致しています';
+      diffMsg.style.color = 'var(--green)';
+    } else {
+      valEl.className = 'split-total-val';
+      areaEl.className = 'split-total-area';
+      const diff = total - currentTotalInc;
+      diffMsg.textContent = '請求合計（¥' + currentTotalInc.toLocaleString('ja-JP') + '）と' +
+        (diff > 0
+          ? fmtYen(diff) + ' 超過'
+          : fmtYen(Math.abs(diff)) + ' 不足');
+      diffMsg.style.color = 'var(--red)';
+    }
+  } else {
+    diffMsg.textContent = '';
+  }
+  // 銀行振り込みが1つもなければ振込名義欄を非表示
+  var hasTransferInSplit = false;
+  document.querySelectorAll('.split-row .split-method').forEach(function(sel) {
+    if (sel.value === '銀行振り込み') hasTransferInSplit = true;
+  });
+  document.getElementById('split_common_name_area').style.display = (hasTransferInSplit && !splitDiffName) ? 'block' : 'none';
+  document.getElementById('split_diff_name_check').parentElement.style.display = hasTransferInSplit ? '' : 'none';
+  document.getElementById('split_diff_name_hint').style.display = (hasTransferInSplit && splitDiffName) ? 'block' : 'none';
+}
+
+function getSplitPayments() {
+  const splits = [];
+  document.querySelectorAll('.split-row').forEach(function(row) {
+    const amountEx = parseInt(row.querySelector('.split-amount-ex').value) || 0;
+    const amountInc = amountEx + Math.round(amountEx * TAX_RATE);
+    const method = row.querySelector('.split-method').value;
+    const deadline = row.querySelector('.split-deadline-input').value;
+    const isTransfer = method === '銀行振り込み';
+    const transferName = isTransfer
+      ? (splitDiffName
+          ? row.querySelector('.split-transfer-name-input').value.trim()
+          : document.getElementById('split_transfer_name_common').value.trim())
+      : '';
+    splits.push({ amount_ex: amountEx, amount_inc: amountInc, method, deadline, transfer_name: transferName });
+  });
+  return splits;
+}
+
+function isSplitPayment() { return getPaymentMethod() === 'ご相談'; }
+
+function onIndexPrefixChange() {
+  const prefix = document.getElementById('c_case_prefix').value;
+  const alphaEl = document.getElementById('c_case_alpha');
+  alphaEl.style.display = (prefix === 'YA') ? '' : 'none';
+  if (typeof _updateCustomDiagFeeVisibility_ === 'function') _updateCustomDiagFeeVisibility_();
+  if (prefix !== 'YA') alphaEl.value = '';
+  updateIndexCaseIdPreview();
+  const equipSel = document.getElementById('c_equipment'), curVal = equipSel.value;
+  equipSel.innerHTML = '<option value="">選択してください</option>';
+  let opts = [];
+  if (prefix === 'EC') opts = ['エコキュート', 'ガス給湯器'];
+  else if (prefix === 'HC') opts = ['ハウスクリーニング'];
+  else opts = ['ルームエアコン', '業務用エアコン'];
+  opts.forEach(opt => {
+    const o = document.createElement('option');
+    o.value = opt; o.textContent = opt;
+    if (opt === curVal) o.selected = true;
+    equipSel.appendChild(o);
+  });
+  const fSymptom = document.getElementById('f_symptom');
+  if (prefix === 'HC') {
+    fSymptom.style.display = 'none';
+  } else {
+    fSymptom.style.display = '';
+    const fL = prefix === 'EC' ? 'お湯が<br>出ない' : '冷えない<br>暖まらない';
+    const fV = prefix === 'EC' ? 'お湯が出ない' : '冷えない・暖まらない';
+    document.getElementById('symptom_grid').innerHTML =
+      '<label class="symptom-label"><input type="checkbox" name="symptom" value="' + fV + '">' + fL + '</label>' +
+      '<label class="symptom-label"><input type="checkbox" name="symptom" value="水漏れしている">水漏れ<br>している</label>' +
+      '<label class="symptom-label"><input type="checkbox" name="symptom" value="電源が入らない">電源が<br>入らない</label>' +
+      '<label class="symptom-label"><input type="checkbox" name="symptom" value="異音・においがする">異音・におい<br>がする</label>' +
+      '<label class="symptom-label"><input type="checkbox" name="symptom" value="ランプが点滅">ランプが<br>点滅</label>' +
+      '<label class="symptom-label"><input type="checkbox" name="symptom" value="その他" onchange="document.getElementById(\'symptom_other_area\').style.display=this.checked?\'block\':\'none\'">その他</label>';
+    document.getElementById('symptom_other_area').style.display = 'none';
+    document.getElementById('symptom_other_text').value = '';
+  }
+  const otg = document.getElementById('order_type_grid'), otf = document.getElementById('order_type_fixed');
+  if (prefix === 'HC') {
+    otg.style.display = 'none'; otf.style.display = 'block';
+    document.getElementById('investigation_options_area').style.display = 'none';
+    document.getElementById('repair_options_area').style.display = 'none';
+    const dn = document.getElementById('diag_fee_notice'); if (dn) dn.style.display = 'none';
+  } else if (prefix === 'EC') {
+    otg.style.display = ''; otf.style.display = 'none';
+    document.getElementById('investigation_options_area').style.display = 'block';
+    document.getElementById('repair_options_area').style.display = 'none';
+    const dr = document.querySelector('input[name="order_type"][value="原因究明作業"]');
+    if (dr) dr.checked = true;
+    toggleWorkMenus();
+  } else {
+    otg.style.display = ''; otf.style.display = 'none';
+    toggleWorkMenus();
+  }
+  const sl = document.getElementById('sameday_label');
+  if (sl) sl.textContent = (prefix === 'HC') ? '緊急事態につき当日の清掃作業を希望します' : '緊急事態につき当日の工事を希望します';
+  clearCustomerFields();
+  clearIndexCaseIdError();
+  lookupByCaseId(true);
+}
+
+function buildIndexCaseId() {
+  const p = document.getElementById('c_case_prefix').value;
+  const a = document.getElementById('c_case_alpha').value;
+  const n = document.getElementById('c_case_num').value.trim();
+  if (!n) return '';
+  if (p === 'YA') return a ? 'YA-' + a + n : 'YA-' + n;
+  return p + '-' + n;
+}
+
+function updateIndexCaseIdPreview() {
+  const id = buildIndexCaseId();
+  document.getElementById('c_case_id_preview').textContent = id || '---';
+}
+
+function isIndexCaseIdCompleteForError() {
+  const num = document.getElementById('c_case_num').value.trim();
+  return !!buildIndexCaseId() && num.length >= 8;
+}
+
+function clearIndexCaseIdError() {
+  clearFieldError('f_case_id');
+  const err = document.getElementById('case_id_error');
+  if (err) err.textContent = CASE_ID_INVALID_MESSAGE;
+}
+
+function showIndexCaseIdInvalid(preview) {
+  setFieldError('f_case_id', CASE_ID_INVALID_MESSAGE);
+  if (preview) {
+    preview.textContent = buildIndexCaseId() || '---';
+    preview.style.color = 'var(--red)';
+  }
+}
+setTimeout(function() { onIndexPrefixChange(); }, 50);
+
+// 初期化: UI部分は即実行、fetch は非同期・非ブロッキング
+function _initOrderFormUI() {
+  var p = new URLSearchParams(location.search);
+  var shortId = p.get('c');
+  // URLパラメータで指定された値をすぐ反映（UIブロックなし）
+  if (!shortId || p.get('name')) {
+    if (p.get('case_id')) fillCaseId(p.get('case_id'));
+    if (shortId) fillCaseId(shortId);
+    ['emp_id','name','kana','tel','email','zip','address','banchi','building'].forEach(function(k) {
+      if (p.get(k)) document.getElementById('c_' + k).value = p.get(k);
+    });
+    if (p.get('cc')) {
+      p.get('cc').split(',').forEach(function(e) { if (e.trim()) addCcEmail(e.trim()); });
+    }
+    ['cc1','cc2','cc3'].forEach(function(k) { if (p.get(k)) addCcEmail(p.get(k)); });
+  }
+  toggleWorkMenus();
+  initSplitRows();
+
+  // lookup fetch は非同期、UIブロックしない
+  if (shortId && !p.get('name')) {
+    if (p.get('repeat')) {
+      var b = document.getElementById('repeat_banner');
+      if (b) { b.textContent = '🔁 読み込み中...'; b.style.display = 'block'; }
+    }
+    gasCall(
+      { form_type: 'lookup', case_id: shortId, p1_sf: 'p1_sf_v1' },
+      {
+        mode: 'lookup',
+        url: GAS_API_URL,
+        onStatus: function(status) {
+          var banner = document.getElementById('repeat_banner');
+          var preview = document.getElementById('c_case_id_preview');
+          if (banner && p.get('repeat')) {
+            banner.textContent = status;
+            banner.style.display = 'block';
+          } else if (preview) {
+            preview.textContent = status;
+            preview.style.color = status === GAS_P1_SF_HONEST_MESSAGE ? 'var(--red)' : '#999';
+          }
+        }
+      }
+    )
+      .then(function(r){
+        if (r && r.code === 'busy_caseid_check') return;
+        if (!r.ok) return;
+        fillCaseId(r.case_id);
+        if (r.name)     document.getElementById('c_name').value = r.name;
+        if (r.kana)     document.getElementById('c_kana').value = r.kana;
+        if (r.tel)      document.getElementById('c_tel').value = r.tel;
+        if (r.email)    document.getElementById('c_email').value = r.email.split(',')[0];
+        if (r.cc_emails && r.cc_emails.length > 0) {
+          document.getElementById('cc_email_area').innerHTML = '';
+          r.cc_emails.forEach(function(e) { if (e) addCcEmail(e); });
+        }
+        if (r.zip)      document.getElementById('c_zip').value = r.zip;
+        if (r.address)  document.getElementById('c_address').value = r.address;
+        if (r.banchi)   document.getElementById('c_banchi').value = r.banchi;
+        if (r.building) document.getElementById('c_building').value = r.building;
+        if (r.customer_type) {
+          var radios = document.querySelectorAll('input[name="customer_type"]');
+          radios.forEach(function(rb) { if (rb.value === r.customer_type) rb.checked = true; });
+          onCustomerTypeChange();
+        }
+        if (r.company_name) document.getElementById('c_company_name').value = r.company_name;
+        if (r.company_kana) document.getElementById('c_company_kana').value = r.company_kana;
+        if (r.customer_type === '法人・団体') {
+          if (r.contact_name) document.getElementById('c_name').value = r.contact_name;
+          if (r.contact_kana) document.getElementById('c_kana').value = r.contact_kana;
+        }
+        if (r.staff_id) { document.getElementById('c_emp_id').value = r.staff_id; lookupStaffName(); }
+        if (r.transfer_name) document.getElementById('transfer_name').value = r.transfer_name;
+        if (p.get('repeat')) {
+          var b2 = document.getElementById('repeat_banner');
+          if (b2) { b2.textContent = '🔁 リピート受付　案件番号: ' + r.case_id + ' ／ ' + r.name + ' 様'; b2.style.display = 'block'; }
+        }
+      })
+      .catch(function(e){
+        var banner = document.getElementById('repeat_banner');
+        var preview = document.getElementById('c_case_id_preview');
+        if (banner && p.get('repeat')) {
+          banner.textContent = gasCallErrorMessage(e);
+          banner.style.display = 'block';
+        } else if (preview) {
+          preview.textContent = gasCallErrorMessage(e);
+          preview.style.color = 'var(--red)';
+        }
+        console.log('lookup error', e);
+      });
+  }
+}
+
+// 承諾書サイン確認オーバーレイ（毎回必須、永続化禁止。サイン取り忘れ事故防止）
+// 右にドラッグするスライダー方式（クリック単発トグルではない、誤押下防止強化）
+(function setupSignConfirmOverlay() {
+  function init() {
+    var ov = document.getElementById('signConfirmOverlay');
+    var track = document.getElementById('signSlideTrack');
+    var knob = document.getElementById('signSlideKnob');
+    var text = document.getElementById('signSlideText');
+    var msg = document.getElementById('signConfirmMsg');
+    if (!ov || !track || !knob) return;
+
+    // 永続化されてないか念のためクリア（過去 Step1.5 の教訓）
+    try { sessionStorage.removeItem('_signConfirmed'); } catch(e) {}
+    try { localStorage.removeItem('_signConfirmed'); } catch(e) {}
+
+    // initial state
+    ov.style.display = 'flex';
+    knob.style.transition = '';
+    knob.style.left = '4px';
+    track.classList.remove('done');
+    if (text) text.textContent = '右にスライドして確認 →';
+    if (msg) { msg.textContent = 'サインをいただいたら右にスライド'; msg.classList.remove('ok'); }
+
+    var dragging = false;
+    var startX = 0;
+    var startLeft = 4;
+    var maxLeft = 0;
+    var completed = false;
+
+    function getMaxLeft() {
+      var trackW = track.clientWidth;
+      var knobW = knob.clientWidth;
+      return Math.max(0, trackW - knobW - 8);
+    }
+
+    function getX(e) {
+      if (e.touches && e.touches[0]) return e.touches[0].clientX;
+      if (e.changedTouches && e.changedTouches[0]) return e.changedTouches[0].clientX;
+      return e.clientX;
+    }
+
+    function onDown(e) {
+      if (completed) return;
+      e.preventDefault();
+      dragging = true;
+      knob.style.transition = 'none';
+      maxLeft = getMaxLeft();
+      startX = getX(e);
+      startLeft = parseInt(knob.style.left, 10) || 4;
+    }
+
+    function onMove(e) {
+      if (!dragging) return;
+      e.preventDefault();
+      var x = getX(e);
+      var delta = x - startX;
+      var newLeft = startLeft + delta;
+      if (newLeft < 4) newLeft = 4;
+      if (newLeft > maxLeft) newLeft = maxLeft;
+      knob.style.left = newLeft + 'px';
+    }
+
+    function onUp(e) {
+      if (!dragging) return;
+      dragging = false;
+      knob.style.transition = '';
+      var currentLeft = parseInt(knob.style.left, 10);
+      if (currentLeft >= maxLeft - 10) {
+        // 完了
+        completed = true;
+        knob.style.left = maxLeft + 'px';
+        track.classList.add('done');
+        if (text) text.textContent = '✓ サイン確認 完了';
+        if (msg) { msg.textContent = '注文フォームに進みます'; msg.classList.add('ok'); }
+        setTimeout(function() {
+          ov.style.display = 'none';
+        }, 600);
+      } else {
+        // 元に戻す
+        knob.style.left = '4px';
+      }
+    }
+
+    // mouse events
+    knob.addEventListener('mousedown', onDown);
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    // touch events
+    knob.addEventListener('touchstart', onDown, { passive: false });
+    document.addEventListener('touchmove', onMove, { passive: false });
+    document.addEventListener('touchend', onUp);
+    document.addEventListener('touchcancel', onUp);
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
+
+// DOMContentLoaded の方が window.onload より早く発火（画像等待たない）
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', function() {
+    _initOrderFormUI();
+    _setupDraftAutoSave();
+  });
+} else {
+  _initOrderFormUI();
+  _setupDraftAutoSave();
+}
+
+// =============================================================
+// 入力途中の自動保存（離脱防止）
+// 24時間以内の下書きをlocalStorageから復元。入力時は500msディバウンスで保存。
+// 送信完了時にクリア。URLパラメータで値が来てたら復元しない（URL優先）。
+// =============================================================
+var DRAFT_KEY = 'order_form_draft_v1';
+var DRAFT_TTL_MS = 24 * 60 * 60 * 1000;
+var _draftSaveTimer = null;
+
+function _saveDraft() {
+  try {
+    var data = {};
+    document.querySelectorAll('#form_wrap input, #form_wrap select, #form_wrap textarea').forEach(function(el) {
+      var key = el.name || el.id;
+      if (!key) return;
+      if (el.type === 'file' || el.type === 'submit' || el.type === 'button' || el.type === 'hidden') return;
+      if (el.type === 'password') return; // 念のためパスワード系は除外
+      if (el.type === 'radio' || el.type === 'checkbox') {
+        if (el.checked) {
+          if (data[key] === undefined) data[key] = [];
+          data[key].push(el.value);
+        }
+      } else {
+        data[key] = el.value;
+      }
+    });
+    localStorage.setItem(DRAFT_KEY, JSON.stringify({ ts: Date.now(), data: data }));
+  } catch(e) {}
+}
+
+function _debouncedSaveDraft() {
+  clearTimeout(_draftSaveTimer);
+  _draftSaveTimer = setTimeout(_saveDraft, 500);
+}
+
+function _loadDraft() {
+  try {
+    var raw = localStorage.getItem(DRAFT_KEY);
+    if (!raw) return false;
+    var parsed = JSON.parse(raw);
+    if (!parsed || !parsed.ts || !parsed.data) return false;
+    if (Date.now() - parsed.ts > DRAFT_TTL_MS) {
+      localStorage.removeItem(DRAFT_KEY);
+      return false;
+    }
+    // URLパラメータに何か値が来てたら復元しない（URL優先）
+    var p = new URLSearchParams(location.search);
+    var hasUrlValues = false;
+    p.forEach(function(v){ if (v) hasUrlValues = true; });
+    if (hasUrlValues) return false;
+
+    var restored = 0;
+    Object.keys(parsed.data).forEach(function(key) {
+      var val = parsed.data[key];
+      if (Array.isArray(val)) {
+        // radio/checkbox
+        val.forEach(function(v) {
+          var m = document.querySelector('[name="' + key + '"][value="' + v + '"]');
+          if (m) { m.checked = true; restored++; }
+        });
+      } else {
+        var el = document.querySelector('[name="' + key + '"]') || document.getElementById(key);
+        if (el && val !== '') { el.value = val; restored++; }
+      }
+    });
+    ['c_gas_type','c_gas_grams','c_maker','c_indoor_room','c_outdoor_place'].forEach(onEqInfoOther);
+    return restored > 0;
+  } catch(e) { return false; }
+}
+
+function _clearDraft() {
+  try { localStorage.removeItem(DRAFT_KEY); } catch(e) {}
+}
+
+function _setupDraftAutoSave() {
+  // 先に復元を試みる（URL優先なので中で判定）
+  var restored = _loadDraft();
+  try { toggleServiceDatePicker(); } catch(e) {}
+  if (restored) {
+    // 入力復元バナー表示
+    try {
+      var banner = document.createElement('div');
+      banner.id = 'draft_restored_banner';
+      banner.style.cssText = 'position:sticky;top:0;z-index:9999;background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:10px 14px;margin:8px;font-size:13px;color:#856404;display:flex;justify-content:space-between;align-items:center;';
+      banner.innerHTML = '📋 前回入力途中の内容を復元しました <button type="button" onclick="_clearDraftAndReload()" style="background:#fff;border:1px solid #ffc107;border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;color:#856404">クリアして最初から</button>';
+      document.body.insertBefore(banner, document.body.firstChild);
+    } catch(e) {}
+  }
+  // 入力イベントで自動保存
+  document.addEventListener('input', function(e) {
+    if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT')) {
+      _debouncedSaveDraft();
+    }
+  });
+  document.addEventListener('change', function(e) {
+    if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT')) {
+      _debouncedSaveDraft();
+    }
+  });
+}
+
+function _clearDraftAndReload() {
+  _clearDraft();
+  location.href = location.pathname; // クエリパラメータも消して再読込
+}
+
+
+function fillCaseId(caseId) {
+  if (!caseId) return;
+  const PREFIXES = ['YA','HM','CP','EC','HC','RM'];
+  let mp = '';
+  for (const pfx of PREFIXES) { if (caseId.startsWith(pfx + '-')) { mp = pfx; break; } }
+  if (mp) {
+    document.getElementById('c_case_prefix').value = mp;
+    const rest = caseId.slice(mp.length + 1);
+    if (mp === 'YA') {
+      const fc = rest.charAt(0);
+      if (/^[A-Z]$/.test(fc)) {
+        document.getElementById('c_case_alpha').value = fc;
+        document.getElementById('c_case_num').value = rest.slice(1);
+      } else {
+        document.getElementById('c_case_alpha').value = '';
+        document.getElementById('c_case_num').value = rest;
+      }
+    } else {
+      document.getElementById('c_case_num').value = rest;
+    }
+    onIndexPrefixChange();
+  } else {
+    document.getElementById('c_case_num').value = caseId;
+    updateIndexCaseIdPreview();
+  }
+}
+
+var _zipTimer = null;
+function autoFillAddress(zip) {
+  clearTimeout(_zipTimer);
+  if (zip.length !== 7) return;
+  _zipTimer = setTimeout(function() {
+    var controller = new AbortController();
+    var timeoutId = setTimeout(function(){ controller.abort(); }, 3000);
+    fetch('https://zipcloud.ibsnet.co.jp/api/search?zipcode=' + zip, { signal: controller.signal })
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        if (data.results && data.results[0]) {
+          var r = data.results[0];
+          document.getElementById('c_address').value = r.address1 + r.address2 + r.address3;
+        }
+      })
+      .catch(function(){})
+      .finally(function(){ clearTimeout(timeoutId); });
+  }, 600);
+}
+
+function toggleWorkMenus() {
+  const prefix = document.getElementById('c_case_prefix').value;
+  const dn = document.getElementById('diag_fee_notice');
+  if (prefix === 'EC' || prefix === 'HC') {
+    document.getElementById('repair_options_area').style.display = 'none';
+    document.getElementById('investigation_options_area').style.display = (prefix === 'EC') ? 'block' : 'none';
+    if (prefix === 'HC') {
+      if (dn) dn.style.display = 'none';
+    } else {
+      if (dn) dn.style.display = getOrderType().indexOf('修理') === 0 ? 'none' : 'block';
+    }
+    return;
+  }
+  const repair = getOrderType().indexOf('修理') === 0;
+  document.getElementById('repair_options_area').style.display = repair ? 'block' : 'none';
+  document.getElementById('investigation_options_area').style.display = 'block';
+  if (dn) {
+    const equip = document.getElementById('c_equipment').value;
+    dn.style.display = (repair || !equip) ? 'none' : 'block';
+    const fs = document.getElementById('diag_fee_text');
+    if (fs) fs.textContent = fmtYen(getIndexDiagFee_(equip)) + '（税抜）';
+  }
+}
+
+function changeCount(btn, delta) {
+  const row = btn.closest('.repair-item-row'), span = row.querySelector('.count-num');
+  let n = parseInt(span.textContent) + delta;
+  if (n < 0) n = 0;
+  span.textContent = n;
+  row.classList.toggle('active', n > 0);
+}
+
+function customQtyChange(btn, delta) {
+  const span = btn.parentElement.querySelector('.custom-qty');
+  let n = parseInt(span.textContent) + delta;
+  if (n < 1) n = 1;
+  span.textContent = n;
+}
+
+function addCcEmail(val) {
+  const area = document.getElementById('cc_email_area');
+  const div = document.createElement('div');
+  div.style = 'display:flex;gap:6px;margin-top:6px;align-items:center';
+  div.innerHTML =
+    '<input type="email" class="cc-email-input" inputmode="email" placeholder="CCメールアドレス"' +
+    ' style="flex:1;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:.95rem"' +
+    ' value="' + (val || '') + '">' +
+    '<button type="button" onclick="this.parentElement.remove()"' +
+    ' style="background:#ff5252;color:#fff;border:none;border-radius:50%;width:30px;height:30px;cursor:pointer;font-size:1rem;flex-shrink:0">×</button>';
+  area.appendChild(div);
+}
+
+function getCcEmails() {
+  return Array.from(document.querySelectorAll('.cc-email-input'))
+    .map(el => el.value.trim()).filter(v => v && v.includes('@'));
+}
+
+function addCustomItem() {
+  const area = document.getElementById('custom_items_area');
+  const div = document.createElement('div');
+  div.className = 'custom-item-row';
+  div.style = 'display:flex;gap:6px;margin-bottom:6px;align-items:center;flex-wrap:wrap';
+  div.innerHTML =
+    '<input type="text" class="custom-name" placeholder="項目名"' +
+    ' style="flex:2;min-width:100px;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:1rem">' +
+    '<input type="number" class="custom-price" placeholder="金額（税抜）" inputmode="numeric"' +
+    ' style="flex:1;min-width:90px;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:1rem">' +
+    '<div style="display:flex;align-items:center;gap:4px;flex-shrink:0">' +
+      '<button type="button" onclick="customQtyChange(this,-1)" style="width:28px;height:28px;border-radius:50%;border:none;font-size:1rem;cursor:pointer;background:#eee;color:#555">-</button>' +
+      '<span class="custom-qty" style="font-weight:700;width:20px;text-align:center">1</span>' +
+      '<button type="button" onclick="customQtyChange(this,1)" style="width:28px;height:28px;border-radius:50%;border:none;font-size:1rem;cursor:pointer;background:var(--blue);color:#fff">+</button>' +
+    '</div>' +
+    '<button type="button" onclick="this.parentElement.remove()" style="background:#ff5252;color:#fff;border:none;border-radius:50%;width:28px;height:28px;cursor:pointer;font-size:1rem;flex-shrink:0">×</button>';
+  area.appendChild(div);
+}
+
+function getCustomItems() {
+  const items = [];
+  document.querySelectorAll('.custom-item-row').forEach(row => {
+    const name = row.querySelector('.custom-name').value.trim();
+    const price = parseInt(row.querySelector('.custom-price').value) || 0;
+    const qty = parseInt(row.querySelector('.custom-qty').textContent) || 1;
+    if (name && price !== 0) items.push({ name, price, qty, subtotal: price * qty });
+  });
+  return items;
+}
+
+function getInvOptions() {
+  const items = [];
+  document.querySelectorAll('.inv-item-row').forEach(row => {
+    const p = parseInt(row.querySelector('.inv-price').value) || 0;
+    if (p > 0) items.push({ name: row.dataset.invName, price: p });
+  });
+  return items;
+}
+
+function getSelectedRepairNames() {
+  let items = [];
+  document.querySelectorAll('.repair-item-row').forEach(row => {
+    const cnt = parseInt(row.querySelector('.count-num').textContent);
+    if (cnt > 0) items.push(row.dataset.name + ' x' + cnt);
+  });
+  getCustomItems().forEach(c => items.push(c.name));
+  return items.length ? items.join('、') : '';
+}
+
+function getSymptoms() {
+  var symptoms = Array.from(document.querySelectorAll('input[name="symptom"]:checked')).map(c => c.value);
+  var otherText = (document.getElementById('symptom_other_text') || {}).value || '';
+  if (otherText.trim() && symptoms.indexOf('その他') > -1) {
+    symptoms = symptoms.map(function(s) { return s === 'その他' ? 'その他（' + otherText.trim() + '）' : s; });
+  }
+  return symptoms;
+}
+
+function getOrderType() {
+  const prefix = document.getElementById('c_case_prefix').value;
+  if (prefix === 'HC') return '清掃作業';
+  const checked = document.querySelector('input[name="order_type"]:checked');
+  return checked ? checked.value : '原因究明作業';
+}
+
+function getPaymentMethod() {
+  return document.querySelector('input[name="payment_method"]:checked').value;
+}
+
+function renderCouponTags_(arr, elId, fn) {
+  var el = document.getElementById(elId);
+  if (!arr || !arr.length) { el.innerHTML = ''; return; }
+  var tEx = arr.reduce(function(s, c) { return s + c.discount; }, 0);
+  var tInc = Math.round(tEx * (1 + TAX_RATE));
+  var html = '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">' +
+    arr.map(function(c, i) {
+      return '<span style="display:inline-flex;align-items:center;gap:4px;background:#e8f5e9;border:1px solid #4caf50;border-radius:8px;padding:5px 10px;font-size:.85rem;font-weight:600">' +
+        c.code + ' (-\u00a5' + c.discount.toLocaleString() + ')' +
+        '<button type="button" onclick="' + fn + '(' + i + ')" style="background:none;border:none;color:#c62828;font-weight:700;cursor:pointer;font-size:1.1rem;padding:0 2px">\u00d7</button></span>';
+    }).join('') + '</div>';
+  html += '<div style="font-size:.82rem;color:#2e7d32;margin-top:4px">' +
+    '\u5408\u8a08 -\u00a5' + tEx.toLocaleString() + '\uff08\u7a0e\u629c\uff09/ -\u00a5' + tInc.toLocaleString() + '\uff08\u7a0e\u8fbc\uff09</div>';
+  el.innerHTML = html;
+}
+
+function removeCoupon(idx) {
+  coupons.splice(idx, 1);
+  couponDiscount = coupons.reduce(function(s, c) { return s + c.discount; }, 0);
+  renderCouponTags_(coupons, 'coupon_result', 'removeCoupon');
+  if (currentStep === 5) refreshStep3Total();
+}
+
+async function applyCoupon() {
+  const code = document.getElementById('c_coupon_code').value.trim();
+  const res = document.getElementById('coupon_result');
+  if (!code) { res.textContent = 'コードを入力してください'; res.style.color = 'var(--red)'; return; }
+  res.textContent = '確認中...'; res.style.color = '#999';
+  try {
+    const r = await gasReadFetch(GAS_API_URL, { method: 'POST', body: JSON.stringify({ form_type: 'coupon_lookup', code }) }, { onStatus: gasReadStatusTarget(res) });
+    const data = await r.json();
+    if (data.ok) {
+      const nd = Number(data.discount) || 0;
+      const nc = document.getElementById('c_coupon_code').value.trim();
+      const ei = coupons.findIndex(c => c.code === nc);
+      if (ei >= 0) coupons[ei].discount = nd; else coupons.push({ code: nc, discount: nd });
+      couponDiscount = coupons.reduce(function(s, c) { return s + c.discount; }, 0);
+      renderCouponTags_(coupons, 'coupon_result', 'removeCoupon');
+      if (currentStep === 5) refreshStep3Total();
+      document.getElementById('coupon_applied_msg').style.display = 'block';
+    } else {
+      couponDiscount = 0; res.textContent = data.error || '無効なコードです'; res.style.color = 'var(--red)';
+    }
+  } catch(e) { couponDiscount = 0; res.textContent = GAS_READ_FINAL_MESSAGE; res.style.color = 'var(--red)'; }
+}
+
+document.querySelectorAll('input[name="payment_method"]').forEach(radio => {
+  radio.addEventListener('change', () => {
+    const method = getPaymentMethod();
+    const area = document.getElementById('transfer_deadline_area');
+    const nameArea = document.getElementById('transfer_name_area');
+    const splitArea = document.getElementById('split_payment_area');
+    if (method === '銀行振り込み') {
+      area.style.display = 'block'; nameArea.style.display = 'block'; splitArea.style.display = 'none';
+      if (!document.getElementById('transfer_deadline').value) {
+        var d3 = new Date(); d3.setDate(d3.getDate() + 3);
+        document.getElementById('transfer_deadline').value = toLocalYMD(d3);
+      }
+    } else if (method === 'ご相談') {
+      area.style.display = 'none'; nameArea.style.display = 'none'; splitArea.style.display = 'block';
+      splitDiffName = false;
+      document.getElementById('split_diff_name_check').checked = false;
+      document.getElementById('split_common_name_area').style.display = 'none';
+      document.getElementById('split_diff_name_hint').style.display = 'none';
+      document.getElementById('split_diff_name_check').parentElement.style.display = 'none';
+      document.getElementById('split_transfer_name_common').value = '';
+      initSplitRows(); updateSplitTotal();
+    } else {
+      area.style.display = 'none'; nameArea.style.display = 'none'; splitArea.style.display = 'none';
+    }
+  });
+});
+
+function updateUI() {
+  document.querySelectorAll('.step').forEach(el => el.classList.remove('active'));
+  document.getElementById('step' + currentStep).classList.add('active');
+  for (let i = 1; i <= 8; i++) {
+    const el = document.getElementById('p' + i);
+    if (el) {
+      el.className = 'progress-step';
+      if (i < currentStep) el.classList.add('done');
+      if (i === currentStep) el.classList.add('active');
+    }
+  }
+  document.getElementById('btnBack').style.display = currentStep === 1 ? 'none' : 'block';
+  const next = document.getElementById('btnNext');
+  if (currentStep === 8) { next.textContent = '上記に同意して送信'; next.style.background = '#c62828'; }
+  else if (currentStep === 9) { document.querySelector('.bottom-nav').style.display = 'none'; }
+  else { next.textContent = '次へ'; next.style.background = 'var(--blue)'; }
+  window.scrollTo(0, 0);
+}
+
+function clearFieldError(id) { const el = document.getElementById(id); if (el) el.classList.remove('error'); }
+function setFieldError(id, msg) {
+  const el = document.getElementById(id); if (!el) return;
+  el.classList.add('error');
+  const e = el.querySelector('.error-msg'); if (e) e.textContent = msg;
+}
+
+function validateStep(step) {
+  let ok = true;
+  if (step === 1) {
+    // 管理情報: 案件番号
+    if (!buildIndexCaseId()) { alert('案件番号の番号部分を入力してください'); document.getElementById('c_case_num').focus(); ok = false; }
+    else if (document.getElementById('f_case_id') && document.getElementById('f_case_id').classList.contains('error')) {
+      document.getElementById('c_case_num').focus();
+      ok = false;
+    }
+  }
+  if (step === 2) {
+    // お客様情報
+    ['f_name','f_kana','f_tel','f_email','f_zip','f_address','f_banchi'].forEach(clearFieldError);
+    if (document.querySelector('input[name="customer_type"]:checked').value === '法人・団体') {
+      if (!document.getElementById('c_company_name').value.trim()) {
+        setFieldError('f_company_name', '会社・団体・店舗名を入力してください'); ok = false;
+      }
+      if (!document.getElementById('c_company_kana').value.trim()) {
+        setFieldError('f_company_kana', 'ふりがなを入力してください'); ok = false;
+      }
+    }
+    if (!document.getElementById('c_name').value.trim()) { setFieldError('f_name', 'お名前を入力してください'); ok = false; }
+    if (!document.getElementById('c_kana').value.trim()) { setFieldError('f_kana', 'ふりがなを入力してください'); ok = false; }
+    if (!document.getElementById('c_tel').value.trim()) { setFieldError('f_tel', '電話番号を入力してください'); ok = false; }
+    const email = document.getElementById('c_email').value.trim();
+    if (!email || !email.includes('@')) { setFieldError('f_email', '正しいメールアドレスを入力してください'); ok = false; }
+    if (!document.getElementById('c_zip').value.trim()) { setFieldError('f_zip', '郵便番号を入力してください'); ok = false; }
+    if (!document.getElementById('c_address').value.trim()) { setFieldError('f_address', '住所を入力してください'); ok = false; }
+    if (!document.getElementById('c_banchi').value.trim()) { setFieldError('f_banchi', '番地を入力してください'); ok = false; }
+  }
+  if (step === 3) {
+    // ご依頼内容-1: 機器+症状
+    ['f_equipment','f_symptom'].forEach(clearFieldError);
+    if (!document.getElementById('c_equipment').value) { setFieldError('f_equipment', '作業対象を選択してください'); ok = false; }
+    const prefix = document.getElementById('c_case_prefix').value;
+    if (prefix !== 'HC' && getSymptoms().length === 0) { setFieldError('f_symptom', '症状を1つ以上選択してください'); ok = false; }
+  }
+  if (step === 4) {
+    // ご依頼内容-2: 作業種別+項目
+    const prefix = document.getElementById('c_case_prefix').value;
+    const _ot = getOrderType();
+    if (_ot.indexOf('修理') === 0 || (prefix === 'HC' && _ot === '清掃作業')) {
+      let hasItems = false;
+      document.querySelectorAll('.repair-item-row').forEach(row => {
+        if (parseInt(row.querySelector('.count-num').textContent) > 0) hasItems = true;
+      });
+      if (!hasItems) getInvOptions().forEach(v => { if (v.price > 0) hasItems = true; });
+      if (!hasItems) getCustomItems().forEach(c => { if (c.price > 0) hasItems = true; });
+      if (!hasItems) { alert('修理メニュー・追加条件・追加項目のいずれかを1つ以上入力してください'); ok = false; }
+    }
+  }
+  if (step === 5) {
+    // 料金・お支払い
+    const method = getPaymentMethod();
+    if (method === '銀行振り込み') {
+      if (!document.getElementById('transfer_deadline').value) { alert('銀行振り込みの場合は振込期限を入力してください'); ok = false; }
+      if (!document.getElementById('transfer_name').value.trim()) { alert('銀行振り込みの場合は振込名義を入力してください'); ok = false; }
+    }
+    if (method === 'ご相談') {
+      const splits = getSplitPayments();
+      const hasTransfer = splits.some(sp => sp.method === '銀行振り込み');
+      if (hasTransfer && !splitDiffName && !document.getElementById('split_transfer_name_common').value.trim()) {
+        alert('銀行振り込みの場合は振込名義（共通）を入力してください'); ok = false;
+      }
+      if (ok) {
+        for (let i = 0; i < splits.length; i++) {
+          if (!splits[i].amount_ex || splits[i].amount_ex <= 0) { alert('売掛金 ' + (i+1) + ' の金額を入力してください'); ok = false; break; }
+          if (!splits[i].method) { alert('売掛金 ' + (i+1) + ' の支払方法を選択してください'); ok = false; break; }
+          if (splits[i].method === '銀行振り込み' && !splits[i].deadline) { alert('売掛金 ' + (i+1) + ' の振込期限を入力してください'); ok = false; break; }
+          if (splits[i].method === '銀行振り込み' && splitDiffName && !splits[i].transfer_name) { alert('売掛金 ' + (i+1) + ' の振込名義を入力してください'); ok = false; break; }
+        }
+      }
+      if (ok) {
+        const splitTotal = splits.reduce(function(s, sp) { return s + sp.amount_inc; }, 0);
+        if (currentTotalInc > 0 && splitTotal !== currentTotalInc) {
+          alert('売掛金合計（¥' + splitTotal.toLocaleString('ja-JP') + '）が請求合計（¥' + currentTotalInc.toLocaleString('ja-JP') + '）と一致しません。');
+          ok = false;
+        }
+      }
+    }
+    if (ok) {
+      const totalCheck = calcTotalInc();
+      if (totalCheck <= 0) { alert('合計金額が¥0以下になっています。金額を確認してください。'); ok = false; }
+    }
+  }
+  if (step === 8) {
+    // 契約同意（紙の承諾書運用へ移行済みのため、ここでは金額・プラポリ・署名のみチェック）
+    const a1 = document.getElementById('agree_contract').checked;
+    const a3 = document.getElementById('agree_privacy').checked;
+    const sig = document.getElementById('c_signature').value.trim();
+    const cName = document.getElementById('c_name').value.trim();
+    const err = document.getElementById('agree_error');
+    const norm = s => s.replace(/[\s　]/g, '');
+    const sigMatch = norm(sig) === norm(cName);
+    if (!a1 || !a3 || !sig || !sigMatch) {
+      err.style.display = 'block';
+      if (!sigMatch && sig.length > 0) err.textContent = '署名がお名前と一致しません。「' + cName + '」と入力してください。';
+      else err.textContent = 'すべての同意事項を満たし、ご署名を入力してください';
+      ok = false;
+    } else { err.style.display = 'none'; }
+  }
+  return ok;
+}
+
+function getFormData() {
+  var custType = document.querySelector('input[name="customer_type"]:checked').value;
+  return {
+    case_id: buildIndexCaseId(),
+    emp_id: (window.ECOPITA_SESSION ? window.ECOPITA_SESSION.staffId : ""),
+    name: document.getElementById('c_name').value,
+    kana: document.getElementById('c_kana').value,
+    customer_type: custType,
+    company_name: custType === '法人・団体' ? document.getElementById('c_company_name').value : '',
+    company_kana: custType === '法人・団体' ? document.getElementById('c_company_kana').value : '',
+    contact_name: custType === '法人・団体' ? document.getElementById('c_name').value : '',
+    contact_kana: custType === '法人・団体' ? document.getElementById('c_kana').value : '',
+    tel: document.getElementById('c_tel').value,
+    email: document.getElementById('c_email').value,
+    cc_emails: getCcEmails(),
+    zip: document.getElementById('c_zip').value,
+    address: document.getElementById('c_address').value,
+    banchi: document.getElementById('c_banchi').value,
+    building: document.getElementById('c_building').value,
+    equipment: document.getElementById('c_equipment').value,
+    maker: '', symptoms: getSymptoms(),
+    detail: document.getElementById('c_detail').value
+  };
+}
+
+function nextStep() {
+  if (!validateStep(currentStep)) return;
+  if (currentStep === 4) refreshStep3Total();
+
+  if (currentStep === 5) {
+    const d = getFormData(), sym = d.symptoms.length ? d.symptoms.join('、') : '（選択なし）';
+    const oType = getOrderType(), pay = getPaymentMethod();
+    let extra = '';
+    if (oType.indexOf('修理') === 0) {
+      const names = getSelectedRepairNames(), inv = getInvOptions();
+      const invNames = inv.filter(v => v.price > 0).map(v => v.name + '(¥' + v.price.toLocaleString() + '税抜)');
+      const allNames = [];
+      if (names) allNames.push(names);
+      if (invNames.length) allNames.push(invNames.join('、'));
+      if (allNames.length) extra = '<br><span style="font-size:.85rem;color:#666">└ ' + allNames.join('、') + '</span>';
+    }
+    if (oType === '原因究明作業') {
+      const inv = getInvOptions(), customs = getCustomItems();
+      const allExtras = [
+        ...inv.map(v => v.name + (v.price ? '(¥' + v.price.toLocaleString() + '税抜)' : '')),
+        ...customs.map(c => c.name + '(¥' + c.subtotal.toLocaleString() + ')')
+      ];
+      if (allExtras.length) extra = '<br><span style="font-size:.85rem;color:#666">└ ' + allExtras.join('、') + '</span>';
+    }
+    let disc = coupons.length > 0
+      ? '<br><span style="color:#e65100;font-weight:bold">※クーポン：' +
+        coupons.map(function(c) { return c.code + '(-¥' + c.discount.toLocaleString() + ')'; }).join('・') + '</span>'
+      : '';
+    let payDisplay = pay;
+    if (pay === 'ご相談') {
+      const splits = getSplitPayments();
+      payDisplay = 'ご相談（売掛金）<br>' + splits.map(function(sp, i) {
+        let s = '<span style="font-size:.85rem;color:#666">└ 売掛金' + (i+1) + ': ' + sp.method +
+          ' ¥' + sp.amount_inc.toLocaleString('ja-JP') + '（税込）';
+        if (sp.deadline) s += '<br><span style="font-size:.85rem;color:#666;padding-left:1em">期限:' + sp.deadline + '</span>';
+        return s + '</span>';
+      }).join('<br>');
+    } else if (pay === '銀行振り込み') {
+      payDisplay = pay + (document.getElementById('transfer_deadline').value
+        ? '<br><span style="font-size:.85rem;color:#666">振込期限: ' + document.getElementById('transfer_deadline').value + '</span>' +
+          '<br><span style="font-size:.85rem;color:#666">振込名義: ' + (document.getElementById('transfer_name').value || '未入力') + '</span>'
+        : '');
+    }
+    const ccHtml = getCcEmails().length
+      ? '<br><span style="font-size:.85rem;color:#666">CC: ' + getCcEmails().join('<br>') + '</span>'
+      : '';
+    document.getElementById('confirmContent').innerHTML =
+      '<div class="confirm-row"><span class="confirm-label">案件番号</span><span class="confirm-val">' + d.case_id + '</span></div>' +
+      '<div class="confirm-row"><span class="confirm-label">担当者</span><span class="confirm-val">' + d.emp_id + '</span></div>' +
+      '<div class="confirm-row"><span class="confirm-label">お名前</span><span class="confirm-val">' + d.name + '（' + d.kana + '）</span></div>' +
+      '<div class="confirm-row"><span class="confirm-label">電話番号</span><span class="confirm-val">' + d.tel + '</span></div>' +
+      '<div class="confirm-row"><span class="confirm-label">メール</span><span class="confirm-val">' + d.email + ccHtml + '</span></div>' +
+      '<div class="confirm-row"><span class="confirm-label">住所</span><span class="confirm-val">〒' + d.zip + '<br>' + d.address + ' ' + d.banchi + ' ' + d.building + '</span></div>' +
+      '<div class="confirm-row"><span class="confirm-label">機器</span><span class="confirm-val">' + (d.equipment || '未選択') + '</span></div>' +
+      equipmentInfoPreviewHtml_() +
+      '<div class="confirm-row"><span class="confirm-label">症状</span><span class="confirm-val">' + sym + '</span></div>' +
+      '<div class="confirm-row"><span class="confirm-label">作業</span><span class="confirm-val" style="color:var(--blue)">' + oType + extra + disc + '</span></div>' +
+      '<div class="confirm-row"><span class="confirm-label">支払い</span><span class="confirm-val">' + payDisplay + '</span></div>';
+  }
+
+  if (currentStep === 6) {
+    const orderType = getOrderType(), equip = document.getElementById('c_equipment').value;
+    const feeLabel = document.getElementById('fee_label');
+    let subtotalEx = 0, estRows = '';
+    const td = 'padding:8px;border-bottom:1px solid #ddd';
+
+    // 2行形式: 1行目=項目名、2行目=数量 × 単価 = 小計（右寄せ）
+    const itemRow = function(name, qty, price, subtotal, extraStyle) {
+      const base = 'padding:8px 10px;border-bottom:1px solid #eee;' + (extraStyle || '');
+      return '<div style="' + base + '">' +
+        '<div style="font-weight:600;margin-bottom:2px">' + name + '</div>' +
+        '<div style="text-align:right;color:#555;font-size:.88rem">' +
+          qty + ' × ' + fmtYen(price) + ' = <span style="font-weight:600;color:#222">' + fmtYen(subtotal) + '</span>' +
+        '</div></div>';
+    };
+    const noteRow = function(name, note) {
+      return '<div style="padding:8px 10px;border-bottom:1px solid #eee;color:#666;font-size:.85rem">' +
+        '<div>' + name + '</div>' +
+        '<div style="text-align:right">' + note + '</div></div>';
+    };
+
+    if (orderType === '原因究明作業') {
+      feeLabel.textContent = '故障診断費用（税込）';
+      const diagEx = getIndexDiagFee_(equip);
+      subtotalEx += diagEx;
+      estRows = itemRow('故障診断（' + (equip || 'ルームエアコン') + '）', 1, diagEx, diagEx);
+      getInvOptions().forEach(v => {
+        if (v.price > 0) {
+          subtotalEx += v.price;
+          estRows += itemRow(v.name, 1, v.price, v.price);
+        } else {
+          estRows += noteRow(v.name, '※現地確認後にご案内');
+        }
+      });
+    } else {
+      const prefix = document.getElementById('c_case_prefix').value;
+      feeLabel.textContent = (prefix === 'HC') ? '清掃作業費用（目安・税込）' : '修理作業費用（目安・税込）';
+      document.querySelectorAll('.repair-item-row').forEach(row => {
+        const cnt = parseInt(row.querySelector('.count-num').textContent);
+        if (cnt > 0) {
+          const pEx = parseInt(row.dataset.price), sEx = pEx * cnt;
+          subtotalEx += sEx;
+          estRows += itemRow(row.dataset.name, cnt, pEx, sEx);
+        }
+      });
+      getInvOptions().forEach(v => {
+        if (v.price > 0) {
+          subtotalEx += v.price;
+          estRows += itemRow(v.name, 1, v.price, v.price);
+        }
+      });
+    }
+
+    getCustomItems().forEach(item => {
+      const sEx = item.price * item.qty;
+      subtotalEx += sEx;
+      const extra = item.price < 0 ? 'color:#c62828;' : '';
+      estRows += itemRow(item.name, item.qty, item.price, sEx, extra);
+    });
+
+    if (coupons.length > 0) {
+      coupons.forEach(function(cp) {
+        subtotalEx -= cp.discount;
+        estRows += itemRow('クーポン割引（' + cp.code + '）', 1, -cp.discount, -cp.discount, 'color:#e65100;');
+      });
+      if (subtotalEx < 0) subtotalEx = 0;
+    }
+
+    const taxAmount = Math.round(subtotalEx * TAX_RATE), totalInc = subtotalEx + taxAmount;
+    document.getElementById('est_customer_name').textContent = document.getElementById('c_name').value + ' 様';
+    document.getElementById('est_date').textContent = '発行日：' + new Date().toLocaleDateString('ja-JP');
+    document.getElementById('est_items_body').innerHTML = estRows;
+    document.getElementById('est_subtotal_ex').textContent = fmtYen(subtotalEx);
+    document.getElementById('est_tax_amount').textContent = fmtYen(taxAmount);
+    document.getElementById('est_tax_rate_label').textContent = Math.round(TAX_RATE * 100);
+    document.getElementById('est_total').textContent = fmtYen(totalInc);
+    document.getElementById('fee_diagnosis_val').value = totalInc;
+    const feeDisplayArea = document.getElementById('fee_display_area');
+    if (isSplitPayment()) {
+      feeLabel.textContent = '費用（税込）- 売掛金支払い';
+      const splits = getSplitPayments();
+      const nums = ['①','②','③','④','⑤','⑥','⑦','⑧','⑨','⑩'];
+      feeDisplayArea.innerHTML = splits.map(function(sp, i) {
+        let s = '<div style="font-weight:700;color:var(--blue);font-size:.95rem">' +
+          (nums[i] || '(' + (i+1) + ')') + ' ' + sp.method +
+          '　¥' + sp.amount_inc.toLocaleString('ja-JP') + '（税込）</div>';
+        if (sp.deadline) s += '<div style="font-size:.8rem;color:var(--text-sub)">振込期限：' + sp.deadline + '</div>';
+        if (sp.transfer_name) s += '<div style="font-size:.8rem;color:var(--text-sub)">振込名義：' + sp.transfer_name + '</div>';
+        return '<div style="margin-bottom:8px">' + s + '</div>';
+      }).join('');
+      feeDisplayArea.innerHTML += '<div style="margin-top:4px;padding-top:6px;border-top:1px solid #ddd;font-size:.9rem;font-weight:700">合計：¥' +
+        splits.reduce(function(s, sp) { return s + sp.amount_inc; }, 0).toLocaleString('ja-JP') + '（税込）</div>';
+    } else {
+      feeDisplayArea.innerHTML = '<input type="text" readonly style="font-weight:bold;color:var(--blue);font-size:1.2rem;background:#fff;border:none;width:100%;padding:0" value="' + fmtYen(totalInc) + '">';
+    }
+  }
+
+  if (currentStep === 8) {
+    if (gasP1SfGuard('lookup', buildIndexCaseId(), function(message) { alert(message); })) return;
+    doSubmit();
+    return;
+  }
+  currentStep++;
+  updateUI();
+}
+
+function prevStep() { if (currentStep > 1) { currentStep--; updateUI(); } }
+
+// プライバシーポリシー オーバーレイ
+function openPrivacyOverlay() {
+  var ov = document.getElementById('privacy_overlay');
+  ov.style.display = 'block';
+  ov.scrollTop = 0; // 開くたびに最上部から
+  window.scrollTo(0, 0);
+  // 短いコンテンツ等の即enableチェック
+  setTimeout(function() { onPrivacyOverlayScroll(ov); }, 100);
+}
+function closePrivacyOverlay() {
+  document.getElementById('privacy_overlay').style.display = 'none';
+}
+function onPrivacyOverlayScroll(el) {
+  // コンテンツが短い（scrollHeight <= clientHeight）場合はスクロール不要なので即enable
+  // それ以外は最下部まで30px以内で enable（iOS慣性オーバーシュート許容）
+  var noScroll = el.scrollHeight <= el.clientHeight + 5;
+  var atBottom = (el.scrollHeight - el.scrollTop - el.clientHeight) < 30;
+  if (noScroll || atBottom) {
+    var btn = document.getElementById('privacy_overlay_done_btn');
+    var hint = document.getElementById('privacy_overlay_hint');
+    if (btn) {
+      btn.disabled = false;
+      btn.style.background = 'var(--blue)';
+      btn.style.cursor = 'pointer';
+    }
+    if (hint) hint.style.display = 'none';
+  }
+}
+function closePrivacyOverlayConfirmed() {
+  // 同意チェックを有効化＋自動でチェック
+  var cb = document.getElementById('agree_privacy');
+  var lbl = document.getElementById('agree_privacy_label');
+  var status = document.getElementById('privacy_status');
+  var btn = document.getElementById('privacy_open_btn');
+  if (cb) { cb.disabled = false; cb.checked = true; }
+  if (lbl) { lbl.style.opacity = '1'; lbl.style.cursor = 'pointer'; }
+  if (status) { status.textContent = '✓ 確認済み'; status.style.color = 'var(--green)'; status.style.fontWeight = '700'; }
+  if (btn) btn.textContent = 'もう一度読む';
+  closePrivacyOverlay();
+}
+
+async function doSubmit() {
+  if (gasP1SfGuard('lookup', buildIndexCaseId(), function(message) { alert(message); })) return;
+  const btn = document.getElementById('btnNext');
+  btn.disabled = true; btn.textContent = '処理中...';
+  const d = getFormData();
+  let orderInfo = getOrderType();
+  if (orderInfo === '原因究明作業') {
+    const inv = getInvOptions();
+    if (inv.length) orderInfo += '（' + inv.map(v => v.name + (v.price ? ':¥' + v.price : '')).join('・') + '）';
+  }
+  if (orderInfo.indexOf('修理') === 0) {
+    const names = getSelectedRepairNames(); if (names) orderInfo += '：' + names;
+  }
+  if (coupons.length > 0) orderInfo += ' 【クーポン：' + coupons.map(function(c) { return c.code; }).join('・') + '】';
+  const reqSameday = document.getElementById('req_sameday').checked;
+  const serviceDateInput = document.getElementById('service_date_picker').value;
+  if (!reqSameday && !serviceDateInput) {
+    alert('役務の提供時期(指定日)を入力してください');
+    btn.disabled = false; btn.textContent = '上記に同意して送信';
+    return;
+  }
+  const serviceDate = reqSameday ? toLocalYMD(new Date()) : serviceDateInput;
+  // 「【当日工事希望】」append は廃止し、役務の提供時期欄に統合する。
+  const customItems = getCustomItems(), orderItems = [];
+  const ot = getOrderType(), equip = document.getElementById('c_equipment').value;
+  if (ot === '原因究明作業') {
+    const df = getIndexDiagFee_(equip);
+    orderItems.push({ name: '故障診断（' + (equip || 'ルームエアコン') + '）', price: df, qty: 1, subtotal: df });
+    getInvOptions().forEach(v => { if (v.price > 0) orderItems.push({ name: v.name, price: v.price, qty: 1, subtotal: v.price }); });
+  } else {
+    document.querySelectorAll('.repair-item-row').forEach(row => {
+      const cnt = parseInt(row.querySelector('.count-num').textContent);
+      if (cnt > 0) {
+        const price = parseInt(row.dataset.price);
+        orderItems.push({ name: row.dataset.name, price, qty: cnt, subtotal: price * cnt });
+      }
+    });
+    getInvOptions().forEach(v => { if (v.price > 0) orderItems.push({ name: v.name, price: v.price, qty: 1, subtotal: v.price }); });
+  }
+  customItems.forEach(c => orderItems.push({ name: c.name, price: c.price, qty: c.qty || 1, subtotal: c.subtotal }));
+  coupons.forEach(function(cp) { orderItems.push({ name: 'クーポン割引（' + cp.code + '）', price: -cp.discount, qty: 1, subtotal: -cp.discount }); });
+  const contractId = generateContractId();
+  const paymentMethod = getPaymentMethod();
+  const paymentSplits = isSplitPayment() ? getSplitPayments() : null;
+  const feeDiagnosis = document.getElementById('fee_diagnosis_val').value || '';
+  // reCAPTCHA v3 トークン取得（登録済みの場合のみ。未登録なら空文字でバックエンドはスキップ）
+  var recaptchaToken = '';
+  try {
+    if (window.grecaptcha && window.RECAPTCHA_SITE_KEY && window.RECAPTCHA_SITE_KEY.indexOf('__REPLACE') !== 0) {
+      recaptchaToken = await new Promise(function(resolve) {
+        grecaptcha.ready(function() {
+          grecaptcha.execute(window.RECAPTCHA_SITE_KEY, { action: 'order_submit' })
+            .then(function(tok){ resolve(tok || ''); })
+            .catch(function(){ resolve(''); });
+        });
+      });
+    }
+  } catch(e) {}
+
+  const payload = {
+    ...d, contract_id: contractId, services: d.symptoms, order_type: orderInfo,
+    equipment_info: getEquipmentInfo(),
+    service_date: serviceDate,
+    service_sameday: reqSameday,
+    sessionToken: (window.ECOPITA_SESSION ? window.ECOPITA_SESSION.token : ''),
+    recaptcha_token: recaptchaToken,
+    payment_method: paymentMethod,
+    transfer_deadline: paymentMethod === '銀行振り込み' ? document.getElementById('transfer_deadline').value : '',
+    transfer_name: paymentMethod === '銀行振り込み' ? document.getElementById('transfer_name').value.trim() : '',
+    fee_diagnosis: feeDiagnosis,
+    cancel_rule: document.getElementById('cancel_rule').value,
+    custom_items: customItems.length ? customItems.map(c => c.name + ':' + c.price).join('、') : '',
+    order_items: orderItems,
+    coupon_codes: coupons.map(function(c) { return c.code; }).join(','),
+    payment_splits: paymentSplits,
+    agree_contract: true,
+    agree_electronic: true,
+    agree_privacy: true,
+    signature: document.getElementById('c_signature').value
+  };
+  const landingBaseline = _dupGuardSnapshots[payload.case_id] || null;
+  // Phase 1: スプレッドシート書き込み（同期）
+  try {
+    var result = await gasCall(payload, { mode: 'submit', url: GAS_API_URL });
+    if (result && result.ok === false && result.reason === 'recent_order_exists' && result.recent) {
+      btn.textContent = '確認してください';
+      var recentChoice = await _showRecentOrderChoice_(result.recent);
+      if (recentChoice === 'resend') {
+        btn.textContent = '再送画面へ移動します…';
+        await _recordOrderRecentChoice_('resend', payload.case_id);
+        window.location.href = 'resend.html?case=' + encodeURIComponent(payload.case_id) + '&doc_type=contract';
+        return;
+      }
+      await _recordOrderRecentChoice_('new', payload.case_id);
+      payload.confirm_new_order = true;
+      btn.textContent = '処理中...';
+      result = await gasCall(payload, { mode: 'submit', url: GAS_API_URL });
+    }
+    if (!result.ok) {
+      alert('送信エラー: ' + (result.error || '送信に失敗しました'));
+      btn.disabled = false; btn.textContent = '上記に同意して送信';
+      return;
+    }
+  } catch(e) {
+    btn.textContent = '受付状況を確認しています…';
+    var landed = await _confirmOrderLanding_(payload, landingBaseline);
+    if (!landed) {
+      alert(gasCallErrorMessage(e));
+      btn.disabled = false; btn.textContent = '上記に同意して送信';
+      return;
+    }
+  }
+
+  // 完了画面を表示
+  currentStep = 9; updateUI();
+  var completeText = document.querySelector('#step9 .complete-screen p');
+  if (completeText) {
+    var sentTo = String(payload.email || '').trim();
+    completeText.textContent = sentTo
+      ? sentTo + ' に契約書控え（PDF）をお送りしました（メール到着まで数分かかることがあります）。'
+      : '受付完了しました（メール到着まで数分かかることがあります）';
+  }
+
+  // 入力途中の自動保存下書きも送信完了でクリア
+  try { _clearDraft(); } catch(e) {}
+
+  // Phase 2: PDF/メール/LWメッセージ（バックグラウンド）
+  // サーバ側で各処理に sendAdminError_ が仕込まれているため、真の失敗はそちらで通知される。
+  // クライアントのfetch catch（Safari "Load failed" 等）はサーバ完走でも発生する偽陽性が多く、通知しない。
+  // サーバが明示的に ok:false を返した時のみ管理者通報する。
+  var asyncPayload = Object.assign({}, payload, { form_type: 'order_async' });
+  fetch(GAS_API_URL, { method: 'POST', body: JSON.stringify(asyncPayload) })
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      if (res && res.ok === false) {
+        fetch(GAS_API_URL, {
+          method: 'POST',
+          body: JSON.stringify({
+            form_type: 'async_fail_report',
+            contract_id: contractId,
+            case_id: payload.case_id || '',
+            reason: 'order_async returned not-ok'
+          })
+        }).catch(function(){});
+      }
+    })
+    .catch(function(){ /* 通信断のみ。サーバ側処理は継続中の可能性が高いため黙殺 */ });
+}
+
+function _recentOrderMinutesAgo_(createdAt) {
+  var createdMs = Date.parse(String(createdAt || ''));
+  if (!isFinite(createdMs)) return '';
+  return String(Math.max(0, Math.floor((Date.now() - createdMs) / 60000)));
+}
+
+function _showRecentOrderChoice_(recent) {
+  return new Promise(function(resolve) {
+    var old = document.getElementById('recent_order_choice_overlay');
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+
+    var overlay = document.createElement('div');
+    overlay.id = 'recent_order_choice_overlay';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:18px;';
+
+    var panel = document.createElement('div');
+    panel.style.cssText = 'width:min(520px,100%);background:#fff;border-radius:14px;padding:22px;box-shadow:0 12px 36px rgba(0,0,0,.3);color:#222;';
+    var title = document.createElement('h2');
+    title.textContent = '同じ案件の注文を確認してください';
+    title.style.cssText = 'font-size:20px;margin:0 0 12px;color:#7a5200;';
+    var message = document.createElement('p');
+    var minutes = _recentOrderMinutesAgo_(recent && recent.created_at);
+    message.textContent = '同じ案件で' + (minutes === '' ? '直近に' : minutes + '分前に') + '注文が登録されています。';
+    message.style.cssText = 'margin:0 0 12px;line-height:1.65;';
+    var detail = document.createElement('div');
+    detail.style.cssText = 'background:#fff8e1;border:1px solid #f0d58b;border-radius:8px;padding:12px;margin-bottom:12px;line-height:1.65;white-space:pre-wrap;';
+    detail.textContent = [
+      '契約ID: ' + String((recent && recent.contract_id) || ''),
+      '登録日時: ' + String((recent && recent.created_at) || ''),
+      'お客様名: ' + String((recent && recent.customer_name) || ''),
+      '内容: ' + String((recent && recent.summary) || '')
+    ].join('\n');
+    var note = document.createElement('p');
+    note.textContent = 'どちらを選んでも入力し直す必要はありません。';
+    note.style.cssText = 'font-weight:700;margin:0 0 16px;';
+    var buttons = document.createElement('div');
+    buttons.style.cssText = 'display:grid;gap:10px;';
+    var newButton = document.createElement('button');
+    newButton.type = 'button';
+    newButton.textContent = 'これは別の注文です';
+    newButton.style.cssText = 'padding:13px;border:0;border-radius:8px;background:#1565c0;color:#fff;font-weight:700;font-size:16px;cursor:pointer;';
+    var resendButton = document.createElement('button');
+    resendButton.type = 'button';
+    resendButton.textContent = 'さっきの注文です（書類が届かない）';
+    resendButton.style.cssText = 'padding:13px;border:1px solid #1565c0;border-radius:8px;background:#fff;color:#1565c0;font-weight:700;font-size:16px;cursor:pointer;';
+    function finish(choice) {
+      if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+      resolve(choice);
+    }
+    newButton.onclick = function() { finish('new'); };
+    resendButton.onclick = function() { finish('resend'); };
+    buttons.appendChild(newButton);
+    buttons.appendChild(resendButton);
+    panel.appendChild(title);
+    panel.appendChild(message);
+    panel.appendChild(detail);
+    panel.appendChild(note);
+    panel.appendChild(buttons);
+    overlay.appendChild(panel);
+    document.body.appendChild(overlay);
+    newButton.focus();
+  });
+}
+
+async function _recordOrderRecentChoice_(choice, caseId) {
+  if (choice !== 'new' && choice !== 'resend') return false;
+  var timer = null;
+  try {
+    var request = fetch(GAS_API_URL, {
+      method: 'POST',
+      body: JSON.stringify({
+        form_type: 'order_recent_choice',
+        choice: choice,
+        case_id: String(caseId || ''),
+        sessionToken: (window.ECOPITA_SESSION ? window.ECOPITA_SESSION.token : '')
+      })
+    }).then(function() { return true; }).catch(function() { return false; });
+    var timeout = new Promise(function(resolve) {
+      timer = setTimeout(function() { resolve(false); }, 1200);
+    });
+    return await Promise.race([request, timeout]);
+  } catch (e) {
+    return false;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+function clearCustomerFields() {
+  ['c_name','c_kana','c_tel','c_email','c_zip','c_address','c_banchi','c_building',
+   'c_company_name','c_company_kana'].forEach(function(id) {
+    var el = document.getElementById(id); if (el) el.value = '';
+  });
+  var e = document.getElementById('c_emp_id'); if (e) e.value = '';
+  var d = document.getElementById('staff_name_display'); if (d) d.textContent = '';
+  document.getElementById('cc_email_area').innerHTML = '';
+}
+
+// ===== 二重発行ソフト警告（送信はブロックしない） =====
+// 表示してよいのは社内案件番号・件数・日付のみ。メール/PDF URL/元案件番号は出さない。
+function _dupGuardEsc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+function _clearDupGuardWarning() {
+  var box = document.getElementById('dup_guard_warning');
+  if (box) { box.innerHTML = ''; box.style.display = 'none'; }
+}
+
+async function _confirmOrderLanding_(payload, baselineGuard) {
+  if (!payload || !payload.case_id || !baselineGuard) return false;
+  try {
+    var response = await gasCall(
+      {
+        form_type: 'duplicate_guard_lookup',
+        sessionToken: (window.ECOPITA_SESSION ? window.ECOPITA_SESSION.token : ''),
+        case_id: payload.case_id
+      },
+      {
+        mode: 'lookup',
+        url: GAS_API_URL,
+        onStatus: function() {}
+      }
+    );
+    if (!response || response.ok === false || !response.guard) return false;
+    var expectedAmount = (payload.order_items || []).reduce(function(sum, item) {
+      return sum + Number((item && (item.subtotal || (item.price || 0) * (item.qty || 1))) || 0);
+    }, 0);
+    return gasOrderLandingDetected(
+      baselineGuard,
+      response.guard,
+      expectedAmount
+    );
+  } catch (error) {
+    return false;
+  }
+}
+
+// 案件 lookup 成功後に追加で軽量な1コール。失敗時は黙って無視（既存フローに影響させない）。
+async function _runDupGuard(cid) {
+  if (!cid) { _clearDupGuardWarning(); return; }
+  _dupGuardLastCid = cid; // 警告表示中の案件番号を記録（同一案件の再照会で消さないため・2026-07-12）
+  // 同一案件の二重発行チェックは直近3分実行済みなら再照会しない（連射防止・2026-07-12）
+  try {
+    var _dgKey = 'dupguard_ts_' + cid;
+    var _dgTs = sessionStorage.getItem(_dgKey);
+    if (
+      _dgTs &&
+      (Date.now() - parseInt(_dgTs, 10)) < 180000 &&
+      _dupGuardSnapshots[cid]
+    ) return;
+    sessionStorage.setItem(_dgKey, String(Date.now()));
+  } catch (e) {}
+  _clearDupGuardWarning();
+  try {
+    var res = await gasCall(
+      {
+        form_type: 'duplicate_guard_lookup',
+        sessionToken: (window.ECOPITA_SESSION ? window.ECOPITA_SESSION.token : ''),
+        case_id: cid
+      },
+      { mode: 'lookup', url: GAS_API_URL, onStatus: function() {} }
+    );
+    // 案件が切り替わっていたら描画しない（古い応答の取りこぼし防止）
+    if (buildIndexCaseId() !== cid) return;
+    if (!res || res.ok === false || !res.guard) { return; }
+    var g = res.guard;
+    _dupGuardSnapshots[cid] = g;
+    if (g.issued_contract !== true) return;
+    var box = document.getElementById('dup_guard_warning');
+    if (!box) return;
+    // 件数・最新日付（任意・簡潔に）
+    var detail = '';
+    if (g.contracts && g.contracts.length) {
+      var n = g.contracts.length;
+      var latest = '';
+      for (var i = 0; i < g.contracts.length; i++) {
+        var d = g.contracts[i] && g.contracts[i].date;
+        if (d && (!latest || String(d) > latest)) latest = String(d);
+      }
+      detail = '（' + n + '件' + (latest ? '・最新 ' + _dupGuardEsc(latest) : '') + '）';
+    }
+    var resendUrl = 'resend.html?case=' + encodeURIComponent(cid) + '&doc_type=contract';
+    box.innerHTML =
+      '<span class="dup-guard-title">⚠️ すでにこの案件番号で契約書が発行済みです' +
+        (detail ? '<span class="dup-guard-detail"> ' + detail + '</span>' : '') + '</span>' +
+      '手書き伝票を使っていなければ、このフォームでの再発行は不要です。' +
+      'メールアドレスを変えて送り直したい場合は → ' +
+      '<a class="dup-guard-resend" href="' + _dupGuardEsc(resendUrl) + '" target="_blank" rel="noopener">再送はこちら</a>';
+    box.style.display = 'block';
+  } catch (e) {
+    console.warn('duplicate_guard_lookup failed (ignored)', e);
+  }
+}
+
+function _applyLookupResult(r, cid, preview, showInvalid) {
+  if (r && r.case_id_valid === false) {
+    clearCustomerFields();
+    if (showInvalid || isIndexCaseIdCompleteForError()) {
+      showIndexCaseIdInvalid(preview);
+    } else {
+      preview.textContent = cid;
+      preview.style.color = '';
+    }
+    return;
+  }
+  if (r && r.ok !== false && !r.error) {
+    clearIndexCaseIdError();
+    if (r.name)     document.getElementById('c_name').value = r.name;
+    if (r.kana)     document.getElementById('c_kana').value = r.kana;
+    if (r.tel)      document.getElementById('c_tel').value = r.tel;
+    if (r.email)    document.getElementById('c_email').value = r.email.split(',')[0];
+    if (r.cc_emails && r.cc_emails.length > 0) {
+      document.getElementById('cc_email_area').innerHTML = '';
+      r.cc_emails.forEach(function(e) { if (e) addCcEmail(e); });
+    }
+    if (r.zip)      document.getElementById('c_zip').value = r.zip;
+    if (r.address)  document.getElementById('c_address').value = r.address;
+    if (r.banchi)   document.getElementById('c_banchi').value = r.banchi;
+    if (r.building) document.getElementById('c_building').value = r.building;
+    if (r.customer_type) {
+      var radios = document.querySelectorAll('input[name="customer_type"]');
+      radios.forEach(function(rb) { if (rb.value === r.customer_type) rb.checked = true; });
+      onCustomerTypeChange();
+    }
+    if (r.company_name) document.getElementById('c_company_name').value = r.company_name;
+    if (r.company_kana) document.getElementById('c_company_kana').value = r.company_kana;
+    if (r.customer_type === '法人・団体') {
+      if (r.contact_name) document.getElementById('c_name').value = r.contact_name;
+      if (r.contact_kana) document.getElementById('c_kana').value = r.contact_kana;
+    }
+    if (r.staff_id) {
+      var sid = String(r.staff_id);
+      while (sid.length > 0 && sid.length < 4) sid = '0' + sid;
+      document.getElementById('c_emp_id').value = sid;
+      lookupStaffName();
+    }
+    _runDupGuard(cid); // 二重発行ソフト警告（非ブロッキング・キャッシュヒット経路）
+  }
+  preview.textContent = cid; preview.style.color = '';
+}
+
+async function lookupByCaseId(showInvalid) {
+  const cid = buildIndexCaseId();
+  const preview = document.getElementById('c_case_id_preview');
+  // 案件切替時のみ前の警告を消す（同一案件の再照会では保持・連射防止・2026-07-12）
+  if (cid !== _dupGuardLastCid) _clearDupGuardWarning();
+  // 入力途中の部分番号でサーバ照会しない（連射防止・2026-07-12）。番号8桁未満は静かに抜ける
+  if (cid && !isIndexCaseIdCompleteForError()) return;
+  if (!cid) {
+    clearCustomerFields();
+    clearIndexCaseIdError();
+    preview.textContent = '---'; preview.style.color = '';
+    return;
+  }
+  clearCustomerFields();
+
+  // sessionStorage キャッシュ（3分TTL）チェック
+  try {
+    var cacheKey = 'case_lookup_v2_' + cid;
+    var cached = sessionStorage.getItem(cacheKey);
+    if (cached) {
+      var parsed = JSON.parse(cached);
+      if (parsed && parsed.ts && (Date.now() - parsed.ts) < 180000) {
+        _applyLookupResult(parsed.data, cid, preview, showInvalid);
+        return;
+      }
+    }
+  } catch(e) {}
+
+  // in-flight ガード: 同一番号の照会が進行中なら二重発射しない（連射防止・2026-07-12）
+  if (_inflightLookupCid === cid) return;
+  _inflightLookupCid = cid;
+
+  preview.textContent = '検索中...'; preview.style.color = '#999';
+  try {
+    const r = await gasCall(
+      { form_type: 'lookup', case_id: cid, p1_sf: 'p1_sf_v1' },
+      {
+        mode: 'lookup',
+        url: GAS_API_URL,
+        onStatus: function(status) { preview.textContent = status; }
+      }
+    );
+    if (r && r.code === 'busy_caseid_check') {
+      preview.textContent = r.error || GAS_P1_SF_HONEST_MESSAGE;
+      preview.style.color = 'var(--red)';
+      return;
+    }
+    // キャッシュ保存（成功時のみ）
+    try {
+      if (r && r.ok !== false && !r.error) {
+        sessionStorage.setItem('case_lookup_v2_' + cid, JSON.stringify({ ts: Date.now(), data: r }));
+      }
+    } catch(e) {}
+    if (r && r.case_id_valid === false) {
+      if (showInvalid || isIndexCaseIdCompleteForError()) {
+        showIndexCaseIdInvalid(preview);
+      } else {
+        preview.textContent = cid; preview.style.color = '';
+      }
+      return;
+    }
+    if (r && r.ok !== false && !r.error) {
+      clearIndexCaseIdError();
+      if (r.name)     document.getElementById('c_name').value = r.name;
+      if (r.kana)     document.getElementById('c_kana').value = r.kana;
+      if (r.tel)      document.getElementById('c_tel').value = r.tel;
+      if (r.email)    document.getElementById('c_email').value = r.email.split(',')[0];
+      if (r.cc_emails && r.cc_emails.length > 0) {
+        document.getElementById('cc_email_area').innerHTML = '';
+        r.cc_emails.forEach(function(e) { if (e) addCcEmail(e); });
+      }
+      if (r.zip)      document.getElementById('c_zip').value = r.zip;
+      if (r.address)  document.getElementById('c_address').value = r.address;
+      if (r.banchi)   document.getElementById('c_banchi').value = r.banchi;
+      if (r.building) document.getElementById('c_building').value = r.building;
+      if (r.customer_type) {
+        var radios = document.querySelectorAll('input[name="customer_type"]');
+        radios.forEach(function(rb) { if (rb.value === r.customer_type) rb.checked = true; });
+        onCustomerTypeChange();
+      }
+      if (r.company_name) document.getElementById('c_company_name').value = r.company_name;
+      if (r.company_kana) document.getElementById('c_company_kana').value = r.company_kana;
+      if (r.customer_type === '法人・団体') {
+        if (r.contact_name) document.getElementById('c_name').value = r.contact_name;
+        if (r.contact_kana) document.getElementById('c_kana').value = r.contact_kana;
+      }
+      if (r.staff_id) {
+        var sid = String(r.staff_id);
+        while (sid.length > 0 && sid.length < 4) sid = '0' + sid;
+        document.getElementById('c_emp_id').value = sid;
+        lookupStaffName();
+      }
+      _runDupGuard(cid); // 二重発行ソフト警告（非ブロッキング・ネットワーク成功経路）
+    }
+    preview.textContent = cid; preview.style.color = '';
+  } catch(e) {
+    preview.textContent = gasCallErrorMessage(e);
+    preview.style.color = 'var(--red)';
+    console.log('lookup error', e);
+  } finally {
+    if (_inflightLookupCid === cid) _inflightLookupCid = null; // in-flight ガード解除（自分の照会分のみ・2026-07-12）
+  }
+}
+
+async function lookupStaffName() {
+  var sid = document.getElementById('c_emp_id').value.trim();
+  var display = document.getElementById('staff_name_display');
+  if (!sid) { if (display) display.textContent = ''; return; }
+  if (!display) return;
+  while (sid.length > 0 && sid.length < 4) sid = '0' + sid;
+
+  // localStorage キャッシュ（1時間TTL）。業者マスタは変動少なく、フロント静的キャッシュが効く
+  try {
+    var cacheKey = 'staff_lookup_' + sid;
+    var cached = localStorage.getItem(cacheKey);
+    if (cached) {
+      var parsed = JSON.parse(cached);
+      if (parsed && parsed.ts && (Date.now() - parsed.ts) < 3600000) {
+        if (parsed.name) { display.textContent = '担当：' + parsed.name; display.style.color = '#2e7d32'; }
+        else { display.textContent = '※該当なし'; display.style.color = '#c62828'; }
+        return;
+      }
+    }
+  } catch(e) {}
+
+  display.textContent = '検索中...'; display.style.color = '#999';
+  try {
+    var resp = await gasReadFetch(GAS_API_URL, {
+      method: 'POST',
+      body: JSON.stringify({ form_type: 'staff_lookup', staff_id: sid })
+    }, { onStatus: gasReadStatusTarget(display) });
+    var r = await resp.json();
+    if (r.ok) {
+      display.textContent = '担当：' + r.staff_name; display.style.color = '#2e7d32';
+      try { localStorage.setItem('staff_lookup_' + sid, JSON.stringify({ ts: Date.now(), name: r.staff_name })); } catch(e) {}
+    } else {
+      display.textContent = '※該当なし'; display.style.color = '#c62828';
+      try { localStorage.setItem('staff_lookup_' + sid, JSON.stringify({ ts: Date.now(), name: null })); } catch(e) {}
+    }
+  } catch(e) { display.textContent = GAS_READ_FINAL_MESSAGE; display.style.color = '#c62828'; }
+}
+
+function onCustomerTypeChange() {
+  var isCorp = document.querySelector('input[name="customer_type"]:checked').value === '法人・団体';
+  document.getElementById('corp_fields').style.display = isCorp ? 'block' : 'none';
+  document.getElementById('label_name').innerHTML = (isCorp ? 'ご担当者名' : 'お名前') + ' <span style="color:red;font-size:.8rem">※必須</span>';
+  document.getElementById('label_kana').innerHTML = (isCorp ? 'ご担当者名ふりがな' : 'ふりがな') + ' <span style="color:red;font-size:.8rem">※必須</span>';
+  document.getElementById('c_name').placeholder = isCorp ? '例：山田太郎' : '例：山田太郎';
+  document.getElementById('c_kana').placeholder = isCorp ? '例：やまだたろう' : '例：やまだたろう';
+}
+</script>
+<script src="./shared-auth.js"></script>
+<script src="./shared-nav.js"></script>
+<script src="./shared-email-check.js"></script>
+
+<script>
+
+function fmtYen(n) {
+  var v = Math.floor(Number(n) || 0);
+  if (v < 0) return '-¥' + Math.abs(v).toLocaleString('ja-JP');
+  return '¥' + v.toLocaleString('ja-JP');
+}
+
+(function() {
+  function fixNumericInputs(root) {
+    var inputs = (root || document).querySelectorAll('input[type="number"][inputmode="numeric"]');
+    inputs.forEach(function(el) {
+      el.removeAttribute('inputmode');
+      if (el.dataset.minusFixed) return;
+      el.dataset.minusFixed = '1';
+      el.addEventListener('input', function() {
+        var v = this.value;
+        var clean = v.replace(/[^0-9-]/g, '');
+        if (clean.indexOf('-') > 0) {
+          var first = clean[0];
+          clean = first + clean.slice(1).replace(/-/g, '');
+        }
+        clean = clean.replace(/^-+/, '-');
+        if (v !== clean) this.value = clean;
+      });
+    });
+  }
+  fixNumericInputs();
+  var observer = new MutationObserver(function(mutations) {
+    mutations.forEach(function(m) {
+      m.addedNodes.forEach(function(node) {
+        if (node.nodeType === 1) fixNumericInputs(node.parentElement);
+      });
+    });
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+})();
+
+// 担当者フラグ取得（カスタム診断費ドロップダウン表示）※キャッシュなし、毎回fresh fetch
+window._ecopitaHasCustomDiagFee = false;
+function _updateCustomDiagFeeVisibility_() {
+  var field = document.getElementById('c_custom_diag_fee_field');
+  if (!field) return;
+  var prefix = document.getElementById('c_case_prefix').value;
+  var canShow = window._ecopitaHasCustomDiagFee && prefix !== 'HC';
+  field.style.display = canShow ? '' : 'none';
+  // 非表示時はリセットして金額が残らないようにする
+  if (!canShow) {
+    var sel = document.getElementById('c_custom_diag_fee');
+    if (sel) sel.value = '';
+  }
+}
+(async function loadStaffFlagsIndex_() {
+  try {
+    var session = window.ECOPITA_SESSION || {};
+    if (!session.token || !session.staffId) return;
+    var resp = await gasReadFetch(GAS_API_URL, {
+      method: 'POST',
+      body: JSON.stringify({ form_type: 'staff_flags', sessionToken: session.token })
+    }, { onStatus: gasReadStatusTarget('staff_name_display') });
+    var flags = await resp.json();
+    window._ecopitaHasCustomDiagFee = !!(flags && flags.ok && flags.customDiagFee);
+    _updateCustomDiagFeeVisibility_();
+  } catch(e) {}
+})();
+
+// カスタム診断費変更時に再計算・表示更新
+var _cdf = document.getElementById('c_custom_diag_fee');
+if (_cdf) {
+  _cdf.addEventListener('change', function() {
+    if (typeof toggleWorkMenus === 'function') toggleWorkMenus();
+    if (typeof refreshStep3Total === 'function') refreshStep3Total();
+  });
+}
+function escHtml_(value) { return String(value == null ? '' : value).replace(/[&<>"']/g, function(c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function onEqInfoOther(id) {
+  var sel = document.getElementById(id), other = document.getElementById(id + '_other');
+  if (sel && other) other.style.display = sel.value === '__other__' ? '' : 'none';
+}
+function getEquipmentInfo() {
+  var info = {};
+  ['gas_type','gas_grams','maker','model_name','model_no','indoor_floor','indoor_room','outdoor_floor','outdoor_place'].forEach(function(key) {
+    var el = document.getElementById('c_' + key), value = el ? el.value : '';
+    if (value === '__other__') { var other = document.getElementById('c_' + key + '_other'); value = other ? other.value : ''; }
+    value = String(value || '').trim();
+    if (key === 'gas_grams') value = /^[0-9]{1,5}$/.test(value) && Number(value) > 0 ? String(Number(value)) : '';
+    info[key] = value;
+  });
+  return info;
+}
+function equipmentInfoPreviewHtml_() {
+  var e = getEquipmentInfo(), html = '';
+  var rows = [['冷媒ガス', [e.gas_type, e.gas_grams ? e.gas_grams + 'g' : ''].filter(Boolean).join(' ')],
+    ['メーカー・機種', [e.maker,e.model_name,e.model_no].filter(Boolean).join(' ／ ')],
+    ['室内機', [e.indoor_floor,e.indoor_room].filter(Boolean).join(' ')],
+    ['室外機', [e.outdoor_floor,e.outdoor_place].filter(Boolean).join(' ')]];
+  rows.forEach(function(row) { if (row[1]) html += '<div class="confirm-row"><span class="confirm-label">' + row[0] + '</span><span class="confirm-val">' + escHtml_(row[1]) + '</span></div>'; });
+  return html;
+}
+</script>
+</body>
+</html>

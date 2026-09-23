@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<script src="./shared-site-config.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>書類発行</title>
+<script src="./shared-auth.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--blue:#0055a4;--blue-deep:#00366a;--purple:#5c2d91;--purple-deep:#3a1a5e;--bg:#f5f7fb;--card:#fff;--text:#1a1a1a;--sub:#5f6368;--border:#d8e0eb}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Noto Sans JP',sans-serif;background:linear-gradient(180deg,#eef5ff 0%,var(--bg) 38%,#f8fbff 100%);color:var(--text);min-height:100vh}
+.hero{background:linear-gradient(160deg,var(--purple),var(--purple-deep));color:#fff;padding:28px 20px 34px;text-align:center}
+.hero h1{font-size:1.5rem;font-weight:800;letter-spacing:.04em}
+.hero p{margin-top:8px;font-size:.92rem;opacity:.88}
+.wrap{max-width:980px;margin:0 auto;padding:22px 18px 80px}
+.case-banner{background:#fff;border:1px solid var(--border);box-shadow:0 10px 30px rgba(0,55,110,.08);border-radius:18px;padding:16px 18px;margin:-18px auto 22px;max-width:680px}
+.case-banner strong{color:var(--blue)}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.card{display:block;text-decoration:none;color:inherit;background:#fff;border:1px solid var(--border);border-radius:22px;padding:22px 18px;box-shadow:0 14px 36px rgba(0,40,90,.08);transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease}
+.card:hover{transform:translateY(-4px);box-shadow:0 18px 40px rgba(0,40,90,.13);border-color:#9fc2eb}
+.icon{width:60px;height:60px;border-radius:18px;display:flex;align-items:center;justify-content:center;font-size:1.7rem;margin-bottom:14px}
+.card h2{font-size:1.15rem;font-weight:800;margin-bottom:6px}
+.card p{font-size:.9rem;color:var(--sub);line-height:1.7}
+.pill{display:inline-block;margin-top:14px;padding:6px 10px;border-radius:999px;font-size:.8rem;font-weight:700}
+.q .icon{background:#f4eefe;color:#6b35a8}.q .pill{background:#f4eefe;color:#6b35a8}
+.i .icon{background:#f4eefe;color:#6b35a8}.i .pill{background:#f4eefe;color:#6b35a8}
+.r .icon{background:#f4eefe;color:#6b35a8}.r .pill{background:#f4eefe;color:#6b35a8}
+.note{margin-top:20px;text-align:center;color:var(--sub);font-size:.85rem}
+@media (max-width:820px){.grid{grid-template-columns:1fr}.wrap{max-width:560px}.card{padding:20px 18px}}
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>📑 書類発行</h1>
+  <p>見積書・請求書・領収書をここから開けます</p>
+</div>
+
+<div class="wrap">
+  <div id="caseBanner" class="case-banner" style="display:none"></div>
+
+  <div class="grid">
+    <a id="cardQuote" class="card q" href="quote.html">
+      <div class="icon">📄</div>
+      <h2>見積書</h2>
+      <p>修理見積の編集・再発行をします。</p>
+      <span class="pill">見積書フォームへ</span>
+    </a>
+
+    <a id="cardInvoice" class="card i" href="invoice.html">
+      <div class="icon">💳</div>
+      <h2>請求書</h2>
+      <p>契約書や見積書から請求書を発行します。</p>
+      <span class="pill">請求書フォームへ</span>
+    </a>
+
+    <a id="cardReceipt" class="card r" href="receipt.html">
+      <div class="icon">🧾</div>
+      <h2>領収書</h2>
+      <p>着金済の案件の領収書を発行します</p>
+      <span class="pill">領収書フォームへ</span>
+    </a>
+  </div>
+
+  <div class="note">案件番号付きで開いた場合は、そのまま各フォームへ引き継がれます。</div>
+</div>
+
+<script>
+(function initDocsHub() {
+  var params = new URLSearchParams(location.search);
+  var caseId = params.get('case_id') || params.get('c') || '';
+  var banner = document.getElementById('caseBanner');
+  if (caseId) {
+    banner.style.display = 'block';
+    banner.innerHTML = '現在の案件番号: <strong>' + escapeHtml(caseId) + '</strong><br><span style="color:#5f6368;font-size:.86rem">この案件番号を引き継いで各書類フォームを開きます。</span>';
+    document.getElementById('cardQuote').href = 'quote.html?c=' + encodeURIComponent(caseId);
+    document.getElementById('cardInvoice').href = 'invoice.html?c=' + encodeURIComponent(caseId);
+    document.getElementById('cardReceipt').href = 'receipt.html?case_id=' + encodeURIComponent(caseId);
+  }
+
+  function escapeHtml(s) {
+    var el = document.createElement('div');
+    el.textContent = s || '';
+    return el.innerHTML;
+  }
+})();
+</script>
+<script src="./shared-nav.js"></script>
+</body>
+</html>

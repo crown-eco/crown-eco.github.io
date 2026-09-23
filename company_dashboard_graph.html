@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<script src="./shared-site-config.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>会社収益グラフ</title>
+<script src="./shared-auth.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<style>
+:root{
+  --bg:#0f172a;--bg2:#111827;--surface:#ffffff;--surface2:#f4f7fb;--surface3:#eef6ff;--border:#d9e1eb;
+  --text:#18212f;--muted:#667085;--accent:#0f766e;--accent2:#115e59;--red:#b42318;--amber:#b45309;
+  --shadow:0 10px 30px rgba(15,23,42,.08);--radius:16px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Hiragino Sans","Noto Sans JP",sans-serif;background:linear-gradient(180deg,var(--bg),var(--bg2));color:var(--text);min-height:100vh}
+.hero{padding:28px 20px 22px;color:#fff}
+.hero-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;max-width:1180px;margin:0 auto}
+.hero h1{font-size:1.45rem;font-weight:800;letter-spacing:.02em}
+.hero p{margin-top:8px;color:rgba(255,255,255,.78);font-size:.92rem;line-height:1.6}
+.admin-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.18);padding:7px 12px;border-radius:999px;font-size:.82rem;font-weight:700;white-space:nowrap}
+.wrap{max-width:1180px;margin:0 auto;padding:18px 18px 28px}
+.panel{background:var(--surface);border:1px solid rgba(255,255,255,.2);border-radius:20px;box-shadow:var(--shadow)}
+.toolbar{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;padding:18px}
+.field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.field label{font-size:.78rem;font-weight:700;color:var(--muted)}
+.seg{display:flex;gap:6px;background:var(--surface2);padding:4px;border-radius:12px}
+.seg button,.ghost,.primary,.soft-btn{font-family:inherit}
+.seg button{border:none;background:transparent;color:var(--muted);padding:9px 14px;border-radius:10px;font-size:.88rem;font-weight:700;cursor:pointer}
+.seg button.active{background:#fff;color:var(--accent);box-shadow:0 2px 8px rgba(15,23,42,.08)}
+input[type="date"],input[type="number"]{height:42px;padding:0 12px;border:1px solid var(--border);border-radius:12px;background:#fff;font:inherit;color:var(--text)}
+input[type="number"]{width:110px}
+.ghost,.primary,.soft-btn{height:42px;border-radius:12px;padding:0 14px;font-size:.88rem;font-weight:700;cursor:pointer}
+.ghost{border:1px solid var(--border);background:#fff;color:var(--muted);text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
+.primary{border:none;background:var(--accent);color:#fff}
+.primary:hover{background:var(--accent2)}
+.primary:disabled{background:#9ca3af;cursor:not-allowed}
+.soft-btn{border:1px solid var(--border);background:var(--surface2);color:var(--text)}
+.shortcut-row{display:flex;gap:8px;flex-wrap:wrap}
+.content{padding:0 18px 18px}
+.meta{padding:0 18px 18px;color:var(--muted);font-size:.84rem;line-height:1.7}
+.section{border-top:1px solid #edf1f6;padding:18px}
+.section:first-of-type{border-top:none}
+.section h2{font-size:1rem;font-weight:800;margin-bottom:12px}
+.section-note{margin-top:-4px;margin-bottom:12px;font-size:.8rem;color:var(--muted);line-height:1.6}
+.notice{margin-top:10px;padding:10px 12px;border-radius:12px;background:#fff8eb;border:1px solid #f6d7a8;color:#8a4b00;font-size:.82rem;line-height:1.6}
+.danger{background:#fff4f2;border-color:#f8c6bd;color:var(--red)}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.group-card{background:var(--surface2);border:1px solid var(--border);border-radius:16px;padding:14px;min-width:0}
+.group-card h3{font-size:.88rem;font-weight:800;margin-bottom:10px}
+.subsection{margin-top:14px}
+.subsection:first-child{margin-top:0}
+.subsection h4{font-size:.8rem;font-weight:800;color:var(--muted);margin-bottom:8px}
+.check-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(128px,1fr));gap:8px}
+.check-grid.compact{grid-template-columns:repeat(auto-fit,minmax(96px,1fr))}
+.check-item{display:flex;align-items:flex-start;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:12px;background:#fff;min-width:0}
+.check-item input{margin-top:2px;flex:0 0 auto}
+.check-item span{font-size:.84rem;line-height:1.5;word-break:break-word}
+.check-item.disabled{opacity:.48}
+.range-row{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
+.range-inline{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.range-inline span{font-size:.84rem;color:var(--muted)}
+.metric-layout{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.chart-wrap{background:#fff;border:1px solid var(--border);border-radius:18px;padding:16px}
+.chart-meta{display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;align-items:flex-start;margin-bottom:12px}
+.chart-meta h2{margin:0;font-size:1rem}
+.chart-summary{font-size:.82rem;color:var(--muted);line-height:1.6}
+.chart-canvas-wrap{position:relative;height:420px}
+.empty{padding:56px 18px;text-align:center;color:var(--muted);font-size:.92rem}
+.state{padding:56px 18px;text-align:center;color:#fff}
+.state .box{max-width:420px;margin:0 auto;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:20px;padding:28px}
+.state h2{font-size:1.2rem;margin-bottom:10px}
+.state p{color:rgba(255,255,255,.8);line-height:1.7}
+.spinner{width:34px;height:34px;border-radius:50%;border:3px solid rgba(255,255,255,.18);border-top-color:#fff;animation:spin .8s linear infinite;margin:0 auto 14px}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media(max-width:860px){
+  .grid,.metric-layout{grid-template-columns:1fr}
+}
+@media(max-width:760px){
+  .hero{padding:24px 14px 18px}
+  .wrap{padding:14px 12px 20px}
+  .hero-top{flex-direction:column}
+  .toolbar{padding:14px}
+  .content,.meta{padding-left:14px;padding-right:14px}
+  .seg{width:100%;overflow:auto}
+  .seg button{flex:1 0 auto}
+  .check-grid{grid-template-columns:1fr 1fr}
+  .check-grid.compact{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .chart-canvas-wrap{height:340px}
+}
+</style>
+<script src="./shared-gas-call.js?v=20260914-read-v1"></script>
+</head>
+<body>
+<div id="loadingState" class="state">
+  <div class="box">
+    <div class="spinner"></div>
+    <h2>会社収益グラフを読み込み中</h2>
+  </div>
+</div>
+
+<div id="errorState" class="state" style="display:none">
+  <div class="box">
+    <h2 id="errorTitle">表示できません</h2>
+    <p id="errorText">データの読み込みに失敗しました。</p>
+  </div>
+</div>
+
+<div id="app" style="display:none">
+  <div class="hero">
+    <div class="hero-top">
+      <div>
+        <h1>会社収益グラフ</h1>
+        <p>期間・指標・軸を選んで時系列で比較します。件数系と金額系は同時選択できません。</p>
+      </div>
+      <div class="admin-badge">管理者専用</div>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <div class="panel">
+      <div class="toolbar">
+        <a href="company_dashboard.html" class="ghost">← ダッシュボードに戻る</a>
+        <button type="button" class="primary" id="showBtn">表示</button>
+      </div>
+
+      <div class="content">
+        <div class="section">
+          <h2>期間</h2>
+          <div class="range-row">
+            <div class="field">
+              <label>種別</label>
+              <div class="seg" id="periodSeg">
+                <button type="button" data-period="day" class="active">日</button>
+                <button type="button" data-period="week">週</button>
+                <button type="button" data-period="month">月</button>
+              </div>
+            </div>
+            <div class="field">
+              <label>指定方法</label>
+              <div class="seg" id="rangeModeSeg">
+                <button type="button" data-range-mode="past" class="active">過去N</button>
+                <button type="button" data-range-mode="custom">日付指定</button>
+              </div>
+            </div>
+            <div class="field" id="pastCountField">
+              <label>過去何単位</label>
+              <div class="range-inline">
+                <input type="number" id="pastCount" min="1" max="60" step="1" value="30">
+                <span id="pastUnitLabel">日</span>
+              </div>
+            </div>
+            <div class="field">
+              <label>基準日</label>
+              <input type="date" id="anchorDate">
+            </div>
+            <div class="field" id="customStartField" style="display:none">
+              <label>開始日</label>
+              <input type="date" id="startDate">
+            </div>
+            <div class="field" id="customEndField" style="display:none">
+              <label>終了日</label>
+              <input type="date" id="endDate">
+            </div>
+          </div>
+          <div class="shortcut-row" style="margin-top:12px">
+            <button type="button" class="soft-btn" data-shortcut="today">今日</button>
+            <button type="button" class="soft-btn" data-shortcut="this_week">今週</button>
+            <button type="button" class="soft-btn" data-shortcut="this_month">今月</button>
+            <button type="button" class="soft-btn" data-shortcut="last_month">先月</button>
+          </div>
+          <div class="section-note" id="periodSummary" style="margin-top:12px"></div>
+        </div>
+
+        <div class="section">
+          <h2>指標</h2>
+          <div class="section-note">件数系（受注件数・売上件数）と金額系（売上金額・広告利益・ロイヤリティ・手数料利益・経費・手残り）は同時選択不可です。切り替え時は反対側のチェックを自動で外します。</div>
+          <div class="metric-layout">
+            <div class="group-card">
+              <h3>件数</h3>
+              <div class="check-grid compact" id="countMetricBox"></div>
+            </div>
+            <div class="group-card">
+              <h3>金額</h3>
+              <div class="check-grid" id="moneyMetricBox"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <h2>グループ軸</h2>
+          <div class="section-note">全体・担当者・地域・広告会社は同時選択できます。地域×広告会社を使う場合は他の軸とは同時選択できません。</div>
+          <div class="grid">
+            <div class="group-card">
+              <div class="subsection">
+                <h4>通常軸</h4>
+                <div class="check-grid compact">
+                  <label class="check-item"><input type="checkbox" id="groupAll" checked><span>全体</span></label>
+                </div>
+              </div>
+              <div class="subsection">
+                <h4>担当者</h4>
+                <div class="check-grid" id="staffBox"></div>
+              </div>
+              <div class="subsection">
+                <h4>地域</h4>
+                <div class="check-grid" id="prefBox"></div>
+              </div>
+              <div class="subsection">
+                <h4>広告会社</h4>
+                <div class="check-grid compact" id="companyBox"></div>
+              </div>
+            </div>
+
+            <div class="group-card">
+              <div class="subsection">
+                <h4>地域×広告会社</h4>
+                <div class="section-note">都道府県は最大2つ、広告会社は最大4つ、組み合わせは最大6です。選択中は通常軸を自動で外します。</div>
+                <div class="subsection">
+                  <h4>都道府県</h4>
+                  <div class="check-grid" id="crossPrefBox"></div>
+                </div>
+                <div class="subsection">
+                  <h4>広告会社</h4>
+                  <div class="check-grid compact" id="crossCompanyBox"></div>
+                </div>
+                <div class="notice" id="crossNotice" style="display:none"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="chart-meta">
+            <div>
+              <h2>折れ線グラフ</h2>
+              <div class="chart-summary" id="chartSummary">指標と軸を選んで表示してください。</div>
+            </div>
+          </div>
+          <div class="notice" id="apiNote" style="display:none"></div>
+          <div class="chart-wrap">
+            <div class="chart-canvas-wrap">
+              <canvas id="graphCanvas"></canvas>
+            </div>
+            <div id="emptyState" class="empty" style="display:none">対象期間のデータはありません。</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+var GAS_API_URL = 'https://script.google.com/macros/s/AKfycbyvjri6i0fe11hzfoqfhSxWCsn1aP2WyT9ELZOzNMrVyEOx-ZsKqlhJQONzlaFLmPw/exec';
+var SESSION = window.ECOPITA_SESSION || null;
+
+if (SESSION && !(SESSION.isAdmin === true || SESSION.role === 'admin')) {
+  location.replace(window.ECOPITA_SITE.baseUrl + '/portal.html');
+}
+
+var COUNT_METRICS = [
+  { key: 'juchu_count', label: '受注件数' },
+  { key: 'uriage_count', label: '売上件数' }
+];
+var MONEY_METRICS = [
+  { key: 'uriage_amount', label: '売上金額' },
+  { key: 'koukoku_rieki', label: '広告利益' },
+  { key: 'royalty', label: 'ロイヤリティ' },
+  { key: 'card_fee_profit', label: '手数料利益' },
+  { key: 'keihi', label: '経費' },
+  { key: 'tenokori', label: '手残り' }
+];
+var COMPANY_OPTIONS = ['HM', 'CP', 'YA', 'HC'];
+var DAYS = ['日', '月', '火', '水', '木', '金', '土'];
+var METRIC_META = {};
+COUNT_METRICS.concat(MONEY_METRICS).forEach(function(metric) {
+  METRIC_META[metric.key] = metric;
+});
+
+var STATE = {
+  periodType: 'day',
+  rangeMode: 'past',
+  anchorDate: todayKey_(),
+  startDate: '',
+  endDate: '',
+  pastCount: { day: 30, week: 12, month: 12 },
+  metrics: ['koukoku_rieki'],
+  groupAll: true,
+  staffIds: [],
+  prefs: [],
+  companies: [],
+  crossPrefs: [],
+  crossCompanies: [],
+  options: { staffs: [], prefs: [], companies: COMPANY_OPTIONS.slice() },
+  response: null
+};
+var GRAPH = null;
+
+function todayKey_() {
+  return formatDate_(new Date());
+}
+
+function formatDate_(d) {
+  var y = d.getFullYear();
+  var m = ('0' + (d.getMonth() + 1)).slice(-2);
+  var day = ('0' + d.getDate()).slice(-2);
+  return y + '-' + m + '-' + day;
+}
+
+function parseDateKey_(value) {
+  var m = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+}
+
+function addDays_(date, days) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
+}
+
+function startOfWeek_(date) {
+  var d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  var diff = d.getDay() >= 4 ? d.getDay() - 4 : d.getDay() + 3;
+  d.setDate(d.getDate() - diff);
+  return d;
+}
+
+function startOfMonth_(date) {
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+function endOfMonth_(date) {
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0);
+}
+
+function esc_(value) {
+  var div = document.createElement('div');
+  div.textContent = value == null ? '' : String(value);
+  return div.innerHTML;
+}
+
+function showState_(mode, title, text) {
+  document.getElementById('loadingState').style.display = mode === 'loading' ? '' : 'none';
+  document.getElementById('errorState').style.display = mode === 'error' ? '' : 'none';
+  document.getElementById('app').style.display = mode === 'app' ? '' : 'none';
+  if (mode === 'error') {
+    document.getElementById('errorTitle').textContent = title || '表示できません';
+    document.getElementById('errorText').textContent = text || 'データの読み込みに失敗しました。';
+  }
+}
+
+function fmtMoney_(value) {
+  var n = Math.round(Number(value) || 0);
+  var s = '¥' + Math.abs(n).toLocaleString('ja-JP');
+  return n < 0 ? '-' + s : s;
+}
+
+function buildPeriodRange_() {
+  if (STATE.rangeMode === 'custom') {
+    var start = parseDateKey_(STATE.startDate) || parseDateKey_(todayKey_());
+    var end = parseDateKey_(STATE.endDate) || start;
+    if (start > end) {
+      var tmp = start;
+      start = end;
+      end = tmp;
+    }
+    return { start: formatDate_(start), end: formatDate_(end) };
+  }
+  var anchor = parseDateKey_(STATE.anchorDate) || new Date();
+  var count = Math.max(1, Number(STATE.pastCount[STATE.periodType]) || 1);
+  var start;
+  var end;
+  if (STATE.periodType === 'week') {
+    var endWeekStart = startOfWeek_(anchor);
+    start = addDays_(endWeekStart, -7 * (count - 1));
+    end = addDays_(endWeekStart, 6);
+  } else if (STATE.periodType === 'month') {
+    var endMonthStart = startOfMonth_(anchor);
+    start = new Date(endMonthStart.getFullYear(), endMonthStart.getMonth() - (count - 1), 1);
+    end = endOfMonth_(anchor);
+  } else {
+    end = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate());
+    start = addDays_(end, -(count - 1));
+  }
+  return { start: formatDate_(start), end: formatDate_(end) };
+}
+
+function periodSummaryText_() {
+  var range = buildPeriodRange_();
+  var start = parseDateKey_(range.start);
+  var end = parseDateKey_(range.end);
+  var label = STATE.periodType === 'week' ? '週' : STATE.periodType === 'month' ? 'ヶ月' : '日';
+  if (STATE.rangeMode === 'past') {
+    return '過去' + STATE.pastCount[STATE.periodType] + label + ' / ' + formatDisplayDate_(start) + ' 〜 ' + formatDisplayDate_(end);
+  }
+  return '指定期間 / ' + formatDisplayDate_(start) + ' 〜 ' + formatDisplayDate_(end);
+}
+
+function formatDisplayDate_(date) {
+  if (!date) return '';
+  return (date.getMonth() + 1) + '/' + date.getDate() + '（' + DAYS[date.getDay()] + '）';
+}
+
+function setShortcut_(shortcut) {
+  var now = new Date();
+  if (shortcut === 'today') {
+    STATE.periodType = 'day';
+    STATE.rangeMode = 'custom';
+    STATE.startDate = formatDate_(now);
+    STATE.endDate = formatDate_(now);
+    return;
+  }
+  if (shortcut === 'this_week') {
+    var sw = startOfWeek_(now);
+    STATE.periodType = 'week';
+    STATE.rangeMode = 'custom';
+    STATE.startDate = formatDate_(sw);
+    STATE.endDate = formatDate_(addDays_(sw, 6));
+    return;
+  }
+  if (shortcut === 'this_month') {
+    STATE.periodType = 'month';
+    STATE.rangeMode = 'custom';
+    STATE.startDate = formatDate_(startOfMonth_(now));
+    STATE.endDate = formatDate_(endOfMonth_(now));
+    return;
+  }
+  if (shortcut === 'last_month') {
+    var prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    STATE.periodType = 'month';
+    STATE.rangeMode = 'custom';
+    STATE.startDate = formatDate_(startOfMonth_(prev));
+    STATE.endDate = formatDate_(endOfMonth_(prev));
+  }
+}
+
+function syncMetricFamily_(changedKey) {
+  var isCount = COUNT_METRICS.some(function(metric) { return metric.key === changedKey; });
+  var isMoney = MONEY_METRICS.some(function(metric) { return metric.key === changedKey; });
+  if (isCount) {
+    STATE.metrics = STATE.metrics.filter(function(metric) {
+      return COUNT_METRICS.some(function(item) { return item.key === metric; });
+    });
+  } else if (isMoney) {
+    STATE.metrics = STATE.metrics.filter(function(metric) {
+      return MONEY_METRICS.some(function(item) { return item.key === metric; });
+    });
+  }
+}
+
+function toggleMetric_(key, checked) {
+  if (checked) {
+    if (STATE.metrics.indexOf(key) === -1) STATE.metrics.push(key);
+    syncMetricFamily_(key);
+  } else {
+    STATE.metrics = STATE.metrics.filter(function(metric) { return metric !== key; });
+  }
+  if (!STATE.metrics.length) STATE.metrics = ['koukoku_rieki'];
+}
+
+function hasCrossSelection_() {
+  return STATE.crossPrefs.length > 0 || STATE.crossCompanies.length > 0;
+}
+
+function normalizeGroupSelections_() {
+  if (hasCrossSelection_()) {
+    STATE.groupAll = false;
+    STATE.staffIds = [];
+    STATE.prefs = [];
+    STATE.companies = [];
+  }
+  if (STATE.crossPrefs.length > 2) STATE.crossPrefs = STATE.crossPrefs.slice(0, 2);
+  if (STATE.crossCompanies.length > 4) STATE.crossCompanies = STATE.crossCompanies.slice(0, 4);
+}
+
+function buildGroupsPayload_() {
+  normalizeGroupSelections_();
+  if (hasCrossSelection_()) {
+    return [{
+      type: 'pref_company',
+      prefs: STATE.crossPrefs.slice(),
+      companies: STATE.crossCompanies.slice()
+    }];
+  }
+  var groups = [];
+  if (STATE.groupAll) groups.push({ type: 'all' });
+  if (STATE.staffIds.length) groups.push({ type: 'staff', ids: STATE.staffIds.slice() });
+  if (STATE.prefs.length) groups.push({ type: 'pref', ids: STATE.prefs.slice() });
+  if (STATE.companies.length) groups.push({ type: 'company', ids: STATE.companies.slice() });
+  if (!groups.length) groups.push({ type: 'all' });
+  return groups;
+}
+
+function validateSelection_() {
+  var notice = document.getElementById('crossNotice');
+  var showBtn = document.getElementById('showBtn');
+  notice.style.display = 'none';
+  notice.className = 'notice';
+  var metrics = STATE.metrics.slice();
+  var hasCount = metrics.some(function(metric) { return COUNT_METRICS.some(function(item) { return item.key === metric; }); });
+  var hasMoney = metrics.some(function(metric) { return MONEY_METRICS.some(function(item) { return item.key === metric; }); });
+  if (hasCount && hasMoney) {
+    notice.textContent = '件数系と金額系は同時選択できません。';
+    notice.style.display = '';
+    notice.classList.add('danger');
+    showBtn.disabled = true;
+    return false;
+  }
+  if (hasCrossSelection_()) {
+    if (!STATE.crossPrefs.length || !STATE.crossCompanies.length) {
+      notice.textContent = '地域×広告会社を使う場合は、都道府県と広告会社を1つ以上ずつ選択してください。';
+      notice.style.display = '';
+      showBtn.disabled = true;
+      return false;
+    }
+    var comboCount = STATE.crossPrefs.length * STATE.crossCompanies.length;
+    if (comboCount > 6) {
+      notice.textContent = '地域×広告会社の組み合わせは最大6です。';
+      notice.style.display = '';
+      notice.classList.add('danger');
+      showBtn.disabled = true;
+      return false;
+    }
+  }
+  showBtn.disabled = false;
+  return true;
+}
+
+function renderMetricBoxes_() {
+  function renderBox_(containerId, items) {
+    var html = items.map(function(item) {
+      var checked = STATE.metrics.indexOf(item.key) !== -1 ? ' checked' : '';
+      return '<label class="check-item"><input type="checkbox" data-metric="' + esc_(item.key) + '"' + checked + '><span>' + esc_(item.label) + '</span></label>';
+    }).join('');
+    document.getElementById(containerId).innerHTML = html;
+  }
+  renderBox_('countMetricBox', COUNT_METRICS);
+  renderBox_('moneyMetricBox', MONEY_METRICS);
+}
+
+function renderOptionsBox_(containerId, values, selectedValues, attrName) {
+  var selected = {};
+  (selectedValues || []).forEach(function(value) { selected[value] = true; });
+  var html = (values || []).map(function(item) {
+    var value = typeof item === 'string' ? item : item.id;
+    var label = typeof item === 'string' ? item : (item.label || item.id);
+    var checked = selected[value] ? ' checked' : '';
+    return '<label class="check-item"><input type="checkbox" ' + attrName + '="' + esc_(value) + '"' + checked + '><span>' + esc_(label) + '</span></label>';
+  }).join('');
+  document.getElementById(containerId).innerHTML = html || '<div class="section-note">候補なし</div>';
+}
+
+function renderGroupBoxes_() {
+  renderOptionsBox_('staffBox', STATE.options.staffs || [], STATE.staffIds, 'data-staff');
+  renderOptionsBox_('prefBox', STATE.options.prefs || [], STATE.prefs, 'data-pref');
+  renderOptionsBox_('companyBox', STATE.options.companies || COMPANY_OPTIONS, STATE.companies, 'data-company');
+  renderOptionsBox_('crossPrefBox', STATE.options.prefs || [], STATE.crossPrefs, 'data-cross-pref');
+  renderOptionsBox_('crossCompanyBox', STATE.options.companies || COMPANY_OPTIONS, STATE.crossCompanies, 'data-cross-company');
+  document.getElementById('groupAll').checked = !!STATE.groupAll;
+
+  var lockOthers = hasCrossSelection_();
+  document.querySelectorAll('#staffBox .check-item,#prefBox .check-item,#companyBox .check-item').forEach(function(node) {
+    node.classList.toggle('disabled', lockOthers);
+  });
+  document.querySelectorAll('#staffBox input,#prefBox input,#companyBox input,#groupAll').forEach(function(input) {
+    input.disabled = lockOthers;
+  });
+}
+
+function renderRangeUi_() {
+  document.querySelectorAll('[data-period]').forEach(function(btn) {
+    btn.classList.toggle('active', btn.getAttribute('data-period') === STATE.periodType);
+  });
+  document.querySelectorAll('[data-range-mode]').forEach(function(btn) {
+    btn.classList.toggle('active', btn.getAttribute('data-range-mode') === STATE.rangeMode);
+  });
+  document.getElementById('anchorDate').value = STATE.anchorDate;
+  document.getElementById('startDate').value = STATE.startDate;
+  document.getElementById('endDate').value = STATE.endDate;
+  document.getElementById('pastCount').value = STATE.pastCount[STATE.periodType];
+  document.getElementById('pastUnitLabel').textContent = STATE.periodType === 'week' ? '週' : STATE.periodType === 'month' ? 'ヶ月' : '日';
+  document.getElementById('pastCountField').style.display = STATE.rangeMode === 'past' ? '' : 'none';
+  document.getElementById('customStartField').style.display = STATE.rangeMode === 'custom' ? '' : 'none';
+  document.getElementById('customEndField').style.display = STATE.rangeMode === 'custom' ? '' : 'none';
+  document.getElementById('periodSummary').textContent = periodSummaryText_();
+}
+
+function colorForIndex_(index) {
+  var palette = [
+    '#0f766e', '#1d4ed8', '#b45309', '#7c3aed', '#dc2626', '#0891b2',
+    '#16a34a', '#c2410c', '#be185d', '#4f46e5', '#15803d', '#0ea5e9'
+  ];
+  return palette[index % palette.length];
+}
+
+function renderChart_() {
+  var res = STATE.response;
+  var note = document.getElementById('apiNote');
+  var summary = document.getElementById('chartSummary');
+  var empty = document.getElementById('emptyState');
+  note.style.display = 'none';
+  note.className = 'notice';
+  if (!res || !res.series || !res.series.length || !res.labels || !res.labels.length) {
+    empty.style.display = '';
+    summary.textContent = '対象期間のデータはありません。';
+    if (GRAPH) {
+      GRAPH.destroy();
+      GRAPH = null;
+    }
+    return;
+  }
+  empty.style.display = 'none';
+  var noteTexts = [];
+  if (res.notes && res.notes.keihi_allocation) noteTexts.push('経費・手残りは売上金額比で按分した概算です。');
+  if (res.notes && res.notes.royalty_direct) noteTexts.push('ロイヤリティは売上管理から直接計算しています。');
+  if (noteTexts.length) {
+    note.textContent = noteTexts.join(' ');
+    note.style.display = '';
+  }
+  summary.textContent = (res.period ? (res.period.start + ' 〜 ' + res.period.end + ' / ') : '') + '系列 ' + res.series.length + ' 本';
+  var ctx = document.getElementById('graphCanvas');
+  if (GRAPH) GRAPH.destroy();
+  GRAPH = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: res.labels,
+      datasets: res.series.map(function(series, idx) {
+        var color = colorForIndex_(idx);
+        return {
+          label: series.label,
+          data: series.data,
+          borderColor: color,
+          backgroundColor: color + '22',
+          pointRadius: 2.5,
+          pointHoverRadius: 4,
+          borderWidth: 2.2,
+          fill: false,
+          tension: 0.22
+        };
+      })
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: { usePointStyle: true, boxWidth: 10, padding: 14 }
+        },
+        tooltip: {
+          callbacks: {
+            label: function(context) {
+              var metric = res.series[context.datasetIndex] && res.series[context.datasetIndex].metric;
+              var value = context.parsed.y;
+              if (metric === 'juchu_count' || metric === 'uriage_count') return context.dataset.label + ': ' + Number(value || 0).toLocaleString('ja-JP') + '件';
+              return context.dataset.label + ': ' + fmtMoney_(value);
+            }
+          }
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: false,
+          ticks: {
+            callback: function(value) {
+              var metric = res.series[0] && res.series[0].metric;
+              if (metric === 'juchu_count' || metric === 'uriage_count') return Number(value || 0).toLocaleString('ja-JP') + '件';
+              return fmtMoney_(value);
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+async function callApi_(payload) {
+  var encoded = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+  var url = GAS_API_URL + '?_portal_data=' + encodeURIComponent(encoded);
+  var res = await gasReadFetch(url, { redirect: 'follow' }, { onStatus: gasReadStatusTarget(document.querySelector('#loadingState h2')) });
+  var text = await res.text();
+  return JSON.parse(text);
+}
+
+function buildPayload_() {
+  var range = buildPeriodRange_();
+  return {
+    action: 'company_dashboard_graph',
+    token: SESSION ? SESSION.token : '',
+    period_type: STATE.periodType,
+    start_date: range.start,
+    end_date: range.end,
+    metrics: STATE.metrics.slice(),
+    groups: buildGroupsPayload_(),
+    ua: navigator.userAgent || ''
+  };
+}
+
+async function loadGraph_() {
+  if (window.ECOPITA_SITE_BLOCKED) return;
+  if (SESSION && !(SESSION.isAdmin === true || SESSION.role === 'admin')) {
+    location.replace(window.ECOPITA_SITE.baseUrl + '/portal.html');
+    return;
+  }
+  if (!validateSelection_()) return;
+  showState_('loading');
+  try {
+    var res = await callApi_(buildPayload_());
+    if (!res || !res.ok) {
+      if (res && (res.error === 'permission_denied' || res.reason === 'permission_denied' || res.error === 'unavailable')) {
+        showState_('error', '管理者のみ閲覧できます', '権限がないため会社収益グラフは開けません。業務成績ポータルへ戻ります。');
+        setTimeout(function() {
+          location.replace(window.ECOPITA_SITE.baseUrl + '/portal.html');
+        }, 1800);
+        return;
+      }
+      throw new Error((res && (res.error || res.reason)) || 'データの取得に失敗しました。');
+    }
+    STATE.response = res;
+    if (res.options) {
+      STATE.options = {
+        staffs: res.options.staffs || [],
+        prefs: res.options.prefs || [],
+        companies: res.options.companies || COMPANY_OPTIONS.slice()
+      };
+    }
+    renderMetricBoxes_();
+    renderGroupBoxes_();
+    renderRangeUi_();
+    renderChart_();
+    validateSelection_();
+    showState_('app');
+  } catch (err) {
+    showState_('error', '読み込みに失敗しました', err.message || String(err));
+  }
+}
+
+function bindEvents_() {
+  document.getElementById('anchorDate').addEventListener('change', function() {
+    STATE.anchorDate = this.value || todayKey_();
+    renderRangeUi_();
+  });
+  document.getElementById('startDate').addEventListener('change', function() {
+    STATE.startDate = this.value || '';
+    renderRangeUi_();
+  });
+  document.getElementById('endDate').addEventListener('change', function() {
+    STATE.endDate = this.value || '';
+    renderRangeUi_();
+  });
+  document.getElementById('pastCount').addEventListener('change', function() {
+    STATE.pastCount[STATE.periodType] = Math.max(1, Number(this.value) || 1);
+    renderRangeUi_();
+    validateSelection_();
+  });
+
+  document.querySelectorAll('[data-period]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      STATE.periodType = this.getAttribute('data-period');
+      if (!STATE.pastCount[STATE.periodType]) {
+        STATE.pastCount[STATE.periodType] = STATE.periodType === 'week' ? 12 : STATE.periodType === 'month' ? 12 : 30;
+      }
+      renderRangeUi_();
+      validateSelection_();
+    });
+  });
+
+  document.querySelectorAll('[data-range-mode]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      STATE.rangeMode = this.getAttribute('data-range-mode');
+      if (STATE.rangeMode === 'custom') {
+        var range = buildPeriodRange_();
+        STATE.startDate = range.start;
+        STATE.endDate = range.end;
+      }
+      renderRangeUi_();
+      validateSelection_();
+    });
+  });
+
+  document.querySelectorAll('[data-shortcut]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      setShortcut_(this.getAttribute('data-shortcut'));
+      renderRangeUi_();
+      validateSelection_();
+      loadGraph_();
+    });
+  });
+
+  document.body.addEventListener('change', function(event) {
+    var target = event.target;
+    if (target.matches('[data-metric]')) {
+      toggleMetric_(target.getAttribute('data-metric'), target.checked);
+      renderMetricBoxes_();
+      validateSelection_();
+      return;
+    }
+    if (target.id === 'groupAll') {
+      STATE.groupAll = !!target.checked;
+      validateSelection_();
+      return;
+    }
+    if (target.matches('[data-staff]')) {
+      updateSelectionArray_(STATE.staffIds, target.getAttribute('data-staff'), target.checked);
+      validateSelection_();
+      return;
+    }
+    if (target.matches('[data-pref]')) {
+      updateSelectionArray_(STATE.prefs, target.getAttribute('data-pref'), target.checked);
+      validateSelection_();
+      return;
+    }
+    if (target.matches('[data-company]')) {
+      updateSelectionArray_(STATE.companies, target.getAttribute('data-company'), target.checked);
+      validateSelection_();
+      return;
+    }
+    if (target.matches('[data-cross-pref]')) {
+      updateSelectionArray_(STATE.crossPrefs, target.getAttribute('data-cross-pref'), target.checked);
+      if (STATE.crossPrefs.length > 2) {
+        STATE.crossPrefs = STATE.crossPrefs.slice(0, 2);
+      }
+      normalizeGroupSelections_();
+      renderGroupBoxes_();
+      validateSelection_();
+      return;
+    }
+    if (target.matches('[data-cross-company]')) {
+      updateSelectionArray_(STATE.crossCompanies, target.getAttribute('data-cross-company'), target.checked);
+      if (STATE.crossCompanies.length > 4) {
+        STATE.crossCompanies = STATE.crossCompanies.slice(0, 4);
+      }
+      normalizeGroupSelections_();
+      renderGroupBoxes_();
+      validateSelection_();
+    }
+  });
+
+  document.getElementById('showBtn').addEventListener('click', function() {
+    loadGraph_();
+  });
+}
+
+function updateSelectionArray_(arr, value, checked) {
+  var idx = arr.indexOf(value);
+  if (checked && idx === -1) arr.push(value);
+  if (!checked && idx !== -1) arr.splice(idx, 1);
+}
+
+function initState_() {
+  STATE.anchorDate = todayKey_();
+  var today = parseDateKey_(STATE.anchorDate);
+  STATE.startDate = formatDate_(today);
+  STATE.endDate = formatDate_(today);
+  renderMetricBoxes_();
+  renderGroupBoxes_();
+  renderRangeUi_();
+  validateSelection_();
+}
+
+initState_();
+bindEvents_();
+loadGraph_();
+</script>
+<script src="./shared-nav.js"></script>
+</body>
+</html>

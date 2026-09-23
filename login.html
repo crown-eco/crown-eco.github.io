@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<script src="./shared-site-config.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ログイン - エコピタ業務システム</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap');
+:root{--bg:#eef0f4;--card:#fff;--hdr:#161b26;--text:#161b26;--text2:#3d4663;--muted:#7c839a;--inv:#fff;--lbl:#555d78;--border:#d8dce6;--focus:#3b6df0;--accent:#3b6df0;--accent-h:#2d57c7;--red:#c93030;--r:10px;--rlg:14px}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{font-size:15px}
+body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text);line-height:1.6;min-height:100vh}
+.mono{font-family:'JetBrains Mono',monospace}
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.screen{display:none;align-items:center;justify-content:center;min-height:100vh;padding:20px;background:linear-gradient(160deg,#161b26,#232b3e 40%,#1a2030)}
+.screen.active{display:flex}
+
+.lcard{width:100%;max-width:400px;background:var(--card);border-radius:var(--rlg);box-shadow:0 8px 30px rgba(0,0,0,.12);overflow:hidden;animation:fadeUp .4s ease both}
+.lcard-hdr{background:var(--hdr);padding:28px 26px 24px;text-align:center;border-bottom:3px solid var(--accent)}
+.lcard-hdr h1{color:var(--inv);font-size:1.2rem;font-weight:700;letter-spacing:.05em}
+.lcard-hdr .sub{color:rgba(255,255,255,.3);font-size:.75rem;margin-top:3px;letter-spacing:.1em;text-transform:uppercase}
+.lform{padding:26px}
+.fld{margin-bottom:16px}
+.fld label{display:block;font-size:.85rem;font-weight:500;color:var(--lbl);margin-bottom:5px}
+.fld input{width:100%;padding:12px;font-size:1.05rem;font-family:inherit;background:#f5f6f9;border:1.5px solid var(--border);border-radius:var(--r);outline:none;transition:border .2s}
+.fld input:focus{border-color:var(--focus);box-shadow:0 0 0 3px rgba(59,109,240,.1)}
+.btn{display:inline-flex;align-items:center;justify-content:center;padding:12px 24px;font-family:inherit;font-size:1rem;font-weight:600;border:none;border-radius:var(--r);cursor:pointer;transition:all .2s}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-p{width:100%;background:var(--accent);color:#fff}.btn-p:hover:not(:disabled){background:var(--accent-h)}
+.lerr{display:none;margin-top:12px;padding:10px;background:#fef0f0;color:var(--red);border-radius:var(--r);font-size:.88rem;text-align:center}.lerr.on{display:block}
+
+.auth-card{width:100%;max-width:400px;background:var(--card);border-radius:var(--rlg);box-shadow:0 8px 30px rgba(0,0,0,.12);overflow:hidden;animation:fadeUp .4s ease both;padding:28px 26px}
+.auth-title{font-size:1.15rem;font-weight:700;color:var(--text);margin-bottom:8px;text-align:center}
+.auth-desc{font-size:.88rem;color:var(--text2);text-align:center;margin-bottom:4px;line-height:1.7}
+.auth-error{color:var(--red);font-size:.85rem;text-align:center;margin:6px 0;display:none}
+.auth-note{font-size:.82rem;color:var(--muted);text-align:center;margin-top:12px}
+.auth-note-small{font-size:.78rem;color:var(--muted);text-align:center;margin-top:10px}
+.otp-wrap{display:flex;align-items:center;justify-content:center;gap:16px;margin:18px 0}
+.otp-input{font-size:2rem;letter-spacing:10px;text-align:center;width:190px;padding:10px 8px;border:2px solid var(--border);border-radius:var(--r);outline:none;font-family:'JetBrains Mono',monospace;background:#f5f6f9}
+.otp-input:focus{border-color:var(--focus);box-shadow:0 0 0 3px rgba(59,109,240,.1)}
+.countdown-ring{position:relative;width:48px;height:48px;flex-shrink:0}
+.ring-svg{transform:rotate(-90deg)}
+.ring-bg{fill:none;stroke:#eee;stroke-width:3}
+.ring-fill{fill:none;stroke:var(--accent);stroke-width:3;stroke-linecap:round;stroke-dasharray:100;stroke-dashoffset:0;transition:stroke-dashoffset 1s linear,stroke 1s}
+.countdown-num{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:13px;font-weight:700;color:var(--text2)}
+.qrcode-box{display:flex;justify-content:center;margin:18px 0}
+.qrcode-box canvas,.qrcode-box img{border:4px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.12)}
+.secret-text{font-family:'JetBrains Mono',monospace;font-size:11px;word-break:break-all;background:#f5f6f9;padding:4px 8px;border-radius:var(--r);display:inline-block;margin-top:4px}
+
+.loading{position:fixed;inset:0;background:rgba(255,255,255,.6);z-index:9999;display:none;align-items:center;justify-content:center}
+.loading.on{display:flex}
+.spinner{width:32px;height:32px;border:3px solid #ddd;border-top:3px solid var(--accent);border-radius:50%;animation:spin .6s linear infinite}
+</style>
+</head>
+<body>
+<div class="loading" id="loading"><div class="spinner"></div></div>
+
+<!-- ===== PIN入力 ===== -->
+<div id="screen-login" class="screen active">
+  <div class="lcard">
+    <div class="lcard-hdr">
+      <h1>エコピタ業務システム</h1>
+      <div class="sub">Staff Login</div>
+    </div>
+    <div class="lform">
+      <div class="fld"><label>担当者番号</label><input id="staffId" inputmode="numeric" autocomplete="username" placeholder="例: 0001"></div>
+      <div class="fld"><label>PIN</label><input id="pin" type="password" class="mono" autocomplete="current-password" placeholder="PIN"></div>
+      <button class="btn btn-p" id="loginBtn" onclick="doLogin()">ログイン</button>
+      <div class="lerr" id="loginErr"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== LINE WORKS 本人確認コード ===== -->
+<div id="screen-lw-otc" class="screen">
+  <div class="auth-card">
+    <h2 class="auth-title">本人確認</h2>
+    <p class="auth-desc">LINE WORKSに6桁の確認コードを送信しました。<br>届いたコードを入力してください。</p>
+    <div class="otp-wrap">
+      <input id="lwOtcInput" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="000000" class="otp-input" autocomplete="one-time-code">
+    </div>
+    <p id="lwOtcError" class="auth-error"></p>
+    <button id="lwOtcBtn" class="btn btn-p" onclick="submitLwOtc()">確認</button>
+    <p class="auth-note">コードが届かない場合は担当者にお問い合わせください。</p>
+  </div>
+</div>
+
+<!-- ===== QRコード表示 ===== -->
+<div id="screen-qr" class="screen">
+  <div class="auth-card">
+    <h2 class="auth-title">Google Authenticator 設定</h2>
+    <p class="auth-desc">
+      ① スマホに <strong>Google Authenticator</strong> をインストール<br>
+      ② アプリで「QRコードを読み取る」を選択<br>
+      ③ 下のQRコードを読み取ってください
+    </p>
+    <div id="qrcode-container" class="qrcode-box"></div>
+    <p class="auth-note-small">QRコードが読み取れない場合はこちらのコードを手入力：<br>
+      <span id="secretText" class="secret-text"></span>
+    </p>
+    <button class="btn btn-p" style="width:100%;margin-top:14px" onclick="showTotpConfirm()">読み取りました →</button>
+  </div>
+</div>
+
+<!-- ===== TOTP 6桁コード入力 ===== -->
+<div id="screen-totp" class="screen">
+  <div class="auth-card">
+    <h2 class="auth-title">認証コード入力</h2>
+    <p id="totpDesc" class="auth-desc">Google Authenticatorに表示されている<br>6桁のコードを入力してください。</p>
+    <div class="otp-wrap">
+      <input id="totpInput" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="000000" class="otp-input" autocomplete="one-time-code">
+      <div class="countdown-ring">
+        <svg viewBox="0 0 36 36" class="ring-svg" width="48" height="48">
+          <circle class="ring-bg" cx="18" cy="18" r="15.9"/>
+          <circle id="ringFill" class="ring-fill" cx="18" cy="18" r="15.9"/>
+        </svg>
+        <span id="countdownNum" class="countdown-num">30</span>
+      </div>
+    </div>
+    <p id="totpError" class="auth-error"></p>
+    <button id="totpBtn" class="btn btn-p" onclick="submitTotp()">ログイン</button>
+  </div>
+</div>
+
+<script>
+var GAS_API_URL = 'https://script.google.com/macros/s/AKfycbyvjri6i0fe11hzfoqfhSxWCsn1aP2WyT9ELZOzNMrVyEOx-ZsKqlhJQONzlaFLmPw/exec';
+var busy = false, ua = navigator.userAgent || '';
+var _totpPassToken = '', _totpStaffId = '', _totpMode = '', _totpDisplayName = '', _totpRole = '', _countdownTimer = null;
+var _ecopitaCasePrefixes = [];
+var _ecopitaCanUseRm = false;
+var _ecopitaGroupId = 'main', _ecopitaGroupAdmin = false, _ecopitaGroupSiteUrl = '';
+
+function readLoginGroupContext_(response) {
+  var groupId = typeof response.groupId === 'string' ? response.groupId.trim().toLowerCase() : '';
+  _ecopitaGroupId = /^[a-z0-9_]+$/.test(groupId) ? groupId : 'main';
+  _ecopitaGroupAdmin = response.groupAdmin === true;
+  _ecopitaGroupSiteUrl = window.ECOPITA_SITE_URL(response.groupSiteUrl);
+}
+
+// リダイレクト先（URLパラメータから取得）
+var redirectUrl = (function() {
+  var p = new URLSearchParams(location.search);
+  return p.get('redirect') || window.ECOPITA_SITE.baseUrl + '/index.html';
+})();
+
+// 既にログイン済みならリダイレクト
+(function() {
+  try {
+    var saved = localStorage.getItem('ecopita_session');
+    if (saved) {
+      var sess = JSON.parse(saved);
+      if (sess.token && sess.staffId && (!sess.expiresAt || Date.now() < sess.expiresAt)) {
+        if (window.ECOPITA_SITE_NOTICE(sess)) { showScreen_(''); return; }
+        location.href = redirectUrl;
+        return;
+      }
+    }
+  } catch(e) {}
+  document.getElementById('pin').addEventListener('keydown', function(e) { if (e.key === 'Enter') doLogin(); });
+  document.getElementById('staffId').addEventListener('keydown', function(e) { if (e.key === 'Enter') document.getElementById('pin').focus(); });
+  document.getElementById('lwOtcInput').addEventListener('keydown', function(e) { if (e.key === 'Enter') submitLwOtc(); });
+  document.getElementById('totpInput').addEventListener('keydown', function(e) { if (e.key === 'Enter') submitTotp(); });
+  ['lwOtcInput','totpInput'].forEach(function(id) {
+    document.getElementById(id).addEventListener('input', function() { this.value = this.value.replace(/[^0-9]/g, '').slice(0, 6); });
+  });
+})();
+
+function showScreen_(id) {
+  ['screen-login','screen-lw-otc','screen-qr','screen-totp'].forEach(function(s) {
+    document.getElementById(s).classList.toggle('active', s === id);
+  });
+}
+
+function setBusy(v) { busy = v; }
+
+async function callApi(payload) {
+  var json = JSON.stringify(payload);
+  var encoded = btoa(unescape(encodeURIComponent(json)));
+  var url = GAS_API_URL + '?_portal_data=' + encodeURIComponent(encoded);
+  var resp = await fetch(url, { redirect: 'follow' });
+  var text = await resp.text();
+  try { return JSON.parse(text); } catch(e) { throw new Error('サーバーからの応答が不正です。'); }
+}
+
+async function doLogin() {
+  if (busy) return;
+  var sid = document.getElementById('staffId').value.trim();
+  var p = document.getElementById('pin').value.trim();
+  document.getElementById('loginErr').classList.remove('on');
+  if (!sid || !p) {
+    document.getElementById('loginErr').textContent = '担当者番号とPINを入力してください';
+    document.getElementById('loginErr').classList.add('on');
+    return;
+  }
+  setBusy(true);
+  document.getElementById('loginBtn').textContent = 'ログイン中...';
+  document.getElementById('loading').classList.add('on');
+  try {
+    var r = await callApi({ action: 'login', staffId: sid, pin: p, ua: ua });
+    document.getElementById('loading').classList.remove('on');
+    setBusy(false);
+    document.getElementById('loginBtn').textContent = 'ログイン';
+    if (r && r.ok) {
+      handleLoginSuccess(r);
+    } else {
+      document.getElementById('loginErr').textContent = (r && r.error) || 'ログイン失敗';
+      document.getElementById('loginErr').classList.add('on');
+      document.getElementById('pin').value = '';
+      document.getElementById('pin').focus();
+    }
+  } catch(e) {
+    document.getElementById('loading').classList.remove('on');
+    setBusy(false);
+    document.getElementById('loginBtn').textContent = 'ログイン';
+    document.getElementById('loginErr').textContent = e.message || '通信エラー';
+    document.getElementById('loginErr').classList.add('on');
+  }
+}
+
+function handleLoginSuccess(r) {
+  _totpPassToken   = r.passToken   || '';
+  _totpStaffId     = r.staffId     || '';
+  _totpDisplayName = r.displayName || r.staffId || '';
+  _totpRole        = r.role || '';
+  window._ecopitaRewardHidden = !!r.rewardHidden;
+  _ecopitaCanUseRm = r.canUseRm === true || _totpRole === 'admin';
+  readLoginGroupContext_(r);
+  _ecopitaCasePrefixes = Array.isArray(r.casePrefixes) ? r.casePrefixes : [];
+
+  if (r.totp_required) {
+    _totpMode = 'login';
+    document.getElementById('totpDesc').textContent = 'Google Authenticatorに表示されている\n6桁のコードを入力してください。';
+    document.getElementById('totpBtn').textContent = 'ログイン';
+    document.getElementById('totpInput').value = '';
+    document.getElementById('totpError').style.display = 'none';
+    showScreen_('screen-totp');
+    startCountdown();
+  } else if (r.totp_setup_required) {
+    _totpMode = 'setup';
+    sendLwOtc_();
+  } else if (r.token) {
+    completeLogin(r.token, r.staffId, r.displayName || r.staffId, r.role || '');
+  } else if (r.otc) {
+    // TOTP無効ユーザー: OTCをトークンに交換してからログイン完了
+    callApi({ action: 'exchangeOTC', otc: r.otc }).then(function(res) {
+      if (res && res.ok && res.token) {
+        _ecopitaCanUseRm = res.canUseRm === true || _totpRole === 'admin';
+        readLoginGroupContext_(res);
+        if (Array.isArray(res.casePrefixes)) _ecopitaCasePrefixes = res.casePrefixes;
+        completeLogin(res.token, r.staffId, r.displayName || r.staffId, res.role || r.role || '');
+      } else {
+        document.getElementById('loginErr').textContent = (res && res.error) || 'ログインに失敗しました';
+        document.getElementById('loginErr').classList.add('on');
+      }
+    });
+  }
+}
+
+function completeLogin(token, staffId, displayName, role) {
+  var safeRole = role || _totpRole || '';
+  var session = {
+    token: token,
+    staffId: staffId,
+    displayName: displayName,
+    role: safeRole,
+    isAdmin: safeRole === 'admin',
+    rewardHidden: !!window._ecopitaRewardHidden,
+    canUseRm: _ecopitaCanUseRm || safeRole === 'admin',
+    casePrefixes: _ecopitaCasePrefixes,
+    groupId: _ecopitaGroupId,
+    groupAdmin: _ecopitaGroupAdmin,
+    groupSiteUrl: _ecopitaGroupSiteUrl,
+    expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000 // 7日（サーバTTLと整合）
+  };
+  if (window.ECOPITA_SITE_NOTICE(session)) { showScreen_(''); return; }
+  localStorage.setItem('ecopita_session', JSON.stringify(session));
+  location.href = redirectUrl;
+}
+
+// LINE WORKS OTC
+async function sendLwOtc_() {
+  showScreen_('screen-lw-otc');
+  document.getElementById('lwOtcInput').value = '';
+  document.getElementById('lwOtcError').style.display = 'none';
+  document.getElementById('loading').classList.add('on');
+  try {
+    var res = await callApi({ action: 'totp_send_otc', staffId: _totpStaffId, passToken: _totpPassToken });
+    document.getElementById('loading').classList.remove('on');
+    if (!res.ok) { showErr_('lwOtcError', 'コードの送信に失敗しました（' + res.reason + '）'); return; }
+    _totpPassToken = res.passToken || _totpPassToken;
+    document.getElementById('lwOtcInput').focus();
+  } catch(e) {
+    document.getElementById('loading').classList.remove('on');
+    showErr_('lwOtcError', '通信エラーが発生しました。');
+  }
+}
+
+async function submitLwOtc() {
+  // 全角数字→半角、数字以外を除去（日本語IMEで全角になり不一致になる事故を防ぐ）
+  var code = document.getElementById('lwOtcInput').value
+    .replace(/[０-９]/g, function(c){ return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); })
+    .replace(/[^0-9]/g, '');
+  if (code.length !== 6) { showErr_('lwOtcError', '6桁のコードを入力してください。'); return; }
+  document.getElementById('lwOtcBtn').disabled = true;
+  document.getElementById('lwOtcBtn').textContent = '送信中...';
+  try {
+    var res = await callApi({ action: 'totp_verify_otc', staffId: _totpStaffId, passToken: _totpPassToken, code: code });
+    document.getElementById('lwOtcBtn').disabled = false;
+    document.getElementById('lwOtcBtn').textContent = '確認';
+    _totpPassToken = res.passToken || _totpPassToken;
+    if (!res.ok) {
+      if (res.reason === 'invalid_pass_token') {
+        // 認証セッションが切れた → PIN入力画面に戻す
+        showScreen_('screen-login');
+        document.getElementById('loginErr').textContent = 'もう一度ログインしてください。';
+        document.getElementById('loginErr').classList.add('on');
+        return;
+      }
+      var msg = res.reason === 'expired' ? 'コードの有効期限が切れました。' : res.reason === 'mismatch' ? 'コードが違います。' : 'エラー（' + res.reason + '）';
+      showErr_('lwOtcError', msg);
+      return;
+    }
+    showQrCode_(res.otpauth);
+  } catch(e) {
+    document.getElementById('lwOtcBtn').disabled = false;
+    document.getElementById('lwOtcBtn').textContent = '確認';
+    showErr_('lwOtcError', '通信エラーが発生しました。');
+  }
+}
+
+// QRコード
+function showQrCode_(otpauth) {
+  showScreen_('screen-qr');
+  var container = document.getElementById('qrcode-container');
+  container.innerHTML = '';
+  new QRCode(container, { text: otpauth, width: 200, height: 200, correctLevel: QRCode.CorrectLevel.M });
+  var secret = (otpauth.match(/secret=([A-Z2-7]+)/i) || [])[1] || '';
+  document.getElementById('secretText').textContent = secret;
+}
+
+function showTotpConfirm() {
+  showScreen_('screen-totp');
+  startCountdown();
+  document.getElementById('totpDesc').textContent = 'Google Authenticatorに表示されている\n6桁のコードを入力して登録を完了してください。';
+  document.getElementById('totpBtn').textContent = '登録完了';
+  document.getElementById('totpInput').value = '';
+  document.getElementById('totpError').style.display = 'none';
+}
+
+// TOTP送信
+async function submitTotp() {
+  var code = document.getElementById('totpInput').value.trim();
+  if (code.length !== 6) { showErr_('totpError', '6桁のコードを入力してください。'); return; }
+  document.getElementById('totpBtn').disabled = true;
+  document.getElementById('totpBtn').textContent = '送信中...';
+  var action = (_totpMode === 'login') ? 'totp_verify_login' : 'totp_confirm_setup';
+  try {
+    var res = await callApi({ action: action, staffId: _totpStaffId, passToken: _totpPassToken, code: code });
+    document.getElementById('totpBtn').disabled = false;
+    document.getElementById('totpBtn').textContent = (_totpMode === 'login') ? 'ログイン' : '登録完了';
+    if (!res.ok) {
+      _totpPassToken = res.passToken || _totpPassToken;
+      if (res.reason === 'invalid_pass_token') {
+        // 認証セッションが切れた → PIN入力画面に戻す
+        showScreen_('screen-login');
+        document.getElementById('loginErr').textContent = 'もう一度ログインしてください。';
+        document.getElementById('loginErr').classList.add('on');
+        document.getElementById('totpInput').value = '';
+        return;
+      }
+      var msg = res.reason === 'busy' ? (res.error || 'ただいま混雑しています。しばらく待ってからもう一度お試しください。')
+        : res.reason === 'locked' ? 'ロックされました。' + (res.remainMin || 10) + '分後にお試しください。'
+        : res.reason === 'invalid' ? 'コードが違います。残り' + (res.remainTry || '?') + '回' : 'エラー（' + res.reason + '）';
+      showErr_('totpError', msg);
+      document.getElementById('totpInput').value = '';
+      return;
+    }
+    stopCountdown();
+    window._ecopitaRewardHidden = !!res.rewardHidden;
+    _ecopitaCanUseRm = res.canUseRm === true || _totpRole === 'admin';
+    readLoginGroupContext_(res);
+    _ecopitaCasePrefixes = Array.isArray(res.casePrefixes) ? res.casePrefixes : _ecopitaCasePrefixes;
+    completeLogin(res.token, _totpStaffId, _totpDisplayName, res.role || _totpRole || '');
+  } catch(e) {
+    document.getElementById('totpBtn').disabled = false;
+    document.getElementById('totpBtn').textContent = (_totpMode === 'login') ? 'ログイン' : '登録完了';
+    showErr_('totpError', '通信エラーが発生しました。');
+  }
+}
+
+// カウントダウン
+function startCountdown() { stopCountdown(); updateCountdown_(); _countdownTimer = setInterval(updateCountdown_, 1000); }
+function stopCountdown() { if (_countdownTimer) { clearInterval(_countdownTimer); _countdownTimer = null; } }
+function updateCountdown_() {
+  var now = Math.floor(Date.now() / 1000), remain = 30 - (now % 30), pct = remain / 30;
+  var numEl = document.getElementById('countdownNum'), ringEl = document.getElementById('ringFill');
+  if (!numEl || !ringEl) return;
+  numEl.textContent = remain;
+  ringEl.style.strokeDashoffset = (1 - pct) * 100;
+  ringEl.style.stroke = remain <= 5 ? '#c93030' : 'var(--accent)';
+}
+
+function showErr_(id, msg) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  if (id === 'lwOtcError' && /invalid_pass_token|no_code|有効期限/.test(msg)) msg += ' 最初（PIN）からやり直してください。';
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+</script>
+</body>
+</html>
