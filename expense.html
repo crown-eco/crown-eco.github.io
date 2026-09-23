@@ -410,6 +410,7 @@ async function finishLogin_(r) {
       canUseRm: otcResult.canUseRm === true,
       groupId: otcResult.groupId || 'main',
       groupAdmin: otcResult.groupAdmin === true,
+      adminGroupIds: window.ECOPITA_SITE_ADMIN_GROUPS(otcResult.adminGroupIds),
       groupSiteUrl: window.ECOPITA_SITE_URL(otcResult.groupSiteUrl),
       role: otcResult.role || '',
       casePrefixes: otcResult.casePrefixes || r.casePrefixes || []
@@ -503,6 +504,7 @@ async function submitTotp() {
       canUseRm: res.canUseRm === true,
       groupId: res.groupId || 'main',
       groupAdmin: res.groupAdmin === true,
+      adminGroupIds: window.ECOPITA_SITE_ADMIN_GROUPS(res.adminGroupIds),
       groupSiteUrl: window.ECOPITA_SITE_URL(res.groupSiteUrl),
       role: res.role || '',
       casePrefixes: res.casePrefixes || []

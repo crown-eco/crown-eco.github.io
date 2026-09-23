@@ -289,6 +289,7 @@ async function finishLoginWithOtc_(r, id) {
       canUseRm: otcJson.canUseRm === true,
       groupId: savedGroupId_(otcJson.groupId),
       groupAdmin: otcJson.groupAdmin === true,
+      adminGroupIds: window.ECOPITA_SITE_ADMIN_GROUPS(otcJson.adminGroupIds),
       groupSiteUrl: window.ECOPITA_SITE_URL(otcJson.groupSiteUrl),
       role: otcJson.role || '',
       casePrefixes: otcJson.casePrefixes || r.casePrefixes || []
@@ -384,6 +385,7 @@ async function submitTotp() {
       canUseRm: json.canUseRm === true,
       groupId: savedGroupId_(json.groupId),
       groupAdmin: json.groupAdmin === true,
+      adminGroupIds: window.ECOPITA_SITE_ADMIN_GROUPS(json.adminGroupIds),
       groupSiteUrl: window.ECOPITA_SITE_URL(json.groupSiteUrl),
       role: json.role || '',
       casePrefixes: json.casePrefixes || []

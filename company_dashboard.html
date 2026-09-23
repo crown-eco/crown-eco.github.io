@@ -369,11 +369,11 @@ function isAdminSession_() {
 }
 
 function canUseDashboard_() {
-  return isAdminSession_() || !!(SESSION && SESSION.groupAdmin === true);
+  return isAdminSession_() || window.ECOPITA_SITE_GROUP_ADMIN(SESSION);
 }
 function isGroupDashboard_() { return STATE.mode === 'group'; }
 function groupViewRequested_() {
-  return isGroupDashboard_() || (STATE.groupSelection && STATE.groupSelection !== 'all') || (!isAdminSession_() && SESSION && SESSION.groupAdmin === true);
+  return isGroupDashboard_() || (STATE.groupSelection && STATE.groupSelection !== 'all') || (!isAdminSession_() && window.ECOPITA_SITE_GROUP_ADMIN(SESSION));
 }
 function groupSelectionStorageKey_() { return 'ecopita_company_dashboard_group_v1:' + String(SESSION && SESSION.staffId || ''); }
 function groupSelectionValue_(id) { return id === 'all' ? 'group:all' : id; }
@@ -1073,6 +1073,7 @@ async function loadDashboard_(interactionStartedAt) {
     ua: navigator.userAgent || ''
   };
   var previousClientTiming = takePreviousDashboardClientTiming_();
+  if (siteGroup_()) payload.siteGroup = siteGroup_();
   if (previousClientTiming) payload.previous_client_timing = previousClientTiming;
   var fetchStartedAt = dashboardPerformanceNow_();
   try {

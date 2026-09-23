@@ -453,7 +453,7 @@
     var groupId = String(session && session.groupId || 'main').trim().toLowerCase() || 'main';
     var visibleSites = SITES.filter(function (site) {
       if (site.hiddenForGroup && window.ECOPITA_SITE.group !== 'main') return false;
-      if (site.adminOnly && !isAdmin && !(site.groupAdminAllowed && session && session.groupAdmin === true)) return false;
+      if (site.adminOnly && !isAdmin && !(site.groupAdminAllowed && window.ECOPITA_SITE_GROUP_ADMIN(session))) return false;
       if (site.hiddenForGroup && groupId !== 'main' && !isAdmin) return false;
       if (rewardHidden && site.name === '報酬確認ポータル') return false;
       return true;

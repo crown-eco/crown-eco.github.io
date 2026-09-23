@@ -266,7 +266,7 @@ async function finishLoginWithOtc_(r) {
   document.getElementById('lblUser').textContent=r.displayName+'（'+r.staffId+'）';
   showScreen_('appView');
   token=otcResult.token;
-  localStorage.setItem('ecopita_session',JSON.stringify({token:token,staffId:myStaffId,displayName:r.displayName||myStaffId,rewardHidden:!!r.rewardHidden,canUseRm:otcResult.canUseRm===true,groupId:savedRewardGroupId_(otcResult.groupId),groupAdmin:otcResult.groupAdmin===true,groupSiteUrl:window.ECOPITA_SITE_URL(otcResult.groupSiteUrl),role:otcResult.role||'',casePrefixes:otcResult.casePrefixes||r.casePrefixes||[]}));
+  localStorage.setItem('ecopita_session',JSON.stringify({token:token,staffId:myStaffId,displayName:r.displayName||myStaffId,rewardHidden:!!r.rewardHidden,canUseRm:otcResult.canUseRm===true,groupId:savedRewardGroupId_(otcResult.groupId),groupAdmin:otcResult.groupAdmin===true,adminGroupIds:window.ECOPITA_SITE_ADMIN_GROUPS(otcResult.adminGroupIds),groupSiteUrl:window.ECOPITA_SITE_URL(otcResult.groupSiteUrl),role:otcResult.role||'',casePrefixes:otcResult.casePrefixes||r.casePrefixes||[]}));
 }
 
 // ================================================================
@@ -345,7 +345,7 @@ async function submitTotp(){
     token = res.token || '';
     myStaffId = _totpStaffId;
     viewStaffId = _totpStaffId;
-    localStorage.setItem('ecopita_session',JSON.stringify({token:token,staffId:myStaffId,displayName:_totpDisplayName||myStaffId,rewardHidden:!!res.rewardHidden,canUseRm:res.canUseRm===true,groupId:savedRewardGroupId_(res.groupId),groupAdmin:res.groupAdmin===true,groupSiteUrl:window.ECOPITA_SITE_URL(res.groupSiteUrl),role:res.role||'',casePrefixes:res.casePrefixes||[]}));
+    localStorage.setItem('ecopita_session',JSON.stringify({token:token,staffId:myStaffId,displayName:_totpDisplayName||myStaffId,rewardHidden:!!res.rewardHidden,canUseRm:res.canUseRm===true,groupId:savedRewardGroupId_(res.groupId),groupAdmin:res.groupAdmin===true,adminGroupIds:window.ECOPITA_SITE_ADMIN_GROUPS(res.adminGroupIds),groupSiteUrl:window.ECOPITA_SITE_URL(res.groupSiteUrl),role:res.role||'',casePrefixes:res.casePrefixes||[]}));
     showScreen_('appView');
     bootstrap();
   }catch(e){document.getElementById('totpBtn').disabled=false;document.getElementById('totpBtn').textContent=(_totpMode==='login')?'ログイン':'登録完了';showTotpErr_('totpError','通信エラーが発生しました。');}

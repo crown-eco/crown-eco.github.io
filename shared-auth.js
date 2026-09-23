@@ -64,6 +64,7 @@
   var groupId = typeof session.groupId === 'string' ? session.groupId.trim().toLowerCase() : '';
   session.groupId = /^[a-z0-9_]+$/.test(groupId) ? groupId : 'main';
   session.groupAdmin = session.groupAdmin === true;
+  if (Array.isArray(session.adminGroupIds)) session.adminGroupIds = window.ECOPITA_SITE_ADMIN_GROUPS(session.adminGroupIds);
   session.groupSiteUrl = window.ECOPITA_SITE_URL(session.groupSiteUrl);
 
   // サイト不一致は公開前に止め、保存済みtokenも失効要求する。

@@ -133,11 +133,13 @@ var _totpPassToken = '', _totpStaffId = '', _totpMode = '', _totpDisplayName = '
 var _ecopitaCasePrefixes = [];
 var _ecopitaCanUseRm = false;
 var _ecopitaGroupId = 'main', _ecopitaGroupAdmin = false, _ecopitaGroupSiteUrl = '';
+var _ecopitaAdminGroupIds = [];
 
 function readLoginGroupContext_(response) {
   var groupId = typeof response.groupId === 'string' ? response.groupId.trim().toLowerCase() : '';
   _ecopitaGroupId = /^[a-z0-9_]+$/.test(groupId) ? groupId : 'main';
   _ecopitaGroupAdmin = response.groupAdmin === true;
+  _ecopitaAdminGroupIds = window.ECOPITA_SITE_ADMIN_GROUPS(response.adminGroupIds);
   _ecopitaGroupSiteUrl = window.ECOPITA_SITE_URL(response.groupSiteUrl);
 }
 
@@ -273,6 +275,7 @@ function completeLogin(token, staffId, displayName, role) {
     casePrefixes: _ecopitaCasePrefixes,
     groupId: _ecopitaGroupId,
     groupAdmin: _ecopitaGroupAdmin,
+    adminGroupIds: _ecopitaAdminGroupIds,
     groupSiteUrl: _ecopitaGroupSiteUrl,
     expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000 // 7日（サーバTTLと整合）
   };

@@ -1,6 +1,6 @@
 window.ECOPITA_SITE = {"group":"crown","baseUrl":"https://crown-eco.github.io"};
 
-// Site identity is presentation only; server authorization never uses this value.
+// Site identity is a display hint; the server independently authorizes every group read.
 (function(root) {
   'use strict';
   var MAIN_URL = '';
@@ -24,12 +24,26 @@ window.ECOPITA_SITE = {"group":"crown","baseUrl":"https://crown-eco.github.io"};
       return url.origin + url.pathname.replace(/\/+$/, '');
     } catch(e) { return ''; }
   };
+  root.ECOPITA_SITE_ADMIN_GROUPS = function(value) {
+    if (!Array.isArray(value)) return [];
+    return value.filter(function(id, index, all) {
+      return typeof id === 'string' && /^[a-z0-9_]+$/.test(id) && id !== 'main' && all.indexOf(id) === index;
+    });
+  };
+  root.ECOPITA_SITE_GROUP_ADMIN = function(session) {
+    if (!session) return false;
+    if (Array.isArray(session.adminGroupIds) && root.ECOPITA_SITE.group !== 'main') {
+      return root.ECOPITA_SITE_ADMIN_GROUPS(session.adminGroupIds).indexOf(root.ECOPITA_SITE.group) >= 0;
+    }
+    return session.groupAdmin === true;
+  };
   root.ECOPITA_SITE_NOTICE = function(session) {
     if (!session) return false;
     var admin = session.isAdmin === true || String(session.role || '').toLowerCase() === 'admin';
     var group = typeof session.groupId === 'string' ? session.groupId.trim().toLowerCase() : 'main';
     if (!/^[a-z0-9_]+$/.test(group)) group = 'main';
-    if (!root.ECOPITA_SITE_BLOCKED && (admin || group === root.ECOPITA_SITE.group)) return false;
+    var managed = root.ECOPITA_SITE_ADMIN_GROUPS(session.adminGroupIds).indexOf(root.ECOPITA_SITE.group) >= 0;
+    if (!root.ECOPITA_SITE_BLOCKED && (admin || group === root.ECOPITA_SITE.group || managed)) return false;
     root.ECOPITA_SITE_BLOCKED = true;
     root.ECOPITA_SESSION = null;
     try { root.localStorage.removeItem('ecopita_session'); } catch(e) {}
