@@ -73,3 +73,24 @@ window.ECOPITA_SITE = {"group":"crown","baseUrl":"https://crown-eco.github.io"};
     return true;
   };
 })(window);
+
+(function(root) {
+  'use strict';
+  var LABEL = "Crown";
+  function mark() {
+    try {
+    var doc = root.document;
+    if (doc.title.indexOf('【' + LABEL + '】') !== 0) doc.title = '【' + LABEL + '】' + doc.title;
+    if (!doc.body || doc.getElementById('ecopita-group-site-band')) return;
+    var band = doc.createElement('div');
+    band.id = 'ecopita-group-site-band';
+    band.textContent = LABEL + ' 用のサイトです';
+    band.style.cssText = 'display:block;margin:0;padding:6px 12px;background:#7c2d12;color:#fff;font:bold 14px/1.4 sans-serif;text-align:center;letter-spacing:.05em;';
+    doc.body.insertBefore(band, doc.body.firstChild);
+    } catch (e) {}
+  }
+  try {
+    if (root.document.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', mark, { once: true });
+    else mark();
+  } catch (e) {}
+})(window);
