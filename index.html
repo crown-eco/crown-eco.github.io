@@ -193,6 +193,8 @@ body { font-family:'Noto Sans JP',sans-serif; background:var(--bg); color:var(--
   background: var(--card);
   border-radius: var(--radius);
   padding: 28px 22px;
+  max-height: calc(100dvh - 40px);
+  overflow-y: auto;
   box-shadow: 0 18px 40px rgba(0, 0, 0, 0.4);
 }
 #signConfirmCard h2 {
@@ -287,17 +289,28 @@ body { font-family:'Noto Sans JP',sans-serif; background:var(--bg); color:var(--
 <body>
 
 <!-- 承諾書サイン確認オーバーレイ（毎回必須、永続化禁止。担当者が紙の承諾書サインを取り忘れる事故を防止） -->
-<div id="signConfirmOverlay">
+<div id="signConfirmOverlay" role="dialog" aria-modal="true" aria-label="承諾書の確認">
   <div id="signConfirmCard">
     <h2>お客様への確認事項</h2>
     <p>恐れ入りますが、ご注文を進める前に必ず下記をご確認ください。</p>
     <p>お客様に <strong>「契約書面提供の電磁的方法に関する承諾書」</strong> へ、お客様ご自身の手書きでご署名をいただきましたでしょうか？</p>
+    <div id="consentLegacy">
     <p class="sign-note">サインをいただいてから、下のスイッチをスライドして次へお進みください。</p>
     <div class="sign-slide-track" id="signSlideTrack">
       <div class="sign-slide-text" id="signSlideText">右にスライドして確認 →</div>
       <div class="sign-slide-knob" id="signSlideKnob">→</div>
     </div>
     <p id="signConfirmMsg">スライドしてください</p>
+    </div>
+    <div id="consentPhotoArea" style="display:none">
+      <p>署名済みの承諾書を撮影するか、写真フォルダから選んでください。</p>
+      <label for="consentPhotoInput" style="display:block;font-weight:700;margin:12px 0">承諾書の写真（必須）</label>
+      <input id="consentPhotoInput" type="file" accept="image/*" onchange="selectConsentPhoto_(this)">
+      <img id="consentPhotoPreview" alt="選択した承諾書" style="display:none;max-width:100%;max-height:32vh;margin:12px auto;object-fit:contain">
+      <button type="button" id="consentPhotoRetake" onclick="document.getElementById('consentPhotoInput').click()" style="display:none;margin:8px 0">撮り直し・写真を選び直す</button>
+      <button type="button" id="consentPhotoContinue" onclick="continueConsentPhoto_()" disabled style="display:block;width:100%;padding:14px;margin-top:12px">この写真で注文入力へ進む</button>
+    </div>
+    <p id="consentPolicyStatus" role="status" aria-live="polite"></p>
   </div>
 </div>
 
@@ -313,7 +326,7 @@ body { font-family:'Noto Sans JP',sans-serif; background:var(--bg); color:var(--
   <div class="progress-step" id="p8"></div>
 </div>
 
-<div class="container">
+<div class="container" id="orderFormContent" inert>
   <div id="repeat_banner" style="display:none;margin-bottom:12px;padding:12px 16px;background:#fff3cd;border-left:4px solid #f0a500;border-radius:8px;font-size:.93rem;font-weight:600;color:#7a5000"></div>
 
   <!-- STEP1 -->
@@ -730,7 +743,7 @@ body { font-family:'Noto Sans JP',sans-serif; background:var(--bg); color:var(--
   </div>
 </div>
 
-<div class="bottom-nav">
+<div class="bottom-nav" id="orderFormNavigation" inert>
   <button class="btn btn-back" onclick="prevStep()" id="btnBack" style="display:none">戻る</button>
   <button class="btn btn-next" onclick="nextStep()" id="btnNext">次へ</button>
 </div>
@@ -1175,6 +1188,110 @@ function _initOrderFormUI() {
   }
 }
 
+// 承諾書はこの画面のメモリだけ。画像・確認印を下書きへ入れない。
+var consentPhotoState_ = { required:false, photo:null, busy:false, allowed:false, selection:0, attempt:null };
+function consentGateVisible_(visible) {
+  document.getElementById('signConfirmOverlay').style.display = visible ? 'flex' : 'none';
+  document.getElementById('orderFormContent').inert = visible;
+  document.getElementById('orderFormNavigation').inert = visible;
+}
+function consentStatus_(text) { document.getElementById('consentPolicyStatus').textContent = text; }
+// 既存staff_flags応答へ同送されたserver flagだけを使う。新しい問い合わせ/待機は作らない。
+function requireConsentPhoto_() {
+  consentPhotoState_.required = true;
+  consentPhotoState_.allowed = false;
+  document.getElementById('consentLegacy').style.display = 'none';
+  document.getElementById('consentPhotoArea').style.display = '';
+  document.getElementById('consentPhotoContinue').disabled = consentPhotoState_.busy || !consentPhotoState_.photo;
+  consentStatus_('署名済みの承諾書の写真を添付してください。入力内容はそのまま残っています。');
+  consentGateVisible_(true);
+}
+function applyConsentPhotoPolicy_(response) {
+  // 開始前の遅いfalse応答で、注文受付が既に要求した写真を不要へ戻さない。
+  if (!response || response.ok !== true || response.consent_photo_required !== true || consentPhotoState_.required || currentStep === 9) return;
+  requireConsentPhoto_();
+}
+function compressConsentPhoto_(file) {
+  return new Promise(function(resolve,reject) {
+    if (!file || !/^image\//.test(file.type || '') || file.size > 25 * 1024 * 1024) return reject(new Error('image'));
+    var reader = new FileReader();
+    reader.onerror = function() { reject(new Error('read')); };
+    reader.onload = function(event) {
+      var img = new Image();
+      img.onerror = function() { reject(new Error('decode')); };
+      img.onload = function() {
+        try {
+          if (!img.naturalWidth || !img.naturalHeight || img.naturalWidth * img.naturalHeight > 120000000) throw new Error('size');
+          var scale = Math.min(1,1600 / Math.max(img.naturalWidth,img.naturalHeight));
+          var canvas = document.createElement('canvas');
+          canvas.width = Math.max(1,Math.round(img.naturalWidth * scale));
+          canvas.height = Math.max(1,Math.round(img.naturalHeight * scale));
+          var ctx = canvas.getContext('2d');
+          ctx.fillStyle = '#fff'; ctx.fillRect(0,0,canvas.width,canvas.height);
+          ctx.drawImage(img,0,0,canvas.width,canvas.height);
+          for (var quality = 0.8; quality >= 0.4; quality -= 0.1) {
+            var url = canvas.toDataURL('image/jpeg',quality);
+            var data = url.slice('data:image/jpeg;base64,'.length);
+            if (/^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/.test(url) && data.length % 4 === 0 && data.length * 3 / 4 - (data.endsWith('==') ? 2 : data.endsWith('=') ? 1 : 0) <= 2 * 1024 * 1024) {
+              resolve({mime:'image/jpeg',data:data}); return;
+            }
+          }
+          throw new Error('large');
+        } catch (_) { reject(new Error('image')); }
+      };
+      img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+async function selectConsentPhoto_(input) {
+  var file = input.files && input.files[0];
+  if (!file) return;
+  var selection = ++consentPhotoState_.selection;
+  consentPhotoState_.busy = true;
+  document.getElementById('consentPhotoContinue').disabled = true;
+  consentStatus_('写真を準備しています…');
+  try {
+    var photo = await compressConsentPhoto_(file);
+    if (selection !== consentPhotoState_.selection) return;
+    consentPhotoState_.photo = photo;
+    var preview = document.getElementById('consentPhotoPreview');
+    preview.src = 'data:' + photo.mime + ';base64,' + photo.data;
+    preview.style.display = 'block';
+    document.getElementById('consentPhotoRetake').style.display = '';
+    consentStatus_('文字と署名が読めることをご確認ください。');
+  } catch (_) {
+    if (selection !== consentPhotoState_.selection) return;
+    consentStatus_(consentPhotoState_.photo ? 'この写真は読み込めませんでした。前の写真は残っています。写真を選び直してください。' : 'この写真は読み込めませんでした。JPEGなど別の写真を選ぶか、撮り直してください。');
+  } finally {
+    if (selection === consentPhotoState_.selection) {
+      consentPhotoState_.busy = false;
+      document.getElementById('consentPhotoContinue').disabled = !consentPhotoState_.photo;
+      input.value = '';
+    }
+  }
+}
+function continueConsentPhoto_() {
+  if (!consentPhotoState_.required || consentPhotoState_.busy || !consentPhotoState_.photo) return;
+  consentPhotoState_.allowed = true;
+  consentGateVisible_(false);
+}
+function consentCanSubmit_() {
+  return consentPhotoState_.allowed && !consentPhotoState_.busy && (!consentPhotoState_.required || !!consentPhotoState_.photo);
+}
+function consentAttachOrder_(payload) {
+  // 写真なしの旧注文は既存の契約ID生成を維持する。
+  if (!consentPhotoState_.photo) return;
+  // 入力変更/写真変更は別試行。通信断だけの再送は同じ契約IDを使う。
+  var identity = Object.assign({},payload);
+  delete identity.contract_id; delete identity.recaptcha_token; delete identity.sessionToken;
+  identity.consent_photo = consentPhotoState_.photo;
+  var fingerprint = JSON.stringify(identity);
+  if (!consentPhotoState_.attempt || consentPhotoState_.attempt.fingerprint !== fingerprint) consentPhotoState_.attempt = {fingerprint:fingerprint,contractId:payload.contract_id};
+  payload.contract_id = consentPhotoState_.attempt.contractId;
+  if (consentPhotoState_.photo) payload.consent_photo = consentPhotoState_.photo;
+}
+
 // 承諾書サイン確認オーバーレイ（毎回必須、永続化禁止。サイン取り忘れ事故防止）
 // 右にドラッグするスライダー方式（クリック単発トグルではない、誤押下防止強化）
 (function setupSignConfirmOverlay() {
@@ -1217,7 +1334,7 @@ function _initOrderFormUI() {
     }
 
     function onDown(e) {
-      if (completed) return;
+      if (completed || consentPhotoState_.required) return;
       e.preventDefault();
       dragging = true;
       knob.style.transition = 'none';
@@ -1245,12 +1362,13 @@ function _initOrderFormUI() {
       if (currentLeft >= maxLeft - 10) {
         // 完了
         completed = true;
+        consentPhotoState_.allowed = true;
         knob.style.left = maxLeft + 'px';
         track.classList.add('done');
         if (text) text.textContent = '✓ サイン確認 完了';
         if (msg) { msg.textContent = '注文フォームに進みます'; msg.classList.add('ok'); }
         setTimeout(function() {
-          ov.style.display = 'none';
+          if (!consentPhotoState_.required) consentGateVisible_(false);
         }, 600);
       } else {
         // 元に戻す
@@ -1795,6 +1913,7 @@ function getFormData() {
 }
 
 function nextStep() {
+  if (!consentCanSubmit_()) { consentGateVisible_(true); return; }
   if (!validateStep(currentStep)) return;
   if (currentStep === 4) refreshStep3Total();
 
@@ -2004,6 +2123,7 @@ function closePrivacyOverlayConfirmed() {
 }
 
 async function doSubmit() {
+  if (!consentCanSubmit_()) { consentGateVisible_(true); return; }
   var screenTiming_ = window.ECOPITA_SCREEN_LATENCY ? window.ECOPITA_SCREEN_LATENCY.begin() : null;
   try {
   if (gasP1SfGuard('lookup', buildIndexCaseId(), function(message) { alert(message); })) return;
@@ -2046,7 +2166,7 @@ async function doSubmit() {
   }
   customItems.forEach(c => orderItems.push({ name: c.name, price: c.price, qty: c.qty || 1, subtotal: c.subtotal }));
   coupons.forEach(function(cp) { orderItems.push({ name: 'クーポン割引（' + cp.code + '）', price: -cp.discount, qty: 1, subtotal: -cp.discount }); });
-  const contractId = generateContractId();
+  let contractId = generateContractId();
   const paymentMethod = getPaymentMethod();
   const paymentSplits = isSplitPayment() ? getSplitPayments() : null;
   const feeDiagnosis = document.getElementById('fee_diagnosis_val').value || '';
@@ -2085,6 +2205,8 @@ async function doSubmit() {
     agree_privacy: true,
     signature: document.getElementById('c_signature').value
   };
+  consentAttachOrder_(payload);
+  contractId = payload.contract_id;
   const landingBaseline = _dupGuardSnapshots[payload.case_id] || null;
   // Phase 1: スプレッドシート書き込み（同期）
   try {
@@ -2104,6 +2226,9 @@ async function doSubmit() {
       result = await gasCall(payload, { mode: 'submit', url: GAS_API_URL });
     }
     if (!result.ok) {
+      if (result.reason === 'consent_photo_required') {
+        requireConsentPhoto_();
+      }
       alert('送信エラー: ' + (result.error || '送信に失敗しました'));
       btn.disabled = false; btn.textContent = '上記に同意して送信';
       return;
@@ -2136,6 +2261,12 @@ async function doSubmit() {
   // クライアントのfetch catch（Safari "Load failed" 等）はサーバ完走でも発生する偽陽性が多く、通知しない。
   // サーバが明示的に ok:false を返した時のみ管理者通報する。
   var asyncPayload = Object.assign({}, payload, { form_type: 'order_async' });
+  delete asyncPayload.consent_photo;
+  delete payload.consent_photo;
+  consentPhotoState_.photo = null;
+  consentPhotoState_.attempt = null;
+  consentPhotoState_.allowed = false;
+  document.getElementById('consentPhotoPreview').src = '';
   fetch(GAS_API_URL, { method: 'POST', body: JSON.stringify(asyncPayload) })
     .then(function(r) { return r.json(); })
     .then(function(res) {
@@ -2618,6 +2749,7 @@ function _updateCustomDiagFeeVisibility_() {
       body: JSON.stringify({ form_type: 'staff_flags', sessionToken: session.token })
     }, { onStatus: gasReadStatusTarget('staff_name_display') });
     var flags = await resp.json();
+    applyConsentPhotoPolicy_(flags);
     window._ecopitaHasCustomDiagFee = !!(flags && flags.ok && flags.customDiagFee);
     _updateCustomDiagFeeVisibility_();
   } catch(e) {}
