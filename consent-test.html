@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>同意書のテスト</title>
+<script src="./shared-site-config.js"></script>
+<script src="./shared-auth.js"></script>
+<script src="./shared-gas-call.js?v=20260914-read-v1"></script>
+<script src="./shared-consent-photo.js?v=20260925-1"></script>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f5f7fa;color:#172a3a;font-family:system-ui,-apple-system,sans-serif;line-height:1.7}main{max-width:580px;margin:auto;padding:24px 18px 48px}h1{font-size:1.55rem;margin:16px 0 6px}p{margin:8px 0 16px}.card{padding:20px;background:white;border:1px solid #dce1e8;border-radius:14px;margin:16px 0}label{display:block;font-weight:650;margin:12px 0 6px}button,select,input{font:inherit;width:100%;padding:12px;border:1px solid #b9c5ce;border-radius:8px;background:white}button{cursor:pointer;margin-top:12px}button:disabled{opacity:.5;cursor:default}.primary{background:#0055a4;color:white;border-color:#0055a4}.danger{color:#9b2020;border-color:#b85050}img{display:block;max-width:100%;max-height:360px;object-fit:contain;margin:16px auto}a{color:#0055a4}#status{min-height:3em;white-space:pre-line}#details{white-space:pre-line}small{display:block;color:#556574} [hidden]{display:none!important}
+</style>
+</head>
+<body><main>
+<a href="./index.html">← 注文フォームに戻る</a>
+<h1>同意書のテスト</h1>
+<p>全体管理者向けの写真テストです。注文や売上は登録されません。</p>
+<p id="status" role="status" aria-live="polite">利用できる保存先を確認しています…</p>
+<button id="retryOptions" type="button" hidden>もう一度確認する</button>
+<section id="testForm" class="card" hidden>
+<label for="target">保存先</label><select id="target"></select>
+<label for="photoInput">同意書の写真</label>
+<input id="photoInput" type="file" accept="image/*">
+<small>カメラで撮影するか、写真フォルダから選んでください。選択中の写真は画面を閉じると消えます。保存済みの写真は、ゴミ箱へ移すまでフォルダに残ります。</small>
+<img id="photoPreview" alt="選択した同意書" style="display:none">
+<button id="photoRetake" type="button" style="display:none">撮り直し・写真を選び直す</button>
+<button id="save" class="primary" type="button" disabled>テスト写真を保存する</button>
+<small>通信が途切れても保存されている場合があります。再度保存すると別のテスト写真ができるため、その場合はフォルダで片付けをご確認ください。</small>
+</section>
+<section id="result" class="card" hidden>
+<h2>保存結果</h2><p id="details"></p>
+<a id="fileLink" target="_blank" rel="noopener noreferrer">保存した写真を開く</a>
+<button id="trash" class="danger" type="button" disabled>このテスト写真をゴミ箱へ</button>
+<small>削除できるのは、この画面で直前に保存したテスト写真だけです。削除操作は保存から1時間以内に行い、片付けが終わるまで画面を閉じないでください。</small>
+</section>
+<script>
+'use strict';
+var CONSENT_TEST_URL = 'https://script.google.com/macros/s/AKfycbyvjri6i0fe11hzfoqfhSxWCsn1aP2WyT9ELZOzNMrVyEOx-ZsKqlhJQONzlaFLmPw/exec';
+var consentTestState = {photo:null,busy:false,selection:0,operation:false,authorized:false,targets:[],saved:null};
+function testEl(id) { return document.getElementById(id); }
+function testStatus(text) { testEl('status').textContent = text; }
+function testControls() {
+  var locked = consentTestState.operation;
+  testEl('target').disabled = locked;
+  testEl('photoInput').disabled = locked;
+  testEl('photoRetake').disabled = locked;
+  testEl('save').disabled = locked || consentTestState.busy || !consentTestState.authorized || !consentTestState.photo || !!consentTestState.saved;
+  testEl('trash').disabled = locked || !consentTestState.saved;
+  testEl('retryOptions').disabled = locked;
+}
+async function testApi(action, data) {
+  var session = window.ECOPITA_SESSION;
+  if (!session || !session.token) throw new Error('auth');
+  return gasCall(Object.assign({form_type:'consent_photo_test',action:action,sessionToken:session.token},data || {}),{mode:'submit',url:CONSENT_TEST_URL});
+}
+async function loadTestOptions() {
+  if (consentTestState.operation) return;
+  consentTestState.operation = true; testControls(); testEl('retryOptions').hidden = true;
+  try {
+    var r = await testApi('options');
+    if (!r || r.ok !== true || !Array.isArray(r.targets) || !r.targets.length) throw new Error('denied');
+    var seen = Object.create(null),targets = r.targets.filter(function(t) {
+      if (!t || typeof t.id !== 'string' || !/^[a-z0-9_]+$/.test(t.id) || typeof t.label !== 'string' || seen[t.id]) return false;
+      seen[t.id] = true; return true;
+    });
+    if (targets.length !== r.targets.length) throw new Error('targets');
+    var select = testEl('target'); select.textContent = '';
+    targets.forEach(function(t) { var option = document.createElement('option'); option.value = t.id; option.textContent = t.label; select.appendChild(option); });
+    consentTestState.targets = targets; consentTestState.authorized = true;
+    testEl('testForm').hidden = false; testStatus('保存先を選び、写真を用意してください。');
+  } catch (_) {
+    consentTestState.authorized = false; testEl('testForm').hidden = true; testEl('retryOptions').hidden = false;
+    testStatus('利用できません。全体管理者でログインしていることと、通信状態をご確認ください。');
+  } finally { consentTestState.operation = false; testControls(); }
+}
+function chooseTestPhoto(input) {
+  return window.ECOPITA_CONSENT_PHOTO.select(consentTestState,input,{
+    preview:testEl('photoPreview'),retake:testEl('photoRetake'),status:testStatus,
+    locked:function(){return consentTestState.operation;},ready:testControls
+  });
+}
+function validTestSave(r) {
+  return r && r.ok === true && typeof r.url === 'string' && r.url.indexOf('https://drive.google.com/file/d/') === 0 && /^[A-Za-z0-9_-]+\/view$/.test(r.url.slice('https://drive.google.com/file/d/'.length)) &&
+    typeof r.deleteCap === 'string' && /^[A-Za-z0-9_-]{16,200}$/.test(r.deleteCap) &&
+    Number.isFinite(r.kb) && r.kb > 0 && r.kb <= 2048 &&
+    Number.isSafeInteger(r.width) && r.width > 0 && Number.isSafeInteger(r.height) && r.height > 0 &&
+    Number.isSafeInteger(r.viewerCount) && r.viewerCount >= 0 && typeof r.folderPrivate === 'boolean' && typeof r.filePrivate === 'boolean';
+}
+async function saveTestPhoto() {
+  if (consentTestState.operation || consentTestState.busy || !consentTestState.authorized || !consentTestState.photo || consentTestState.saved) return;
+  var target = testEl('target').value;
+  if (!consentTestState.targets.some(function(t){return t.id === target;})) return;
+  consentTestState.operation = true; testControls(); testStatus('写真を保存しています…');
+  try {
+    var r = await testApi('save',{target:target,photo:consentTestState.photo});
+    if (!validTestSave(r)) throw new Error('save');
+    consentTestState.saved = {deleteCap:r.deleteCap};
+    testEl('fileLink').href = r.url;
+    testEl('details').textContent = r.kb.toFixed(1) + ' KB ／ ' + r.width + ' × ' + r.height + ' px\n閲覧を追加した人数：' + r.viewerCount + '人\nフォルダ：' + (r.folderPrivate ? '非公開' : '組織内の共有あり（非公開ではありません）') + '\n写真：' + (r.filePrivate ? '非公開' : '組織内の共有あり（非公開ではありません）');
+    testEl('result').hidden = false; testStatus('保存しました。リンクで写真を確認したら、テスト写真をゴミ箱へ移してください。');
+  } catch (_) { testStatus('保存結果を確認できませんでした。写真はこの画面に残っています。保存先にもテスト写真が残っている場合があるため、再度保存する前にフォルダをご確認ください。'); }
+  finally { consentTestState.operation = false; testControls(); }
+}
+async function trashTestPhoto() {
+  if (consentTestState.operation || !consentTestState.saved) return;
+  var saved = consentTestState.saved;
+  consentTestState.operation = true; testControls(); testStatus('テスト写真をゴミ箱へ移しています…');
+  try {
+    var r = await testApi('trash',{deleteCap:saved.deleteCap});
+    if (!r || r.ok !== true) throw new Error('trash');
+    consentTestState.saved = null; testEl('result').hidden = true; testEl('fileLink').removeAttribute('href');
+    testStatus('テスト写真をゴミ箱へ移しました。');
+  } catch (_) { testStatus('削除を確認できませんでした。もう一度お試しください。時間が経過した場合は管理者に片付けを依頼してください。'); }
+  finally { consentTestState.operation = false; testControls(); }
+}
+testEl('photoInput').addEventListener('change',function(){chooseTestPhoto(this);});
+testEl('photoRetake').addEventListener('click',function(){if(!consentTestState.operation)testEl('photoInput').click();});
+testEl('save').addEventListener('click',saveTestPhoto);
+testEl('trash').addEventListener('click',trashTestPhoto);
+testEl('retryOptions').addEventListener('click',loadTestOptions);
+loadTestOptions();
+</script>
+</main></body></html>
