@@ -75,7 +75,8 @@
       if (READ_GET_ACTIONS.indexOf(route) < 0) throw new Error('GAS_READ_ROUTE_DENIED');
     } else if (method === 'GET') {
       route = parsed.searchParams.get('mode');
-      if (route !== 'json' && route !== 'cases') throw new Error('GAS_READ_ROUTE_DENIED');
+      // group_reward＝グループのサイトの報酬確認（読むだけ・票 1850）。2026-09-24 実機で GAS_READ_ROUTE_DENIED になっていたのを通す。
+      if (route !== 'json' && route !== 'cases' && route !== 'group_reward') throw new Error('GAS_READ_ROUTE_DENIED');
     } else throw new Error('GAS_READ_ROUTE_DENIED');
     var headers = [];
     if (request.headers) new Headers(request.headers).forEach(function(value, key) { headers.push([key, canonicalReadValue(value, key)]); });
