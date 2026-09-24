@@ -177,7 +177,7 @@ tbody tr:hover { background: rgba(79,140,255,.04); }
     <div class="section-title">下請け別パフォーマンス</div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th class="sticky-col" style="text-align:center">担当者</th><th style="text-align:center">受付</th><th style="text-align:center">成約</th><th style="text-align:center">失注</th><th style="text-align:center">電話失注</th><th style="text-align:center">予約</th><th style="text-align:center">成約率</th><th style="text-align:right">売上</th><th style="text-align:right">広告費</th><th style="text-align:right">粗利</th><th id="staffRewardHeader" style="text-align:right">報酬見込</th></tr></thead>
+        <thead id="staffHead"><tr><th class="sticky-col staff-sort" data-sort="staff_id" style="text-align:center">担当者</th><th class="staff-sort" data-sort="received" style="text-align:center">受付</th><th class="staff-sort" data-sort="seiyaku" style="text-align:center">成約</th><th class="staff-sort" data-sort="shicchu" style="text-align:center">失注</th><th class="staff-sort" data-sort="denwa_shicchu" style="text-align:center">電話失注</th><th class="staff-sort" data-sort="yoyaku" style="text-align:center">予約</th><th class="staff-sort" data-sort="seiyaku_rate" style="text-align:center">成約率</th><th class="staff-sort" data-sort="revenue" style="text-align:right">売上</th><th class="staff-sort" data-sort="ad_cost" style="text-align:right">広告費</th><th class="staff-sort" data-sort="gross_profit" style="text-align:right">粗利</th><th id="staffRewardHeader" class="staff-sort" data-sort="reward" style="text-align:right">報酬見込</th></tr></thead>
         <tbody id="staffBody"></tbody>
       </table>
     </div>
@@ -567,8 +567,37 @@ function render(json) {
   document.getElementById('staffRewardHeader').style.display = json.groupRewardHidden ? 'none' : '';
   if ((isAdmin || groupAdmin) && json.global_summary && json.global_summary.by_staff) {
     staffSection.style.display = '';
-    var sortedStaff = json.global_summary.by_staff.slice().sort(function(a,b){ return (a.staff_id||'').localeCompare(b.staff_id||''); });
-    document.getElementById('staffBody').innerHTML = sortedStaff.map(function(st) {
+    STAFF_TABLE_.rows = json.global_summary.by_staff.slice();
+    STAFF_TABLE_.rewardHidden = !!json.groupRewardHidden;
+    renderStaffTable_();
+  } else { staffSection.style.display = 'none'; }
+  renderCaseTable_(json, showStaffColumn);
+}
+
+// 下請け別パフォーマンスの並べ替え（2026-09-24 麗香「各項目で多い順とかに変えられるように。デフォルトは担当者番号順のまま」）。
+// 見出しを押すとその項目で並べ替え。同じ見出しをもう一度押すと逆順。数字の項目は最初は多い順、担当者は番号の小さい順。
+var STAFF_TABLE_ = { rows: [], rewardHidden: false, key: 'staff_id', dir: 'asc' };
+function staffSortValue_(st, key) {
+  if (key === 'staff_id') return String(st.staff_id || '');
+  var v = Number(String(st[key] == null ? '' : st[key]).replace('%', ''));
+  return isFinite(v) ? v : -Infinity;
+}
+function renderStaffTable_() {
+  var key = STAFF_TABLE_.key, sign = STAFF_TABLE_.dir === 'asc' ? 1 : -1;
+  var sortedStaff = STAFF_TABLE_.rows.slice().sort(function(a, b) {
+    var x = staffSortValue_(a, key), y = staffSortValue_(b, key), c;
+    if (key === 'staff_id') c = x.localeCompare(y); else c = x === y ? 0 : (x < y ? -1 : 1);
+    if (c === 0) return String(a.staff_id || '').localeCompare(String(b.staff_id || ''));
+    return c * sign;
+  });
+  document.querySelectorAll('#staffHead .staff-sort').forEach(function(th) {
+    var base = th.getAttribute('data-label') || th.textContent.replace(/[ ▲▼]+$/, '');
+    th.setAttribute('data-label', base);
+    th.style.cursor = 'pointer';
+    th.textContent = base + (th.getAttribute('data-sort') === key ? (STAFF_TABLE_.dir === 'asc' ? ' ▲' : ' ▼') : '');
+  });
+  var json = { groupRewardHidden: STAFF_TABLE_.rewardHidden };
+  document.getElementById('staffBody').innerHTML = sortedStaff.map(function(st) {
       return '<tr><td class="sticky-col" style="text-align:center"><strong>' + esc(st.staff_name) + '</strong><br><span style="color:var(--text2);font-size:11px">' + esc(st.staff_id) + '</span></td>'
         + '<td class="mono" style="text-align:center">' + st.received + '</td><td class="mono" style="text-align:center;color:var(--green)">' + st.seiyaku + '</td>'
         + '<td class="mono" style="text-align:center;color:var(--red)">' + st.shicchu + '</td><td class="mono" style="text-align:center;color:var(--orange)">' + st.denwa_shicchu + '</td>'
@@ -577,8 +606,17 @@ function render(json) {
         + '<td class="mono r" style="color:' + (st.gross_profit >= 0 ? 'var(--green)' : 'var(--red)') + '">' + fmtYen(st.gross_profit) + '</td>'
         + (json.groupRewardHidden ? '' : '<td class="mono r">' + fmtYen(st.reward) + '</td>') + '</tr>';
     }).join('');
-  } else { staffSection.style.display = 'none'; }
+}
+document.addEventListener('click', function(ev) {
+  var th = ev.target && ev.target.closest ? ev.target.closest('#staffHead .staff-sort') : null;
+  if (!th) return;
+  var key = th.getAttribute('data-sort');
+  if (STAFF_TABLE_.key === key) STAFF_TABLE_.dir = STAFF_TABLE_.dir === 'asc' ? 'desc' : 'asc';
+  else { STAFF_TABLE_.key = key; STAFF_TABLE_.dir = key === 'staff_id' ? 'asc' : 'desc'; }
+  renderStaffTable_();
+});
 
+function renderCaseTable_(json, showStaffColumn) {
   var caseRows = (json.rows || []).slice().reverse().slice(0, 100);
   var caseCols = showStaffColumn ? 8 : 7;
   var caseHead = document.querySelector('#caseBody').closest('table').querySelector('thead tr');
