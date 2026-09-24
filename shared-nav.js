@@ -495,6 +495,24 @@
     document.body.appendChild(overlay);
     document.body.appendChild(panel);
 
+    // 区分はブラウザのroleでは判定しない。グループ報酬の読取認可だけを照会する。
+    if (window.ECOPITA_SITE.group !== 'main' && session && session.token) {
+      var rewardUrl = 'https://script.google.com/macros/s/AKfycbyWAsYrvJs4ihH046NL-tIzUBsPM7rOdm0MSdKjptR9KliR6Et0SvS_2z_egd4I7476FQ/exec';
+      var rewardQuery = new URLSearchParams({mode:'group_reward',action:'access',siteGroup:window.ECOPITA_SITE.group,token:session.token});
+      fetch(rewardUrl + '?' + rewardQuery.toString(), {redirect:'follow'})
+        .then(function(r){return r.json();})
+        .then(function(r){
+          if (!r || !r.ok || r.canViewGroupReward !== true) return;
+          var currentSession=getSession_();
+          if(window.ECOPITA_SITE_BLOCKED||!currentSession||currentSession.token!==session.token)return;
+          var link=document.createElement('a');
+          link.href=window.ECOPITA_SITE.baseUrl+'/reward.html';
+          link.className='ecopita-nav-link'+(isCurrentSite(link.href)?' current':'');
+          link.innerHTML='<div class="ecopita-nav-icon" style="background:#F4433615;color:#F44336">🤝</div><div class="ecopita-nav-text"><span class="ecopita-nav-name">報酬確認ポータル</span><span class="ecopita-nav-sub">週次報酬確認</span></div>';
+          panel.insertBefore(link,panel.querySelector('.ecopita-nav-divider'));
+        }).catch(function(){});
+    }
+
     // ---- 開閉ロジック ----
     var isOpen = false;
 

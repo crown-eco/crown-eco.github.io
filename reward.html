@@ -2,13 +2,6 @@
 <html lang="ja">
 <head>
 <script src="./shared-site-config.js"></script>
-<script>
-if (window.ECOPITA_SITE.group !== 'main') document.documentElement.setAttribute('data-group-reward-unavailable', 'true');
-</script>
-<style>
-html[data-group-reward-unavailable] body > * { display: none !important; }
-html[data-group-reward-unavailable] body::before { content: 'このサイトでは使いません'; display: block; padding: 32px; font: 16px sans-serif; }
-</style>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>報酬確認ポータル</title>
@@ -146,6 +139,7 @@ table{width:100%;border-collapse:collapse;font-size:.88rem;table-layout:fixed}th
     <span class="date-range" id="dateRange"></span>
   </div>
   <div class="tabs" id="tabBar"></div>
+  <div id="groupRateWarning" role="alert" style="display:none;background:#b71c1c;color:#fff;padding:12px;margin-bottom:12px;border-radius:10px;white-space:pre-line"></div>
   <div class="summary" id="summaryArea"></div>
   <div id="weeksArea"></div>
   <p class="app-err" id="appErr"></p>
@@ -153,6 +147,7 @@ table{width:100%;border-collapse:collapse;font-size:.88rem;table-layout:fixed}th
 
 <script>
 var GAS_API_URL = 'https://script.google.com/macros/s/AKfycbyvjri6i0fe11hzfoqfhSxWCsn1aP2WyT9ELZOzNMrVyEOx-ZsKqlhJQONzlaFLmPw/exec';
+var GROUP_REWARD_API_URL = 'https://script.google.com/macros/s/AKfycbyWAsYrvJs4ihH046NL-tIzUBsPM7rOdm0MSdKjptR9KliR6Et0SvS_2z_egd4I7476FQ/exec';
 var token='',busy=false,seq=0,latest=0,ua=navigator.userAgent||'';
 var currentData=null,activeTab='own',isAdmin=false,myStaffId='',viewStaffId='',previewAs='';
 
@@ -160,9 +155,8 @@ var currentData=null,activeTab='own',isAdmin=false,myStaffId='',viewStaffId='',p
 var _totpPassToken='', _totpStaffId='', _totpMode='', _totpDisplayName='', _countdownTimer=null;
 
 (function(){
-  if (window.ECOPITA_SITE.group !== 'main') return;
   if (window.ECOPITA_SESSION) {
-    if (window.ECOPITA_SESSION.rewardHidden) {
+    if (window.ECOPITA_SITE.group === 'main' && window.ECOPITA_SESSION.rewardHidden) {
       location.replace(window.ECOPITA_SITE.baseUrl + '/portal.html');
       return;
     }
@@ -190,7 +184,13 @@ function showScreen_(id) {
 // API通信
 // ================================================================
 async function callApi(payload){
-  if (window.ECOPITA_SITE.group !== 'main') return {ok:false,error:'このサイトでは使いません'};
+  if (window.ECOPITA_SITE.group !== 'main') {
+    if (['bootstrap','changeDate','viewReferree'].indexOf(payload.action) < 0) return {ok:false,error:'この操作は使いません'};
+    var query = new URLSearchParams({mode:'group_reward',token:payload.sessionToken||'',siteGroup:window.ECOPITA_SITE.group,action:payload.action});
+    ['startDate','targetStaffId','referreeStaffId'].forEach(function(k){if(payload[k])query.set(k,payload[k]);});
+    var groupResp=await gasReadFetch(GROUP_REWARD_API_URL+'?'+query.toString(),{redirect:'follow'},{onStatus:gasReadStatusTarget('appErr')});
+    try{return JSON.parse(await groupResp.text())}catch(e){throw new Error('サーバーからの応答が不正です。')}
+  }
   var json=JSON.stringify(payload);
   var encoded=btoa(unescape(encodeURIComponent(json)));
   var url=GAS_API_URL+'?_portal_data='+encodeURIComponent(encoded);
@@ -382,8 +382,9 @@ async function bootstrap(){
     document.getElementById('startDate').value=r.startDate;updateDateRange(r.startDate);
     var vm=r.viewableMembers||[];
     if(vm.length>1){document.getElementById('adminSelect').style.display='';var sel=document.getElementById('memberSelect');sel.innerHTML='';
-      vm.forEach(function(m){var o=document.createElement('option');o.value=m.staffId;o.textContent=m.staffId+' '+m.name;sel.appendChild(o)});sel.value=myStaffId;}
-    if(isAdmin){document.getElementById('lblUser').innerHTML=r.displayName+'（'+r.staffId+'）<span class="admin-badge">管理者</span>';}
+      vm.forEach(function(m){var o=document.createElement('option');o.value=m.staffId;o.textContent=m.staffId+' '+m.name;sel.appendChild(o)});sel.value=r.groupReward?r.viewStaffId:myStaffId;}
+    if(r.groupReward)viewStaffId=r.viewStaffId||'';
+    if(isAdmin&&!r.groupReward){document.getElementById('lblUser').innerHTML=r.displayName+'（'+r.staffId+'）<span class="admin-badge">管理者</span>';}
     else{document.getElementById('lblUser').textContent=r.displayName+'（'+r.staffId+'）';}
     updatePreviewControls(r);
     buildTabs();renderOwn();
@@ -403,6 +404,7 @@ async function reload(){
     if(s!==latest)return;document.getElementById('loading').classList.remove('on');setBusy(false);
     if(!r||!r.ok){handleErr(r&&r.error);return}
     currentData.weeks=r.weeks;currentData.referrees=r.referrees;currentData.referralReward=r.referralReward;currentData.careerReward=r.careerReward||null;
+    if(r.groupReward)currentData=r;
     if(r.viewStaffId)viewStaffId=r.viewStaffId;
     updatePreviewControls(r);
     document.getElementById('startDate').value=r.startDate;updateDateRange(r.startDate);
@@ -449,7 +451,7 @@ function setBusy(f){busy=!!f;['loginBtn','dateBtn'].forEach(function(id){var e=d
 function updatePreviewControls(r){
   var box=document.getElementById('previewSelect'),sel=document.getElementById('previewAsSelect'),badge=document.getElementById('previewBadge');
   if(!box||!sel)return;
-  if(!isAdmin){box.style.display='none';previewAs='';if(badge)badge.style.display='none';return}
+  if(!isAdmin||(r&&r.groupReward)){box.style.display='none';previewAs='';if(badge)badge.style.display='none';return}
   var viewers=(r&&r.preview_viewers)||[],applied=(r&&r.preview_as)||'',selected=(applied&&applied!==myStaffId)?applied:(previewAs||''),seen={};
   box.style.display='flex';sel.innerHTML='';
   var normal=document.createElement('option');normal.value='';normal.textContent='通常（自分）';sel.appendChild(normal);
@@ -464,7 +466,7 @@ function updateDateRange(start){if(!start)return;var s=new Date(start),e=new Dat
   document.getElementById('dateRange').textContent=f(s)+'〜'+f(e)+'　4週分'}
 
 function buildTabs(){var bar=document.getElementById('tabBar');bar.innerHTML='';
-  bar.appendChild(mkTab('own','自分の報酬'));
+  bar.appendChild(mkTab('own',currentData.groupReward?'報酬（閲覧のみ）':'自分の報酬'));
   if(currentData.referrees&&currentData.referrees.length)currentData.referrees.forEach(function(r){bar.appendChild(mkTab('detail_'+r.staffId,r.name+'の明細'))});
   activateTab('own')}
 
@@ -473,6 +475,7 @@ function activateTab(id){activeTab=id;document.querySelectorAll('.tab').forEach(
   if(id==='own')renderOwn();else if(id.indexOf('detail_')===0)loadReferreeDetail(id.replace('detail_',''))}
 
 function renderOwn(){
+  if(currentData&&currentData.groupReward){renderGroupReward_();return}
   if(!currentData||!currentData.weeks){document.getElementById('weeksArea').innerHTML='<div class="empty-w">データがありません</div>';document.getElementById('summaryArea').innerHTML='';return}
   var weeks=currentData.weeks,tT=0,tS=0,tA=0,tR=0;
   weeks.forEach(function(w){tT+=w.transferAmount;tS+=w.totals.sales;tA+=w.totals.adCost;tR+=w.totals.reward});
@@ -520,6 +523,40 @@ function renderOwn(){
   }
   document.getElementById('weeksArea').innerHTML=html}
 
+function groupRewardAmount_(value,error){
+  if(value==null||!Number.isFinite(Number(value)))return error==='masked_view'?'閲覧制限により計算を表示できません':error==='rate_total_exceeded'?'率の合計が 100% を超えています':'率の設定なし';
+  return yen(value);
+}
+function renderGroupReward_(){
+  var weeks=currentData.weeks||[],issues=currentData.rateIssues||[],warning=document.getElementById('groupRateWarning');
+  var referrerLabel=currentData.referrerLabel||'紹介者',referreeLabel=currentData.referreeLabel||'被紹介者';
+  var incomingLabel=referrerLabel==='紹介者'?'受取紹介料':'受取'+referrerLabel+'報酬';
+  var rows=issues.filter(function(x){return x.code==='rate_not_week_boundary'}).map(function(x){return x.tab+' '+x.row+'行目'});
+  var notices=(currentData.rateWarnings||[]).filter(function(x){return x.code==='rate_duplicate_referral_tabs'}).map(function(x){return '率の表が2つあります。「'+x.tab+'」を使っています。'});
+  warning.textContent=(rows.length?'率の表に木曜以外の日付があります（'+rows.join('、')+'）。その行は計算に使っていません\n':'')+notices.join('\n');
+  warning.style.display=rows.length||notices.length?'block':'none';
+  warning.style.background=rows.length?'#b71c1c':'#fff3cd';warning.style.color=rows.length?'#fff':'#664d03';
+  if(!weeks.length){document.getElementById('summaryArea').innerHTML='';document.getElementById('weeksArea').innerHTML='<div class="empty-w">表示対象の下請けがありません</div>';return}
+  function sum(key){var total=0;for(var i=0;i<weeks.length;i++){if(weeks[i][key]==null)return null;total+=weeks[i][key];}return total}
+  var error=weeks.some(function(w){return w.rateError==='rate_total_exceeded'})?'rate_total_exceeded':weeks.some(function(w){return w.rateError==='masked_view'})?'masked_view':'rate_missing';
+  var split=[['本人の取り分','selfReward'],['吉田さん','yoshidaReward'],['Crown ロイヤリティ','crownReward'],[referrerLabel+'への配分','referralReward']];
+  var summary=[['利益合計','profit']].concat(split,[[incomingLabel,'referralIncome'],['受取合計','transferAmount']]);
+  document.getElementById('summaryArea').innerHTML=summary.map(function(x){return '<div class="scard"><div class="sl">'+esc(x[0])+'</div><div class="sv mono">'+groupRewardAmount_(sum(x[1]),error)+'</div></div>'}).join('');
+  var html='<p style="margin-bottom:12px">'+esc(currentData.refName||viewStaffId)+'の報酬（閲覧のみ）</p>';
+  html+='<p style="margin-bottom:12px">'+esc(referrerLabel)+'への配分と、'+esc(referreeLabel)+'からの受取を表示しています。</p>';
+  weeks.forEach(function(w,i){
+    html+='<div class="week"><div class="week-hdr"><h3>第'+(i+1)+'週 '+fmtMD(w.weekStart)+'〜'+fmtMD(w.weekEnd)+'</h3><div class="week-tf"><span class="lb">受取合計</span><span class="mono">'+groupRewardAmount_(w.transferAmount,w.rateError)+'</span></div></div>';
+    html+='<div class="summary" style="padding:12px">'+[['利益','profit']].concat(split,[[incomingLabel,'referralIncome']]).map(function(x){return '<div class="scard"><div class="sl">'+esc(x[0])+'</div><div class="sv mono">'+groupRewardAmount_(w[x[1]],w.rateError)+'</div></div>'}).join('')+'</div>';
+    var columns=[['売上','sales'],['広告費','adCost'],['手数料','cardFee'],['CO費用','coFee'],['経費','honntai']];
+    html+='<div class="tbl-w"><table><thead><tr><th>日付</th>'+columns.map(function(x){return '<th class="r">'+x[0]+'</th>'}).join('')+'</tr></thead><tbody>';
+    (w.days||[]).forEach(function(d){html+='<tr><td>'+fmtMD(d.date)+'（'+esc(d.dow)+'）</td>'+columns.map(function(x){return '<td class="r mono">'+groupRewardAmount_(d[x[1]],w.rateError)+'</td>'}).join('')+'</tr>'});
+    html+='</tbody></table></div><div class="day-cards">';
+    (w.days||[]).forEach(function(d){html+='<div class="day-card"><div class="day-date">'+fmtMD(d.date)+'（'+esc(d.dow)+'）</div><div class="day-details">'+columns.map(function(x){return '<div class="day-item"><span class="dl">'+x[0]+'</span><span class="dv mono">'+groupRewardAmount_(d[x[1]],w.rateError)+'</span></div>'}).join('')+'</div></div>'});
+    html+='</div></div>';
+  });
+  document.getElementById('weeksArea').innerHTML=html;
+}
+
 function renderWeeksHTML(weeks,full,refByWeek){var html='';
   weeks.forEach(function(w,i){var ws=fmtMD(w.weekStart),we=fmtMD(w.weekEnd);var d0=w.days[0],d6=w.days[6];
     var refAmt=(refByWeek&&refByWeek[i])?refByWeek[i]:0;
@@ -553,6 +590,14 @@ function renderWeeksHTML(weeks,full,refByWeek){var html='';
 
 function savedRewardGroupId_(value){var id=String(value||'').trim().toLowerCase();return /^[a-z0-9_]+$/.test(id)?id:'main'}
 function handleErr(msg){msg=msg||'エラー';
+  if(window.ECOPITA_SITE.group!=='main'){
+    currentData=null;
+    ['summaryArea','weeksArea','tabBar'].forEach(function(id){document.getElementById(id).innerHTML=''});
+    document.getElementById('groupRateWarning').style.display='none';
+    document.getElementById('adminSelect').style.display='none';
+    document.getElementById('previewSelect').style.display='none';
+    document.getElementById('appErr').textContent=msg;return;
+  }
   if(msg==='このグループでは使いません'||msg.indexOf('グループ設定を確認できません')===0){
     currentData=null;
     ['summaryArea','weeksArea','tabBar'].forEach(function(id){document.getElementById(id).innerHTML=''});
