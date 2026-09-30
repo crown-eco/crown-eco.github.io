@@ -1122,8 +1122,10 @@ function _initOrderFormUI() {
       var b = document.getElementById('repeat_banner');
       if (b) { b.textContent = '🔁 読み込み中...'; b.style.display = 'block'; }
     }
+    var repeatLookupPayload = { form_type: 'lookup', case_id: shortId, p1_sf: 'p1_sf_v1' };
+    if (p.get('repeat')) repeatLookupPayload.repeat = 1;
     gasCall(
-      { form_type: 'lookup', case_id: shortId, p1_sf: 'p1_sf_v1' },
+      repeatLookupPayload,
       {
         mode: 'lookup',
         url: GAS_API_URL,
@@ -1170,6 +1172,7 @@ function _initOrderFormUI() {
         if (r.staff_id) { document.getElementById('c_emp_id').value = r.staff_id; lookupStaffName(); }
         if (r.transfer_name) document.getElementById('transfer_name').value = r.transfer_name;
         if (p.get('repeat')) {
+          if (r.equipment_info) prefillRepeatEquipmentInfo_(r.equipment_info);
           var b2 = document.getElementById('repeat_banner');
           if (b2) { b2.textContent = '🔁 リピート受付　案件番号: ' + r.case_id + ' ／ ' + r.name + ' 様'; b2.style.display = 'block'; }
         }
@@ -2724,6 +2727,27 @@ function escHtml_(value) { return String(value == null ? '' : value).replace(/[&
 function onEqInfoOther(id) {
   var sel = document.getElementById(id), other = document.getElementById(id + '_other');
   if (sel && other) other.style.display = sel.value === '__other__' ? '' : 'none';
+}
+function prefillRepeatEquipmentInfo_(info) {
+  if (!info || typeof info !== 'object' || Array.isArray(info)) return;
+  var otherKeys = ['gas_type','gas_grams','maker','indoor_room','outdoor_place'];
+  ['gas_type','gas_grams','maker','model_name','model_no','indoor_floor','indoor_room','outdoor_floor','outdoor_place'].forEach(function(key) {
+    if (typeof info[key] !== 'string') return;
+    var value = info[key].trim().slice(0, 60);
+    var id = 'c_' + key, el = document.getElementById(id);
+    if (!value || !el || el.value !== '') return;
+    var other = document.getElementById(id + '_other');
+    if (other && other.value !== '') return;
+    if (el.tagName === 'SELECT') {
+      var known = Array.prototype.some.call(el.options, function(option) { return option.value === value && option.value !== '__other__'; });
+      if (known) el.value = value;
+      else if (otherKeys.indexOf(key) >= 0 && other) {
+        el.value = '__other__';
+        other.value = value;
+      } else return;
+      if (otherKeys.indexOf(key) >= 0) onEqInfoOther(id);
+    } else el.value = value;
+  });
 }
 function getEquipmentInfo() {
   var info = {};
