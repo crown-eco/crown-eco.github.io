@@ -976,9 +976,10 @@ input[type="date"]{width:100%;max-width:100%;box-sizing:border-box;-webkit-appea
 
 </div>
 
-<script src="./shared-gas-call.js?v=20260914-read-v1"></script>
-<script src="./shared-screen-latency.js?v=20260924-1"></script>
-<script src="./write-async-status.js?v=20260902-v1"></script>
+<script src="./shared-gas-call.js?v=20260930-gap-v1"></script>
+<script>if(typeof window.gasDiagnosticFetch!=="function")window.gasDiagnosticFetch=window.fetch.bind(window);</script>
+<script src="./shared-screen-latency.js?v=20260930-gap-v1"></script>
+<script src="./write-async-status.js?v=20260930-gap-v1"></script>
 <script>
 // ================================
 // ★ GAS WebアプリのURLをここに貼る ★
@@ -3151,18 +3152,20 @@ async function confirmSend() {
   // Phase 1: スプレッドシート書き込み（同期）
   var syncResult = {};
   try {
-    var resp = await fetch(GAS_API_URL, { method: 'POST', body: JSON.stringify(payload) });
+    var resp = await gasDiagnosticFetch(GAS_API_URL, { method: 'POST', body: JSON.stringify(payload) });
     syncResult = await resp.json();
     if (syncResult && syncResult.ok === false && syncResult.reason === 'recent_report_exists' && syncResult.recent) {
       btnC.textContent = '確認してください';
-      var recentChoice = await _showRecentReportChoice_(syncResult.recent, syncResult.window_minutes);
+      var userWaitMark_; try { userWaitMark_ = window.ECOPITA_SCREEN_LATENCY && window.ECOPITA_SCREEN_LATENCY.mark(screenTiming_, 'user_wait'); } catch (ignored) {}
+      var recentChoice;
+      try { recentChoice = await _showRecentReportChoice_(syncResult.recent, syncResult.window_minutes); } finally { try { if (window.ECOPITA_SCREEN_LATENCY) window.ECOPITA_SCREEN_LATENCY.endMark(userWaitMark_); } catch (ignored) {} }
       if (recentChoice !== 'continue') {
         btnC.disabled = false; btnC.textContent = '送信する';
         return;
       }
       payload.confirm_new_report = true;
       btnC.textContent = '登録中...';
-      resp = await fetch(GAS_API_URL, { method: 'POST', body: JSON.stringify(payload) });
+      resp = await gasDiagnosticFetch(GAS_API_URL, { method: 'POST', body: JSON.stringify(payload) });
       syncResult = await resp.json();
     }
     if (!syncResult.ok) {
@@ -3195,8 +3198,8 @@ async function confirmSend() {
         acceptance: asyncAcceptance,
         target: doneMsg,
         pendingMessage: window.WriteAsyncStatusV1.COPY.reportPending,
-        callStatus: function(operationIds) {
-          return window.WriteAsyncStatusV1.callGasStatus(GAS_API_URL, operationIds);
+        callStatus: function(operationIds, latencyOperation) {
+          return window.WriteAsyncStatusV1.callGasStatus(GAS_API_URL, operationIds, latencyOperation);
         }
       });
     } else {

@@ -119,8 +119,8 @@ table{width:100%;border-collapse:collapse;font-size:.88rem;table-layout:fixed}th
   .week-hdr h3{font-size:.88rem}
 }
 </style>
-<script src="./shared-gas-call.js?v=20260914-read-v1"></script>
-<script src="./shared-screen-latency.js?v=20260924-1"></script>
+<script src="./shared-gas-call.js?v=20260930-gap-v1"></script>
+<script src="./shared-screen-latency.js?v=20260930-gap-v1"></script>
 </head>
 <body>
 <div class="loading" id="loading"><div style="text-align:center"><div class="spinner" style="margin:0 auto"></div><div style="margin-top:12px;color:var(--text2);font-size:14px">データを読み込み中...</div></div></div>
@@ -189,14 +189,14 @@ async function callApi(payload){
     var query = new URLSearchParams({mode:'group_reward',token:payload.sessionToken||'',siteGroup:window.ECOPITA_SITE.group,action:payload.action});
     ['startDate','targetStaffId','referreeStaffId'].forEach(function(k){if(payload[k])query.set(k,payload[k]);});
     var groupResp=await gasReadFetch(GROUP_REWARD_API_URL+'?'+query.toString(),{redirect:'follow'},{onStatus:gasReadStatusTarget('appErr')});
-    try{return JSON.parse(await groupResp.text())}catch(e){throw new Error('サーバーからの応答が不正です。')}
+    try{var groupData=JSON.parse(await groupResp.text()); try { if(window.ECOPITA_SCREEN_LATENCY)window.ECOPITA_SCREEN_LATENCY.bindResponse(groupData,groupResp); } catch(ignored) {} return groupData}catch(e){throw new Error('サーバーからの応答が不正です。')}
   }
   var json=JSON.stringify(payload);
   var encoded=btoa(unescape(encodeURIComponent(json)));
   var url=GAS_API_URL+'?_portal_data='+encodeURIComponent(encoded);
   var resp=await (['bootstrap','changeDate','viewReferree'].indexOf(payload.action) >= 0 ? gasReadFetch(url, {redirect:'follow'}, { onStatus: gasReadStatusTarget('appErr') }) : fetch(url,{redirect:'follow'}));
   var text=await resp.text();
-  try{return JSON.parse(text)}catch(e){throw new Error('サーバーからの応答が不正です。')}
+  try{var responseData=JSON.parse(text); try { if(window.ECOPITA_SCREEN_LATENCY)window.ECOPITA_SCREEN_LATENCY.bindResponse(responseData,resp); } catch(ignored) {} return responseData}catch(e){throw new Error('サーバーからの応答が不正です。')}
 }
 
 // ================================================================

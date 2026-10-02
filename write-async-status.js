@@ -43,12 +43,14 @@
     return 'unknown';
   }
 
-  function callGasStatus(gasUrl, operationIds) {
+  function callGasStatus(gasUrl, operationIds, latencyOperation) {
     if (typeof gasCall !== 'function') return Promise.reject(new Error('GAS_CALL_UNAVAILABLE'));
+    var timingOptions = { mode: 'lookup', url: gasUrl };
+    if (arguments.length >= 3) timingOptions.latencyOperation = latencyOperation;
     return gasCall({
       form_type: 'write_async_status',
       operation_ids: ids_(operationIds)
-    }, { mode: 'lookup', url: gasUrl });
+    }, timingOptions);
   }
 
   function render_(target, state, options, reference) {
@@ -86,6 +88,8 @@
 
   function start(options) {
     options = options || {};
+    var latencyOperation = null;
+    try { if (typeof window !== 'undefined' && window.ECOPITA_SCREEN_LATENCY) latencyOperation = window.ECOPITA_SCREEN_LATENCY.capture(); } catch (ignored) {}
     var acceptance = options.acceptance || {};
     var operationIds = ids_(acceptance.operation_ids);
     if (acceptance.enabled !== true || !operationIds.length || typeof options.callStatus !== 'function') return null;
@@ -113,7 +117,7 @@
       if (stopped) return Promise.resolve('stopped');
       stopTimer_();
       attempt++;
-      return Promise.resolve(options.callStatus(operationIds.slice())).then(function(response) {
+      return Promise.resolve(options.callStatus(operationIds.slice(), latencyOperation)).then(function(response) {
         var state = classify(response, operationIds);
         reference = String(response && response.reference || reference || '');
         if (state === 'pending') {

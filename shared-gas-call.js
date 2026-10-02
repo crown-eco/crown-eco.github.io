@@ -1,6 +1,33 @@
 (function(root) {
   'use strict';
 
+  // Only fixed timing hooks; never pass URLs, bodies, errors or credentials to telemetry.
+  function latencyHook(method, args) {
+    try { var api=root.ECOPITA_SCREEN_LATENCY; return api && typeof api[method]==='function' ? api[method].apply(api,args||[]) : null; } catch (ignored) { return null; }
+  }
+  function diagnosticFetch(fetchFn, receiver, url, request, operation) {
+    var record=latencyHook('startCall',[operation]);
+    // The business call executes exactly once, outside every diagnostic catch.
+    var promise;
+    try { promise=fetchFn.call(receiver,url,request); } catch(error) { latencyHook('endCall',[record]); throw error; }
+    if (!record) return promise;
+    return Promise.resolve(promise).then(function(response) {
+      latencyHook('endCall',[record]);
+      try {
+        ['json','text'].forEach(function(method) {
+          var original=response[method]; if(typeof original!=='function')return;
+          response[method]=function() {
+            var body;
+            try { body=original.apply(this,arguments); } catch(error) { latencyHook('endCall',[record]); throw error; }
+            return Promise.resolve(body).then(function(value) { latencyHook('endCall',[record,method==='json'?value:null]); return value; },function(error) { latencyHook('endCall',[record]); throw error; });
+          };
+        });
+      } catch(ignored) {}
+      latencyHook('bind',[response,record]);
+      return response;
+    },function(error) { latencyHook('endCall',[record]); throw error; });
+  }
+  function gasDiagnosticFetch(url, request) { return diagnosticFetch(root.fetch,root,url,request,latencyHook('capture')); }
   var inflightLookups = new Map();
   var p1SfLookupStates = new Map();
   var DEFAULT_RETRY_DELAYS = [2000, 5000];
@@ -110,17 +137,19 @@
   // A caller-owned JSON response facade: coalesced consumers never share a used body
   // or a mutable parsed object. Raw request/response data is never included in metrics.
   function readResponse(record) {
-    return { ok: true, status: record.status, statusText: record.statusText, headers: record.headers,
+    var facade = { ok: true, status: record.status, statusText: record.statusText, headers: record.headers,
       redirected: record.redirected, url: record.url,
       text: function() { return Promise.resolve(record.text); },
-      json: function() { return Promise.resolve(JSON.parse(record.text)); },
+      json: function() { var data=JSON.parse(record.text); latencyHook('bind',[data,record.latencyCall]); return Promise.resolve(data); },
       clone: function() { return readResponse(record); } };
+    latencyHook('bind',[facade,record.latencyCall]); return facade;
   }
 
   function gasReadFetch(url, request, opts) {
     request = Object.assign({}, request || {}); opts = opts || {};
     url = String(url);
     if (request.headers) request.headers = new Headers(request.headers);
+    var latencyOperation = Object.prototype.hasOwnProperty.call(opts,'latencyOperation') ? opts.latencyOperation : latencyHook('capture');
     var descriptor;
     try { descriptor = describeReadRequest(url, request); } catch (error) { return Promise.reject(error); }
     var fetchFn = opts.fetchFn || root.fetch;
@@ -167,7 +196,8 @@
           if (now() >= deadline) throw readError('GAS_READ_DEADLINE');
           if (attempt) {
             notify(READ_RETRY_MESSAGE);
-            await race(new Promise(function(resolve) { waitId = setTimer(resolve, DEFAULT_RETRY_DELAYS[attempt - 1]); }));
+            var retryMark=latencyHook('mark',[latencyOperation,'retry_wait']);
+            try { await race(new Promise(function(resolve) { waitId = setTimer(resolve, DEFAULT_RETRY_DELAYS[attempt - 1]); })); } finally { latencyHook('endMark',[retryMark]); }
             if (expired || now() >= deadline) throw readError('GAS_READ_DEADLINE');
           }
           attempts++;
@@ -175,13 +205,17 @@
             var wire = Object.assign({}, request);
             if (controller) wire.signal = controller.signal;
             var record = await race((async function() {
+              var latencyCall=latencyHook('startCall',[latencyOperation]);
+              try {
               var response = await fetchFn.call(root, url, wire);
               if (!response || response.ok === false) throw readError('GAS_READ_HTTP');
               var text = typeof response.text === 'function' ? await response.text() : JSON.stringify(await response.json());
               var data = JSON.parse(text);
               if (!data || typeof data !== 'object') throw readError('GAS_READ_JSON');
-              return { text: text, status: response.status || 200, statusText: response.statusText || '',
+              latencyHook('endCall',[latencyCall]);
+              return { latencyCall: latencyCall, text: text, status: response.status || 200, statusText: response.statusText || '',
                 headers: response.headers, redirected: !!response.redirected, url: response.url || '', businessOk: data.ok !== false };
+              } finally { latencyHook('endCall',[latencyCall]); }
             })());
             outcome = record.businessOk ? 'ok' : 'business_error';
             notify('');
@@ -237,10 +271,9 @@
     return !!P1_SF_ROUTES[route] && payload && payload.p1_sf === P1_SF_CAPABILITY;
   }
 
-  function delay(ms, setTimeoutFn) {
-    return new Promise(function(resolve) {
-      setTimeoutFn(resolve, ms);
-    });
+  function delay(ms, setTimeoutFn, operation) {
+    var span=latencyHook('mark',[operation,'retry_wait']);
+    return new Promise(function(resolve) { setTimeoutFn(resolve, ms); }).then(function(value) { latencyHook('endMark',[span]); return value; },function(error) { latencyHook('endMark',[span]); throw error; });
   }
 
   function transportError(cause) {
@@ -251,13 +284,13 @@
     return error;
   }
 
-  async function requestJson(url, payload, fetchFn, signal) {
+  async function requestJson(url, payload, fetchFn, signal, operation) {
     var requestOptions = {
       method: 'POST',
       body: JSON.stringify(payload)
     };
     if (signal) requestOptions.signal = signal;
-    var response = await fetchFn(url, requestOptions);
+    var response = await diagnosticFetch(fetchFn,undefined,url,requestOptions,operation);
     if (!response || response.ok === false) {
       var status = response && response.status;
       throw new Error('GAS_HTTP_' + (status || 'ERROR'));
@@ -363,7 +396,7 @@
           url,
           payload,
           deps.fetchFn,
-          activeController && activeController.signal
+          activeController && activeController.signal, deps.latencyOperation
         ));
         activeController = null;
 
@@ -377,7 +410,7 @@
           var transportRemaining = deadlineAt - deps.nowFn();
           if (transportRemaining < P1_SF_MIN_REMAINING_MS) return showHonest();
           var transportWait = Math.min(transportRemaining, retryDelays[transportFailures - 1]);
-          var transportDelayResult = await raceDeadline(delay(transportWait, deps.setTimeoutFn));
+          var transportDelayResult = await raceDeadline(delay(transportWait, deps.setTimeoutFn, deps.latencyOperation));
           if (transportDelayResult.kind === 'deadline') return transportDelayResult.data;
           continue;
         }
@@ -398,7 +431,7 @@
         var serverWait = clampP1SfRetryAfter(data.retry_after_ms);
         var jitterWait = p1SfJitterMs(busyRetries, deps.randomFn);
         var actualWait = Math.min(remaining, Math.max(serverWait, jitterWait));
-        var waitResult = await raceDeadline(delay(actualWait, deps.setTimeoutFn));
+        var waitResult = await raceDeadline(delay(actualWait, deps.setTimeoutFn, deps.latencyOperation));
         if (waitResult.kind === 'deadline') return waitResult.data;
         busyRetries++;
       }
@@ -410,6 +443,7 @@
 
   function gasCall(payload, opts) {
     opts = opts || {};
+    var latencyOperation=Object.prototype.hasOwnProperty.call(opts,'latencyOperation') ? opts.latencyOperation : latencyHook('capture');
     var mode = opts.mode === 'lookup' ? 'lookup' : 'submit';
     var url = opts.url || root.GAS_API_URL || root.GAS_URL;
     var fetchFn = opts.fetchFn || root.fetch.bind(root);
@@ -431,6 +465,7 @@
     var operation = (async function() {
       if (isP1Sf) {
         return requestP1Sf(url, payload, opts, {
+          latencyOperation: latencyOperation,
           fetchFn: fetchFn,
           setTimeoutFn: setTimeoutFn,
           clearTimeoutFn: clearTimeoutFn,
@@ -452,10 +487,10 @@
         var attempts = mode === 'lookup' ? retryDelays.length + 1 : 1;
         var lastError = null;
         for (var attempt = 0; attempt < attempts; attempt++) {
-          if (attempt > 0) await delay(retryDelays[attempt - 1], setTimeoutFn);
+          if (attempt > 0) await delay(retryDelays[attempt - 1], setTimeoutFn, latencyOperation);
           try {
             // ok:false is a valid business response and is returned without retry.
-            return await requestJson(url, payload, fetchFn);
+            return await requestJson(url, payload, fetchFn, undefined, latencyOperation);
           } catch (error) {
             lastError = error;
           }
@@ -501,6 +536,7 @@
     });
   }
 
+  root.gasDiagnosticFetch = gasDiagnosticFetch;
   root.gasCall = gasCall;
   root.gasReadFetch = gasReadFetch;
   root.gasReadStatusTarget = gasReadStatusTarget;

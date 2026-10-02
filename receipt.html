@@ -6,9 +6,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>領収書発行</title>
 <script src="./shared-auth.js"></script>
-<script src="./shared-gas-call.js?v=20260914-read-v1"></script>
-<script src="./shared-screen-latency.js?v=20260924-1"></script>
-<script src="./write-async-status.js?v=20260902-v1"></script>
+<script src="./shared-gas-call.js?v=20260930-gap-v1"></script>
+<script src="./shared-screen-latency.js?v=20260930-gap-v1"></script>
+<script src="./write-async-status.js?v=20260930-gap-v1"></script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 :root{--purple:#5c2d91;--purple-deep:#3a1a5e;--bg:#f7f8fc;--card:#fff;--text:#1a1a1a;--sub:#5f6368;--border:#dce1e8;--good:#2e7d32;--warn:#e65100;--danger:#c62828}
@@ -563,8 +563,8 @@ async function searchReceipt() {
             acceptance: data.write_async_status,
             target: receiptWriteGate,
             pendingMessage: window.WriteAsyncStatusV1.COPY.receiptGate,
-            callStatus: function(operationIds) {
-              return window.WriteAsyncStatusV1.callGasStatus(GAS_URL, operationIds);
+            callStatus: function(operationIds, latencyOperation) {
+              return window.WriteAsyncStatusV1.callGasStatus(GAS_URL, operationIds, latencyOperation);
             },
             onReflected: function() {
               receiptWriteGateActive = false;

@@ -136,8 +136,8 @@ tbody tr:hover { background: rgba(79,140,255,.04); }
 #paymentAlert [style*="font-size:15px"] { font-size: 12px !important; }
 }
 </style>
-<script src="./shared-gas-call.js?v=20260914-read-v1"></script>
-<script src="./shared-screen-latency.js?v=20260924-1"></script>
+<script src="./shared-gas-call.js?v=20260930-gap-v1"></script>
+<script src="./shared-screen-latency.js?v=20260930-gap-v1"></script>
 </head>
 <body>
 
@@ -436,10 +436,12 @@ function fetchData(retryCount) {
   if (to)   params += '&to='   + encodeURIComponent(to);
   if (STATE.viewAs) params += '&view_as=' + encodeURIComponent(STATE.viewAs);
   if (STATE.previewAs) params += '&preview_as=' + encodeURIComponent(STATE.previewAs);
+  var timingResponse_;
   gasReadFetch(GAS_URL + params, F, { onStatus: gasReadStatusTarget(document.querySelector('#loadingScreen span')) })
-    .then(function(res) { return res.text(); })
+    .then(function(res) { timingResponse_ = res; return res.text(); })
     .then(function(text) {
       var json; try { json = JSON.parse(text); } catch(e) { setUpdateBusy_(false); showAuthError('JSON解析エラー'); return; }
+      try { if(window.ECOPITA_SCREEN_LATENCY)window.ECOPITA_SCREEN_LATENCY.bindResponse(json,timingResponse_); } catch(ignored) {}
       if (!json || !json.ok) {
         if (json && (json.portalHidden === true || json.error === 'このグループでは使いません')) {
           setUpdateBusy_(false);

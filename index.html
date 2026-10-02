@@ -7,8 +7,8 @@
 <title>注文入力フォーム</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <!-- reCAPTCHA v3（見えない認証、スパム/bot対策）。sitekey は登録後に差し替え -->
-<script src="./shared-gas-call.js?v=20260914-read-v1"></script>
-<script src="./shared-screen-latency.js?v=20260924-1"></script>
+<script src="./shared-gas-call.js?v=20260930-gap-v1"></script>
+<script src="./shared-screen-latency.js?v=20260930-gap-v1"></script>
 <script src="./shared-consent-photo.js?v=20260925-1"></script>
 <script>
   window.RECAPTCHA_SITE_KEY = '6Lc6D6otAAAAADVD1SF958DQkj86yw0N3yUmZA0b';
@@ -2132,13 +2132,14 @@ async function doSubmit() {
   var recaptchaToken = '';
   try {
     if (window.grecaptcha && window.RECAPTCHA_SITE_KEY && window.RECAPTCHA_SITE_KEY.indexOf('__REPLACE') !== 0) {
-      recaptchaToken = await new Promise(function(resolve) {
+      var recaptchaMark_; try { recaptchaMark_ = window.ECOPITA_SCREEN_LATENCY && window.ECOPITA_SCREEN_LATENCY.mark(screenTiming_, 'recaptcha'); } catch (ignored) {}
+      try { recaptchaToken = await new Promise(function(resolve) {
         grecaptcha.ready(function() {
           grecaptcha.execute(window.RECAPTCHA_SITE_KEY, { action: 'order_submit' })
             .then(function(tok){ resolve(tok || ''); })
             .catch(function(){ resolve(''); });
         });
-      });
+      }); } finally { try { if (window.ECOPITA_SCREEN_LATENCY) window.ECOPITA_SCREEN_LATENCY.endMark(recaptchaMark_); } catch (ignored) {} }
     }
   } catch(e) {}
 
@@ -2171,7 +2172,9 @@ async function doSubmit() {
     var result = await gasCall(payload, { mode: 'submit', url: GAS_API_URL });
     if (result && result.ok === false && result.reason === 'recent_order_exists' && result.recent) {
       btn.textContent = '確認してください';
-      var recentChoice = await _showRecentOrderChoice_(result.recent);
+      var userWaitMark_; try { userWaitMark_ = window.ECOPITA_SCREEN_LATENCY && window.ECOPITA_SCREEN_LATENCY.mark(screenTiming_, 'user_wait'); } catch (ignored) {}
+      var recentChoice;
+      try { recentChoice = await _showRecentOrderChoice_(result.recent); } finally { try { if (window.ECOPITA_SCREEN_LATENCY) window.ECOPITA_SCREEN_LATENCY.endMark(userWaitMark_); } catch (ignored) {} }
       if (recentChoice === 'resend') {
         btn.textContent = '再送画面へ移動します…';
         await _recordOrderRecentChoice_('resend', payload.case_id);

@@ -64,8 +64,9 @@ body { font-family:'Noto Sans JP',sans-serif; background:var(--bg); color:var(--
 .complete-links .link-edit { background:var(--purple-light); color:var(--purple); border:2px solid var(--purple); }
 .email-warn { color:var(--red); font-weight:600; font-size:.85rem; margin-top:4px; }
 </style>
-<script src="./shared-gas-call.js?v=20260914-read-v1"></script>
-<script src="./shared-screen-latency.js?v=20260924-1"></script>
+<script src="./shared-gas-call.js?v=20260930-gap-v1"></script>
+<script>if(typeof window.gasDiagnosticFetch!=="function")window.gasDiagnosticFetch=window.fetch.bind(window);</script>
+<script src="./shared-screen-latency.js?v=20260930-gap-v1"></script>
 </head>
 <body>
 
@@ -999,7 +1000,7 @@ async function confirmQuoteSend() {
 
   // Phase 1: 書類シート書き込み（同期）
   try {
-    var resp = await fetch(GAS_API_URL, { method: 'POST', body: JSON.stringify(syncPayload) });
+    var resp = await gasDiagnosticFetch(GAS_API_URL, { method: 'POST', body: JSON.stringify(syncPayload) });
     var r = await resp.json();
     if (!r.ok) {
       btn.disabled = false; btn.textContent = '発行する';
