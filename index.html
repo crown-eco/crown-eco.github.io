@@ -295,7 +295,7 @@ body { font-family:'Noto Sans JP',sans-serif; background:var(--bg); color:var(--
     <h2>お客様への確認事項</h2>
     <p>恐れ入りますが、ご注文を進める前に必ず下記をご確認ください。</p>
     <p>お客様に <strong>「契約書面提供の電磁的方法に関する承諾書」</strong> へ、お客様ご自身の手書きでご署名をいただきましたでしょうか？</p>
-    <div id="consentLegacy">
+    <div id="consentLegacy" style="display:none">
     <p class="sign-note">サインをいただいてから、下のスイッチをスライドして次へお進みください。</p>
     <div class="sign-slide-track" id="signSlideTrack">
       <div class="sign-slide-text" id="signSlideText">右にスライドして確認 →</div>
@@ -303,7 +303,7 @@ body { font-family:'Noto Sans JP',sans-serif; background:var(--bg); color:var(--
     </div>
     <p id="signConfirmMsg">スライドしてください</p>
     </div>
-    <div id="consentPhotoArea" style="display:none">
+    <div id="consentPhotoArea">
       <p>署名済みの承諾書を撮影するか、写真フォルダから選んでください。</p>
       <label for="consentPhotoInput" style="display:block;font-weight:700;margin:12px 0">承諾書の写真（必須）</label>
       <input id="consentPhotoInput" type="file" accept="image/*" onchange="selectConsentPhoto_(this)">
@@ -469,16 +469,16 @@ body { font-family:'Noto Sans JP',sans-serif; background:var(--bg); color:var(--
         <div class="error-msg">作業対象を選択してください</div>
       </div>
       <div class="card" style="margin-top:12px" id="equipment_info_card">
-        <div class="card-title" style="font-size:.95rem">対象機器の情報（分かる範囲で・契約書に載ります）</div>
-<div class="field"><label>冷媒ガスの種類</label><select id="c_gas_type" onchange="onEqInfoOther('c_gas_type')"><option value="">未選択</option><option value="R22">R22</option><option value="R410A">R410A</option><option value="R32">R32</option><option value="__other__">その他</option></select><input type="text" id="c_gas_type_other" maxlength="20" placeholder="ガスの種類を入力" style="display:none;margin-top:6px"></div>
-<div class="field"><label>冷媒ガスのグラム数</label><select id="c_gas_grams" onchange="onEqInfoOther('c_gas_grams')"><option value="">未選択</option><option value="100">100g</option><option value="200">200g</option><option value="300">300g</option><option value="400">400g</option><option value="500">500g</option><option value="600">600g</option><option value="700">700g</option><option value="800">800g</option><option value="900">900g</option><option value="1000">1000g</option><option value="1100">1100g</option><option value="1200">1200g</option><option value="1300">1300g</option><option value="1400">1400g</option><option value="1500">1500g</option><option value="1600">1600g</option><option value="1700">1700g</option><option value="1800">1800g</option><option value="1900">1900g</option><option value="2000">2000g</option><option value="2100">2100g</option><option value="2200">2200g</option><option value="2300">2300g</option><option value="2400">2400g</option><option value="2500">2500g</option><option value="2600">2600g</option><option value="2700">2700g</option><option value="2800">2800g</option><option value="2900">2900g</option><option value="3000">3000g</option><option value="__other__">その他（数値入力）</option></select><input type="number" id="c_gas_grams_other" inputmode="numeric" min="1" max="99999" placeholder="グラム数を入力" style="display:none;margin-top:6px"></div>
-<div class="field"><label>メーカー</label><select id="c_maker" onchange="onEqInfoOther('c_maker')"><option value="">未選択</option><option value="ダイキン">ダイキン</option><option value="三菱電機">三菱電機</option><option value="パナソニック">パナソニック</option><option value="日立">日立</option><option value="富士通ゼネラル">富士通ゼネラル</option><option value="東芝">東芝</option><option value="シャープ">シャープ</option><option value="コロナ">コロナ</option><option value="__other__">その他</option></select><input type="text" id="c_maker_other" maxlength="30" placeholder="メーカー名を入力" style="display:none;margin-top:6px"></div>
-<div class="field"><label>機種名</label><input type="text" id="c_model_name" maxlength="40" placeholder="例：うるさらX"></div>
-<div class="field"><label>型番</label><input type="text" id="c_model_no" maxlength="40" placeholder="例：AN22ZRS-W"></div>
-<div class="field"><label>室内機の階数</label><select id="c_indoor_floor"><option value="">未選択</option><option value="1階">1階</option><option value="2階">2階</option><option value="3階">3階</option><option value="4階以上">4階以上</option></select></div>
-<div class="field"><label>室内機の部屋</label><select id="c_indoor_room" onchange="onEqInfoOther('c_indoor_room')"><option value="">未選択</option><option value="リビング">リビング</option><option value="寝室">寝室</option><option value="子供部屋">子供部屋</option><option value="和室">和室</option><option value="洋室">洋室</option><option value="キッチン">キッチン</option><option value="事務所">事務所</option><option value="店舗">店舗</option><option value="__other__">その他</option></select><input type="text" id="c_indoor_room_other" maxlength="30" placeholder="部屋を入力" style="display:none;margin-top:6px"></div>
-<div class="field"><label>室外機の階数</label><select id="c_outdoor_floor"><option value="">未選択</option><option value="1階">1階</option><option value="2階">2階</option><option value="3階">3階</option><option value="4階以上">4階以上</option><option value="屋上">屋上</option></select></div>
-<div class="field"><label>室外機の置き場</label><select id="c_outdoor_place" onchange="onEqInfoOther('c_outdoor_place')"><option value="">未選択</option><option value="ベランダ">ベランダ</option><option value="地面置き">地面置き</option><option value="屋根置き">屋根置き</option><option value="壁面">壁面</option><option value="屋上">屋上</option><option value="__other__">その他</option></select><input type="text" id="c_outdoor_place_other" maxlength="30" placeholder="置き場を入力" style="display:none;margin-top:6px"></div>
+        <div class="card-title" style="font-size:.95rem">対象機器の情報（すべて必須・契約書に載ります）</div>
+<div class="field" id="f_eq_gas_type"><label>冷媒ガスの種類 <span style="color:red;font-size:.8rem">※必須</span></label><select id="c_gas_type" onchange="onEqInfoOther('c_gas_type')"><option value="">未選択</option><option value="R22">R22</option><option value="R410A">R410A</option><option value="R32">R32</option><option value="__other__">その他</option></select><input type="text" id="c_gas_type_other" maxlength="20" placeholder="ガスの種類を入力" style="display:none;margin-top:6px"><div class="error-msg"></div></div>
+<div class="field" id="f_eq_gas_grams"><label>冷媒ガスのグラム数 <span style="color:red;font-size:.8rem">※必須</span></label><select id="c_gas_grams" onchange="onEqInfoOther('c_gas_grams')"><option value="">未選択</option><option value="100">100g</option><option value="200">200g</option><option value="300">300g</option><option value="400">400g</option><option value="500">500g</option><option value="600">600g</option><option value="700">700g</option><option value="800">800g</option><option value="900">900g</option><option value="1000">1000g</option><option value="1100">1100g</option><option value="1200">1200g</option><option value="1300">1300g</option><option value="1400">1400g</option><option value="1500">1500g</option><option value="1600">1600g</option><option value="1700">1700g</option><option value="1800">1800g</option><option value="1900">1900g</option><option value="2000">2000g</option><option value="2100">2100g</option><option value="2200">2200g</option><option value="2300">2300g</option><option value="2400">2400g</option><option value="2500">2500g</option><option value="2600">2600g</option><option value="2700">2700g</option><option value="2800">2800g</option><option value="2900">2900g</option><option value="3000">3000g</option><option value="__other__">その他（数値入力）</option></select><input type="number" id="c_gas_grams_other" inputmode="numeric" min="1" max="99999" placeholder="グラム数を入力" style="display:none;margin-top:6px"><div class="error-msg"></div></div>
+<div class="field" id="f_eq_maker"><label>メーカー <span style="color:red;font-size:.8rem">※必須</span></label><select id="c_maker" onchange="onEqInfoOther('c_maker')"><option value="">未選択</option><option value="ダイキン">ダイキン</option><option value="三菱電機">三菱電機</option><option value="パナソニック">パナソニック</option><option value="日立">日立</option><option value="富士通ゼネラル">富士通ゼネラル</option><option value="東芝">東芝</option><option value="シャープ">シャープ</option><option value="コロナ">コロナ</option><option value="__other__">その他</option></select><input type="text" id="c_maker_other" maxlength="30" placeholder="メーカー名を入力" style="display:none;margin-top:6px"><div class="error-msg"></div></div>
+<div class="field" id="f_eq_model_name"><label>機種名 <span style="color:red;font-size:.8rem">※必須</span></label><input type="text" id="c_model_name" maxlength="40" placeholder="例：うるさらX"><div class="error-msg"></div></div>
+<div class="field" id="f_eq_model_no"><label>型番 <span style="color:red;font-size:.8rem">※必須</span></label><input type="text" id="c_model_no" maxlength="40" placeholder="例：AN22ZRS-W"><div class="error-msg"></div></div>
+<div class="field" id="f_eq_indoor_floor"><label>室内機の階数 <span style="color:red;font-size:.8rem">※必須</span></label><select id="c_indoor_floor"><option value="">未選択</option><option value="1階">1階</option><option value="2階">2階</option><option value="3階">3階</option><option value="4階以上">4階以上</option></select><div class="error-msg"></div></div>
+<div class="field" id="f_eq_indoor_room"><label>室内機の部屋 <span style="color:red;font-size:.8rem">※必須</span></label><select id="c_indoor_room" onchange="onEqInfoOther('c_indoor_room')"><option value="">未選択</option><option value="リビング">リビング</option><option value="寝室">寝室</option><option value="子供部屋">子供部屋</option><option value="和室">和室</option><option value="洋室">洋室</option><option value="キッチン">キッチン</option><option value="事務所">事務所</option><option value="店舗">店舗</option><option value="__other__">その他</option></select><input type="text" id="c_indoor_room_other" maxlength="30" placeholder="部屋を入力" style="display:none;margin-top:6px"><div class="error-msg"></div></div>
+<div class="field" id="f_eq_outdoor_floor"><label>室外機の階数 <span style="color:red;font-size:.8rem">※必須</span></label><select id="c_outdoor_floor"><option value="">未選択</option><option value="1階">1階</option><option value="2階">2階</option><option value="3階">3階</option><option value="4階以上">4階以上</option><option value="屋上">屋上</option></select><div class="error-msg"></div></div>
+<div class="field" id="f_eq_outdoor_place"><label>室外機の置き場 <span style="color:red;font-size:.8rem">※必須</span></label><select id="c_outdoor_place" onchange="onEqInfoOther('c_outdoor_place')"><option value="">未選択</option><option value="ベランダ">ベランダ</option><option value="地面置き">地面置き</option><option value="屋根置き">屋根置き</option><option value="壁面">壁面</option><option value="屋上">屋上</option><option value="__other__">その他</option></select><input type="text" id="c_outdoor_place_other" maxlength="30" placeholder="置き場を入力" style="display:none;margin-top:6px"><div class="error-msg"></div></div>
       </div>
       <div class="field" id="f_symptom">
         <label>症状（複数可） <span style="color:red;font-size:.8rem">※必須</span></label>
@@ -1022,6 +1022,7 @@ function onIndexPrefixChange() {
     if (opt === curVal) o.selected = true;
     equipSel.appendChild(o);
   });
+  updateEquipmentInfoVisibility_();
   const fSymptom = document.getElementById('f_symptom');
   if (prefix === 'HC') {
     fSymptom.style.display = 'none';
@@ -1267,6 +1268,9 @@ function consentAttachOrder_(payload) {
     track.classList.remove('done');
     if (text) text.textContent = '右にスライドして確認 →';
     if (msg) { msg.textContent = 'サインをいただいたら右にスライド'; msg.classList.remove('ok'); }
+    // 10/1 から写真添付が必須。担当者フラグの返事を待たずに写真の画面から始める（返事が遅い/失敗でスライドが残っていた）
+    requireConsentPhoto_();
+    consentStatus_('署名済みの承諾書の写真を添付してください。');
 
     var dragging = false;
     var startX = 0;
@@ -1772,6 +1776,7 @@ function validateStep(step) {
     if (!document.getElementById('c_equipment').value) { setFieldError('f_equipment', '作業対象を選択してください'); ok = false; }
     const prefix = document.getElementById('c_case_prefix').value;
     if (prefix !== 'HC' && getSymptoms().length === 0) { setFieldError('f_symptom', '症状を1つ以上選択してください'); ok = false; }
+    if (!validateEquipmentInfo_()) ok = false;
   }
   if (step === 4) {
     // ご依頼内容-2: 作業種別+項目
@@ -2749,12 +2754,31 @@ function prefillRepeatEquipmentInfo_(info) {
     } else el.value = value;
   });
 }
+// 機器情報はエアコン（YA/HM/CP など）だけ。HC・EC は欄を出さず空で送る
+function equipmentInfoApplies_() {
+  var el = document.getElementById('c_case_prefix'), prefix = el ? el.value : '';
+  return prefix !== 'HC' && prefix !== 'EC';
+}
+function updateEquipmentInfoVisibility_() {
+  var card = document.getElementById('equipment_info_card');
+  if (card) card.style.display = equipmentInfoApplies_() ? '' : 'none';
+}
+function validateEquipmentInfo_() {
+  var labels = { gas_type:'冷媒ガスの種類', gas_grams:'冷媒ガスのグラム数', maker:'メーカー', model_name:'機種名', model_no:'型番', indoor_floor:'室内機の階数', indoor_room:'室内機の部屋', outdoor_floor:'室外機の階数', outdoor_place:'室外機の置き場' };
+  var info = getEquipmentInfo(), ok = true;
+  Object.keys(labels).forEach(function(key) {
+    clearFieldError('f_eq_' + key);
+    if (equipmentInfoApplies_() && !info[key]) { setFieldError('f_eq_' + key, labels[key] + 'を入力してください'); ok = false; }
+  });
+  return ok;
+}
 function getEquipmentInfo() {
   var info = {};
+  var applies = equipmentInfoApplies_();
   ['gas_type','gas_grams','maker','model_name','model_no','indoor_floor','indoor_room','outdoor_floor','outdoor_place'].forEach(function(key) {
     var el = document.getElementById('c_' + key), value = el ? el.value : '';
     if (value === '__other__') { var other = document.getElementById('c_' + key + '_other'); value = other ? other.value : ''; }
-    value = String(value || '').trim();
+    value = applies ? String(value || '').trim() : '';
     if (key === 'gas_grams') value = /^[0-9]{1,5}$/.test(value) && Number(value) > 0 ? String(Number(value)) : '';
     info[key] = value;
   });
