@@ -62,7 +62,7 @@
     function active(){return G.active&&version===G.version;}
     var read=reader(scope,active);G.buckets=C.groupBuckets(range,unit);G.data=new Array(G.buckets.length).fill(null);G.previous=[];G.previousTotal=null;G.previousRange=compare==='none'?null:C.comparisonRange(range,compare);G.previousBuckets=G.previousRange?C.groupBuckets(G.previousRange,unit):[];
     G.total=range.start===G.dashboard.range.start&&range.end===G.dashboard.range.end?G.dashboard:null;
-    el('Export').disabled=true;el('Detail').close();renderAll();status('グループの推移を読み込み中…');
+    G.loading=true;el('Export').disabled=true;el('Detail').close();renderAll();status('グループの推移を読み込み中…');
     if(!G.total){try{var total=await read(range);if(!active())return;G.total=total;renderAll();}catch(e){if(!active())return;status('期間合計は未取得です。推移を先に読み込みます。',true);}}
     var points=await C.groupLoad(G.buckets,read,active,function(data,done){G.data=data.slice();renderTrends();status('推移を読み込み中：'+done+' / '+G.buckets.length+'期間');});
     if(!active())return;G.data=points;renderAll();el('Export').disabled=!points.some(Boolean);
@@ -74,9 +74,9 @@
       if(!active())return;G.previous=previous;failed+=previous.filter(function(p){return !p;}).length;
       if(!G.previousTotal)failed++;
     }
-    renderAll();status(failed||!G.total?'一部の数値が未取得です。「グラフを更新」で再取得できます。':'表示しました。グラフの点を押すと期間の内訳を確認できます。',failed||!G.total);
+    G.loading=false;renderAll();status(failed||!G.total?'一部の数値が未取得です。「グラフを更新」で再取得できます。':'表示しました。グラフの点を押すと期間の内訳を確認できます。',failed||!G.total);
   }
-  function startLoad(){load().catch(function(){if(G.active)status('集計を取得できませんでした。グラフを更新してください。',true);});}
+  function startLoad(){var version=G.version+1;load().catch(function(){if(G.active&&G.version===version){G.loading=false;renderTrends();status('集計を取得できませんでした。日別は62日以内にして、グラフを更新してください。',true);}});}
   function renderAll(){renderSummary();renderTrends();renderBars();renderWaterfall();}
   function renderSummary(){
     var k=G.total?G.total.kpi:{}, previous=G.previousTotal?G.previousTotal.kpi:{};
@@ -92,7 +92,7 @@
     var series=list.map(function(m){return {metric:m,points:G.data,previous:false};});
     if(G.previous.length)list.forEach(function(m){series.push({metric:m,points:G.previous,previous:true});});
     var values=series.flatMap(function(s){return s.points.map(function(p){return p&&C.number(p.kpi[s.metric.key]);}).filter(function(n){return n!==null;});});
-    if(!values.length){box.innerHTML='<p class="case-empty">推移を読み込み中です。未取得の値は0円に置き換えません。</p>';return;}
+    if(!values.length){box.innerHTML='<p class="case-empty">'+(G.loading?'推移を読み込み中です。':'この期間の推移は未取得です。グラフを更新して再取得できます。')+'</p>';return;}
     var min=Math.min(0,...values),max=Math.max(0,...values);if(min===max)max+=1000;var pad=(max-min)*.08;max+=pad;if(min<0)min-=pad;
     function x(i){return left+(G.buckets.length===1?(width-left-right)/2:i/(G.buckets.length-1)*(width-left-right));}
     function y(n){return top+(max-n)/(max-min)*(height-top-bottom);}
@@ -110,7 +110,9 @@
   function renderTrends(){
     if(!G.buckets)return;lineChart('Revenue',metrics.slice(0,1));lineChart('Profit',metrics.slice(1));
     ['Revenue','Profit'].forEach(function(id){el(id+'Legend').innerHTML=(id==='Revenue'?metrics.slice(0,1):metrics.slice(1)).map(function(m){return '<span><i style="background:'+m.color+'"></i>'+m.label+'</span>';}).join('')+(G.previous.length?'<span><i class="dashed"></i>比較期間：破線</span>':'');});
-    el('TrendTable').innerHTML='<table><thead><tr><th>対象期間</th>'+metrics.map(function(m){return '<th>'+m.label+'</th>';}).join('')+'<th>比較期間</th><th>比較の売上</th><th>比較の手残り</th></tr></thead><tbody>'+G.buckets.map(function(b,i){return '<tr><td><button type="button" data-group-point="'+i+'">'+caption(b)+'</button></td>'+metrics.map(function(m){return '<td class="num">'+C.money(G.data[i]&&G.data[i].kpi[m.key])+'</td>';}).join('')+'<td>'+((G.previousBuckets||[])[i]?caption(G.previousBuckets[i]):'—')+'</td><td>'+C.money(G.previous[i]&&G.previous[i].kpi.uriage_amount)+'</td><td>'+C.money(G.previous[i]&&G.previous[i].kpi.tenokori)+'</td></tr>';}).join('')+'</tbody></table>';
+    var comparing=G.compare!=='none',count=Math.max(G.buckets.length,comparing?G.previousBuckets.length:0),rows='';
+    for(var i=0;i<count;i++){var b=G.buckets[i],prior=G.previousBuckets[i];rows+='<tr><td>'+(b?'<button type="button" data-group-point="'+i+'">'+caption(b)+'</button>':'対応期間なし')+'</td>'+metrics.map(function(m){return '<td class="num">'+(b?C.money(G.data[i]&&G.data[i].kpi[m.key]):'—')+'</td>';}).join('')+(comparing?'<td>'+(prior?caption(prior):'対応期間なし')+'</td><td>'+(prior?C.money(G.previous[i]&&G.previous[i].kpi.uriage_amount):'—')+'</td><td>'+(prior?C.money(G.previous[i]&&G.previous[i].kpi.tenokori):'—')+'</td>':'')+'</tr>';}
+    el('TrendTable').innerHTML='<table><thead><tr><th>対象期間</th>'+metrics.map(function(m){return '<th>'+m.label+'</th>';}).join('')+(comparing?'<th>比較期間</th><th>比較の売上</th><th>比較の手残り</th>':'')+'</tr></thead><tbody>'+rows+'</tbody></table>';
   }
   function renderBars(){
     var metric=el('BarMetric').value,axis=el('Axis').value,rows=G.total?(G.total.ranking||[]).filter(function(row){return G.region==='全体'||row.area===G.region;}):[];
