@@ -5,6 +5,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>会社収益ダッシュボード</title>
+<link rel="stylesheet" href="./dashboard-analytics.css?v=20261003.4">
+<script src="./dashboard-analytics-core.js?v=20261003.4"></script>
+<script src="./dashboard-group-analytics.js?v=20261003.4"></script>
+<script src="./dashboard-analytics.js?v=20261003.4"></script>
 <script src="./shared-auth.js"></script>
 <style>
 :root{
@@ -233,12 +237,15 @@ thead th.num,thead th.num .sort-btn{justify-content:flex-end}
         </div>
         <div class="field toolbar-shortcuts">
           <label>ショートカット</label>
-          <div class="shortcut-row">
+          <details class="shortcut-picker" id="dashboardShortcutPicker">
+            <summary>期間を選ぶ</summary>
+            <div class="shortcut-menu">
             <button type="button" class="ghost" data-shortcut="today">今日</button>
             <button type="button" class="ghost" data-shortcut="this_week">今週</button>
             <button type="button" class="ghost" data-shortcut="this_month">今月</button>
             <button type="button" class="ghost" data-shortcut="last_month">先月</button>
-          </div>
+            </div>
+          </details>
         </div>
         <button type="button" class="primary" id="reloadBtn">表示</button>
       </div>
@@ -249,7 +256,7 @@ thead th.num,thead th.num .sort-btn{justify-content:flex-end}
 
       <div class="content">
         <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
-          <a id="dashboardGraphLink" href="company_dashboard_graph.html" class="ghost" style="display:inline-flex;align-items:center;gap:6px;text-decoration:none;font-size:.88rem">📊 グラフを見る</a>
+          <a id="dashboardGraphLink" href="company_dashboard_graph.html" class="ghost" style="display:inline-flex;align-items:center;gap:6px;text-decoration:none;font-size:.88rem">詳細なグラフ設定</a>
         </div>
         <div class="tab-bar">
           <button type="button" class="tab-btn active" data-tab="ranking">担当者別</button>
@@ -389,8 +396,10 @@ function renderGroupControls_() {
     }).join('');
     select.value = STATE.groupSelection || 'all';
   }
-  // グループのサイトではグラフを出さない（麗香 2026-09-24「グラフいまぐちゃぐちゃだからクラウン側には表示されないように」）。
-  document.getElementById('dashboardGraphLink').style.display = groupMode || !isAdminSession_() || siteGroup_() ? 'none' : 'inline-flex';
+  var graphLink = document.getElementById('dashboardGraphLink');
+  graphLink.href = groupMode ? '#groupAnalytics' : 'company_dashboard_graph.html';
+  graphLink.textContent = groupMode ? 'グラフに移動' : '詳細なグラフ設定';
+  graphLink.style.display = groupMode || isAdminSession_() && !siteGroup_() ? 'inline-flex' : 'none';
   document.querySelectorAll('.tab-btn').forEach(function(btn) {
     btn.style.display = groupMode && btn.getAttribute('data-tab') !== 'ranking' ? 'none' : '';
   });
@@ -658,6 +667,7 @@ function renderKpi_() {
     kpiCard_('経費合計' + globalSuffix,      fmtMoney_(k.keihi)),
     kpiCard_('差し戻し確認中' + globalSuffix, fmtMoney_(k.pending_amount || 0), String(k.pending_count || 0) + '件'),
     kpiCard_('ロイヤリティ',   fmtMoney_(viewK.royalty)),
+    Object.prototype.hasOwnProperty.call(k, 'kameikin') ? kpiCard_('加盟金' + globalSuffix, fmtMoney_(k.kameikin)) : '',
     kpiCard_('手残り' + globalSuffix,        fmtMoney_(k.tenokori), '', true)
   ].join('');
 }
@@ -1059,6 +1069,7 @@ async function loadDashboard_(interactionStartedAt) {
     return;
   }
   var requestVersion = ++STATE.dashboardRequestVersion;
+  if (window.DashboardAnalytics) window.DashboardAnalytics.invalidate();
   var requestStartedAt = Number(interactionStartedAt);
   if (!isFinite(requestStartedAt) || requestStartedAt < 0) requestStartedAt = dashboardPerformanceNow_();
   showState_('loading');
@@ -1118,6 +1129,7 @@ async function loadDashboard_(interactionStartedAt) {
     if (!isGroupDashboard_()) renderCrossTable_();
     showTabView_(STATE.viewTab);
     showState_('app');
+    if (window.DashboardAnalytics) window.DashboardAnalytics.refresh(res, STATE);
     scheduleDashboardClientTiming_(requestVersion, requestStartedAt, fetchStartedAt, responseReceivedAt);
   } catch (err) {
     if (requestVersion !== STATE.dashboardRequestVersion) return;
@@ -1159,6 +1171,7 @@ function bindEvents_() {
     STATE.region = this.value || '全体';
     renderKpi_();
     renderRanking_();
+    if (window.DashboardAnalytics) window.DashboardAnalytics.regionChanged(STATE.region);
   });
 
   document.querySelectorAll('[data-period]').forEach(function(btn) {
@@ -1174,6 +1187,7 @@ function bindEvents_() {
     btn.addEventListener('click', function() {
       var interactionStartedAt = dashboardPerformanceNow_();
       setStateFromShortcut_(this.getAttribute('data-shortcut'));
+      document.getElementById('dashboardShortcutPicker').open = false;
       document.getElementById('baseDate').value = STATE.baseDate;
       updateBaseDateDow_();
       document.querySelectorAll('[data-period]').forEach(function(other) {
@@ -1217,7 +1231,12 @@ function bindEvents_() {
     if (ev.target === this) closeLossModal_();
   });
   document.addEventListener('keydown', function(ev) {
+    if (ev.key === 'Escape') document.getElementById('dashboardShortcutPicker').open = false;
     if (ev.key === 'Escape' && !document.getElementById('lossModal').hidden) closeLossModal_();
+  });
+  document.addEventListener('click', function(ev) {
+    var picker = document.getElementById('dashboardShortcutPicker');
+    if (!picker.contains(ev.target)) picker.open = false;
   });
 }
 
