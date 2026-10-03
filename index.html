@@ -2645,14 +2645,7 @@ function onCustomerTypeChange() {
   document.getElementById('c_kana').placeholder = isCorp ? '例：やまだたろう' : '例：やまだたろう';
 }
 </script>
-<p id="consentTestEntry" hidden style="text-align:center;margin:16px"><a href="./consent-test.html">同意書のテスト（全体管理者）</a></p>
 <script src="./shared-auth.js"></script>
-<script>
-(function() {
-  var session = window.ECOPITA_SESSION;
-  if (session && (session.isAdmin === true || String(session.role || '').toLowerCase() === 'admin')) document.getElementById('consentTestEntry').hidden = false;
-})();
-</script>
 <script src="./shared-nav.js"></script>
 <script src="./shared-email-check.js"></script>
 
