@@ -143,10 +143,16 @@ function readLoginGroupContext_(response) {
   _ecopitaGroupSiteUrl = window.ECOPITA_SITE_URL(response.groupSiteUrl);
 }
 
-// リダイレクト先（URLパラメータから取得）
+// リダイレクト先（URLパラメータから取得）。同じサイトの http(s) のページだけ通す（外部サイト・javascript: などは通常のトップへ）
 var redirectUrl = (function() {
-  var p = new URLSearchParams(location.search);
-  return p.get('redirect') || window.ECOPITA_SITE.baseUrl + '/index.html';
+  var fallback = window.ECOPITA_SITE.baseUrl + '/index.html';
+  try {
+    var raw = new URLSearchParams(location.search).get('redirect');
+    if (!raw) return fallback;
+    var u = new URL(raw, location.href);
+    if ((u.protocol !== 'https:' && u.protocol !== 'http:') || u.origin !== location.origin) return fallback;
+    return u.href;
+  } catch (e) { return fallback; }
 })();
 
 // 既にログイン済みならリダイレクト
