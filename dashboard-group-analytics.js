@@ -42,7 +42,7 @@
     document.body.appendChild(dialog);
     el('Close').addEventListener('click',function(){dialog.close();});
     el('Apply').addEventListener('click',function(){try { var range={start:el('Start').value,end:el('End').value}; C.groupBuckets(range,el('Unit').value); if(el('Compare').value!=='none')C.groupBuckets(C.comparisonRange(range,el('Compare').value),el('Unit').value); G.range=range; G.unit=el('Unit').value; G.compare=el('Compare').value; startLoad(); }catch(e){status(e.message,true);} });
-    el('Compare').addEventListener('change',function(){G.compare=this.value; startLoad();});
+    el('Compare').addEventListener('change',function(){try{if(this.value!=='none')C.groupBuckets(C.comparisonRange(G.range,this.value),G.unit);G.compare=this.value;startLoad();}catch(e){this.value=G.compare;status(e.message,true);}});
     ['Axis','BarMetric'].forEach(function(id){el(id).addEventListener('change',renderBars);});
     el('Export').addEventListener('click',exportCsv);
     section.addEventListener('click',function(event){var target=event.target.closest('[data-group-point]');if(target)openDetail(+target.dataset.groupPoint);});
@@ -144,7 +144,8 @@
     refresh:function(response,state){
       mount();var id=response.group&&response.group.id,site=siteGroup_()||'',range={start:response.period.start,end:response.period.end};
       try{if(!canUseDashboard_())throw new Error('permission_denied');C.groupPayload(id,site,SESSION.token,range,'');G.dashboard=C.groupResponse(response,id,range);}catch(e){this.invalidate();return;}
-      if(G.token!==SESSION.token){G.cache.clear();G.token=SESSION.token;}
+      // A fresh dashboard total must not be paired with older cached points.
+      G.cache.clear();G.token=SESSION.token;
       G.scope={id:id,name:G.dashboard.group.display_name,site:site,token:SESSION.token};G.cache.set(id+'|'+site+'|'+range.start+'|'+range.end,{time:Date.now(),value:G.dashboard});G.active=true;G.region=state.region||'全体';G.range=range;G.unit=(C.date(range.end)-C.date(range.start))/86400000<7?'day':'week';G.compare='none';
       el('Analytics').hidden=false;el('Title').textContent=G.scope.name+'の収支を詳しく見る';el('Scope').textContent=G.scope.name+'全体の売上・費用・手残りを表示します。担当者比較には上部の所属地域の選択を反映します。';
       el('Start').value=range.start;el('End').value=range.end;el('Unit').value=G.unit;el('Compare').value='none';startLoad();

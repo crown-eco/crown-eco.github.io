@@ -82,7 +82,7 @@
       var start = el('analyticsStart').value, end = el('analyticsEnd').value;
       if (!C.date(start) || !C.date(end) || start > end) { status('開始日と終了日を確認してください。', true); return; }
       if ((C.date(end) - C.date(start)) / 86400000 > 730) { status('一度に表示する期間は2年以内にしてください。', true); return; }
-      A.range = { start: start, end: end }; A.period = el('analyticsPeriod').value; load();
+      A.range = { start: start, end: end }; A.period = el('analyticsPeriod').value; startLoad();
     });
     el('analyticsCompare').addEventListener('change', function () { A.compare = this.value; if (A.graph) renderTrends(); });
     el('analyticsAxis').addEventListener('change', function () { A.axis = this.value; renderBars(); });
@@ -207,7 +207,12 @@
     function legend(list) { return list.map(function (metric) { return '<span><i style="background:' + metric.color + '"></i>' + metric.label + '</span>'; }).join('') + (previous ? '<span><i class="dashed"></i>' + (A.compare === 'month' ? '前月' : '前年') + '：破線</span>' : ''); }
     el('revenueLegend').innerHTML = legend(metrics.slice(0, 1)); el('profitLegend').innerHTML = legend(metrics.slice(1));
     var headers = ['対象期間', '売上', '収益合計', '経費', '手残り']; if (previous) headers.push('比較対象日', '比較期間の売上', '比較期間の手残り');
-    el('analyticsTrendTable').innerHTML = '<table><thead><tr>' + headers.map(function (h) { return '<th>' + h + '</th>'; }).join('') + '</tr></thead><tbody>' + (A.graph.labels || []).map(function (label, i) { return '<tr><td><button type="button" data-trend-point="' + i + '">' + escape(label) + '</button></td>' + items.map(function (item) { return '<td class="num">' + C.money(item.data[i]) + '</td>'; }).join('') + (previous ? '<td>' + escape(previous.labels[i] || '対応日なし') + '</td><td class="num">' + C.money((prior[0].data || [])[i]) + '</td><td class="num">' + C.money((prior[3].data || [])[i]) + '</td>' : '') + '</tr>'; }).join('') + '</tbody></table>';
+    var count = Math.max((A.graph.labels || []).length, previous ? (previous.labels || []).length : 0), rows = '';
+    for (var i = 0; i < count; i++) {
+      var label = A.graph.labels[i];
+      rows += '<tr><td>' + (label ? '<button type="button" data-trend-point="' + i + '">' + escape(label) + '</button>' : '対応期間なし') + '</td>' + items.map(function (item) { return '<td class="num">' + (label ? C.money(item.data[i]) : '—') + '</td>'; }).join('') + (previous ? '<td>' + escape(previous.labels[i] || '対応日なし') + '</td><td class="num">' + C.money((prior[0].data || [])[i]) + '</td><td class="num">' + C.money((prior[3].data || [])[i]) + '</td>' : '') + '</tr>';
+    }
+    el('analyticsTrendTable').innerHTML = '<table><thead><tr>' + headers.map(function (h) { return '<th>' + h + '</th>'; }).join('') + '</tr></thead><tbody>' + rows + '</tbody></table>';
   }
   function barValue(row) {
     if (A.barMetric === 'income') return C.income(row);
@@ -340,10 +345,12 @@
     var rows = [['取得区分', window.DashboardDemo ? '見本データ（実績ではありません）' : '会社全体'], ['対象期間', A.range.start, A.range.end], ['集計単位', A.period], ['比較方法', '前月・前年の同期間（暦月）'], ['前月期間', A.previous.month.range.start, A.previous.month.range.end], ['前年期間', A.previous.year.range.start, A.previous.year.range.end], ['日付', '売上', '収益合計', '経費', '手残り', '前月の対応日', '前月売上', '前年の対応日', '前年売上']];
     var data = metrics.map(function (m) { return totalSeries(A.graph, m.key) || []; });
     var month = A.previous.month.response, year = A.previous.year.response;
-    (A.graph.labels || []).forEach(function (label, i) { rows.push([label].concat(data.map(function (series) { return series[i]; })).concat([month && month.labels[i], (totalSeries(month, 'uriage_amount') || [])[i], year && year.labels[i], (totalSeries(year, 'uriage_amount') || [])[i]])); });
+    var count = Math.max((A.graph.labels || []).length, month ? (month.labels || []).length : 0, year ? (year.labels || []).length : 0);
+    for (var i = 0; i < count; i++) { rows.push([A.graph.labels[i]].concat(data.map(function (series) { return series[i]; })).concat([month && month.labels[i], (totalSeries(month, 'uriage_amount') || [])[i], year && year.labels[i], (totalSeries(year, 'uriage_amount') || [])[i]])); }
     download(rows, '会社収益推移_' + A.range.start + '_' + A.range.end + '.csv');
   }
   function exportCases() { if (!A.filteredCases || !A.filteredCases.length) return; var rows = [['取得区分', window.DashboardDemo ? '見本データ（実績ではありません）' : '案件一覧（契約日基準）'], ['案件番号', '契約日', '担当者', '地域', '広告会社', '案件売上', '契約状況', '入金状態']]; A.filteredCases.forEach(function (row) { rows.push([row.case_id, row.date, row.staff_name || row.staff_id, row.pref || row.prefecture || '', row.company || String(row.case_id || '').slice(0, 2), C.number(row.sales), row.status, row.pay_status]); }); download(rows, '案件明細_' + A.caseQuery.range.start + '.csv'); }
+  function startLoad() { var version = A.version + 1; load().catch(function () { if (version === A.version) status('集計の読み込みに失敗しました。グラフを更新してください。', true); }); }
   window.DashboardAnalytics = {
     invalidate: function () { if (window.DashboardGroupAnalytics) window.DashboardGroupAnalytics.invalidate(); A.caseVersion = (A.caseVersion || 0) + 1; A.cases = null; A.casePromise = null; A.caseQuery = null; if (el('analyticsKpiDetails')) el('analyticsKpiDetails').remove(); if (el('dashboardAnalytics')) { A.version++; A.barRequest = (A.barRequest || 0) + 1; A.graph = null; el('dashboardAnalytics').hidden = true; if (el('analyticsDetail').open) el('analyticsDetail').close(); } },
     refresh: function (response, state) {
@@ -356,7 +363,7 @@
       A.region = state.region; A.range = Object.assign({}, A.dashboardRange);
       el('analyticsStart').value = A.range.start; el('analyticsEnd').value = A.range.end; el('analyticsPeriod').value = A.period;
       organizeKpi();
-      load().catch(function () { status('集計の読み込みに失敗しました。グラフを更新してください。', true); });
+      startLoad();
     },
     regionChanged: function (region) { if (window.DashboardGroupAnalytics) window.DashboardGroupAnalytics.regionChanged(region); A.region = region; if (A.graph) { organizeKpi(); renderBars(); } }
   };
