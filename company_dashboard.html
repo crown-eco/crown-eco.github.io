@@ -43,6 +43,9 @@ input[type="date"]{height:42px;padding:0 12px;border:1px solid var(--border);bor
 .primary:hover{background:var(--accent2)}
 .toolbar-period{order:1}
 .toolbar-date{order:2}
+.date-navigation{display:flex;align-items:center;gap:8px;min-width:0}
+.date-navigation #baseDate{min-width:0;flex:1}
+.date-navigation button{flex:none;white-space:nowrap}
 .toolbar-region{order:3}
 .toolbar-shortcuts{order:4}
 #reloadBtn{order:5}
@@ -233,7 +236,10 @@ thead th.num,thead th.num .sort-btn{justify-content:flex-end}
         </div>
         <div class="field toolbar-date">
           <label>基準日 <span id="baseDateDow" style="color:var(--muted);font-weight:600"></span></label>
-          <input type="date" id="baseDate">
+          <div class="date-navigation">
+            <button type="button" class="ghost" data-shortcut="previous_day" title="基準日の1日前を表示">前日</button>
+            <input type="date" id="baseDate">
+          </div>
         </div>
         <div class="field toolbar-shortcuts">
           <label>ショートカット</label>
@@ -502,6 +508,10 @@ function setStateFromShortcut_(shortcut) {
   if (shortcut === 'today') {
     STATE.periodType = 'day';
     STATE.baseDate = formatDate_(now);
+  } else if (shortcut === 'previous_day') {
+    var base = parseDateKey_(STATE.baseDate) || now;
+    STATE.periodType = 'day';
+    STATE.baseDate = formatDate_(new Date(base.getFullYear(), base.getMonth(), base.getDate() - 1));
   } else if (shortcut === 'this_week') {
     STATE.periodType = 'week';
     STATE.baseDate = formatDate_(startOfWeek_(now));
