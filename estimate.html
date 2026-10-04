@@ -139,6 +139,7 @@ input[type="date"]{width:100%;max-width:100%;box-sizing:border-box;-webkit-appea
 .cust-type-label:has(input:checked){border-color:var(--blue)!important;background:var(--blue-light)!important;color:var(--blue)}
 #est_toggle_corp.cust-type-label:has(input:checked){border-color:#7b1fa2!important;background:#f3e5f5!important;color:#7b1fa2}
 </style>
+<script src="./shared-customer-tax.js?v=20261004-floor-v2"></script>
 </head>
 <body>
 
@@ -1129,11 +1130,11 @@ function fmtBreakdownPrice(unitPrice, qty) {
 }
 
 // === クーポンタグ表示ヘルパー ===
-function renderCouponTags_(arr, elId, removeFuncName) {
+function renderCouponTags_(arr, elId, removeFuncName, beforeEx) {
   var el = document.getElementById(elId);
   if (!arr || arr.length === 0) { el.innerHTML = ''; return; }
   var totalEx = arr.reduce(function(s, c) { return s + c.discount; }, 0);
-  var totalInc = Math.round(totalEx * (1 + TAX_RATE));
+  var totalInc = ECOPITA_CUSTOMER_TAX.coupon(beforeEx === undefined ? recalc()[elId] : beforeEx, totalEx);
   var html = '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">' + arr.map(function(c, i) {
     return '<span style="display:inline-flex;align-items:center;gap:4px;background:#e8f5e9;border:1px solid #4caf50;border-radius:8px;padding:5px 10px;font-size:.85rem;font-weight:600">'
       + c.code + ' (-\u00a5' + c.discount.toLocaleString() + ')'
@@ -2085,7 +2086,7 @@ function recalc() {
   const todaySubEx = _isReserveEstNow ? 0 : Math.max(0,
     P.initial_fee + repairSubEx + invSubEx + customSubEx - (couponDiscount || 0)
   );
-  const todayTaxAmt = Math.round(todaySubEx * TAX_RATE);
+  const todayTaxAmt = ECOPITA_CUSTOMER_TAX.tax(todaySubEx);
   const todayTotal = todaySubEx + todayTaxAmt;
   document.getElementById('today_subtotal_ex').textContent = fmtYen(todaySubEx);
   document.getElementById('today_tax_amount').textContent = fmtYen(todayTaxAmt);
@@ -2158,7 +2159,7 @@ function recalc() {
     getEstCustomItems().forEach(function(it) { estTotal += it.subtotal; });
   }
   const estSubEx = Math.max(0, estTotal - estCouponDiscount);
-  const estTaxAmt = Math.round(estSubEx * TAX_RATE);
+  const estTaxAmt = ECOPITA_CUSTOMER_TAX.tax(estSubEx);
   const estTotalInc = estSubEx + estTaxAmt;
   document.getElementById('est_subtotal_ex').textContent = fmtYen(estSubEx);
   document.getElementById('est_tax_amount').textContent = fmtYen(estTaxAmt);
@@ -2217,7 +2218,7 @@ function recalc() {
   }
   const resEstSubEx = resEstRepairEx + resEstInvEx - resCouponDiscount;
   const resEstTotal = Math.max(0, resEstSubEx);
-  const resEstTaxAmt = Math.round(resEstTotal * TAX_RATE);
+  const resEstTaxAmt = ECOPITA_CUSTOMER_TAX.tax(resEstTotal);
   const resEstTotalInc = resEstTotal + resEstTaxAmt;
   document.getElementById('res_est_subtotal_ex').textContent = fmtYen(resEstTotal);
   document.getElementById('res_est_tax_amount').textContent = fmtYen(resEstTaxAmt);
@@ -2259,6 +2260,12 @@ function recalc() {
     });
     _resBreakEl.innerHTML = _html;
   }
+  var couponBases = {est_coupon_result:_isReserveEstNow ? 0 : P.initial_fee + repairSubEx + invSubEx + customSubEx,est_chk_coupon_result:estTotal,res_est_coupon_result:resEstRepairEx + resEstInvEx};
+  renderCouponTags_(coupons, 'est_coupon_result', 'removeEstCoupon', couponBases.est_coupon_result);
+  renderCouponTags_(estCoupons, 'est_chk_coupon_result', 'removeEstCoupon2', couponBases.est_chk_coupon_result);
+  renderCouponTags_(resCoupons, 'res_est_coupon_result', 'removeResCoupon', couponBases.res_est_coupon_result);
+  updateSplitTotal();
+  return couponBases;
 }
   
 function toggleEstimate() {
@@ -2297,8 +2304,7 @@ function addSplitRow() {
     '<button class="split-remove-btn" onclick="removeSplitRow(this)" type="button">×</button>';
   container.appendChild(div);
   div.querySelector('.split-amount-ex').addEventListener('input', function() {
-    const ex = parseInt(this.value) || 0, inc = ex + Math.round(ex * TAX_RATE);
-    div.querySelector('.split-inc').textContent = '税込: ¥' + inc.toLocaleString('ja-JP');
+
     updateSplitTotal();
   });
   updateSplitRowHeaders();
@@ -2339,11 +2345,16 @@ function getCurrentTotalInc_() {
   var txt = (document.getElementById('today_total') || {}).textContent || '';
   return parseInt(txt.replace(/[^\d]/g, '')) || 0;
 }
+function allocatedSplitAmounts_() {
+  var exes = Array.from(document.querySelectorAll('.split-row'), function(row){return parseInt(row.querySelector('.split-amount-ex').value)||0;});
+  return ECOPITA_CUSTOMER_TAX.splits(exes, parseInt((document.getElementById('today_subtotal_ex').textContent||'').replace(/[^\d]/g,''))||0, getCurrentTotalInc_());
+}
 function updateSplitTotal() {
+  var amounts = allocatedSplitAmounts_();
   let total = 0;
-  document.querySelectorAll('.split-row').forEach(function(row) {
-    const ex = parseInt(row.querySelector('.split-amount-ex').value) || 0;
-    total += ex + Math.round(ex * TAX_RATE);
+  document.querySelectorAll('.split-row').forEach(function(row,i) {
+    total += amounts[i];
+    row.querySelector('.split-inc').textContent = '税込: ¥' + amounts[i].toLocaleString('ja-JP');
   });
   const valEl = document.getElementById('split_total_display');
   const areaEl = document.getElementById('split_total_area');
@@ -2376,10 +2387,10 @@ function updateSplitTotal() {
   document.getElementById('split_diff_name_hint').style.display = (hasTransferInSplit && splitDiffName) ? 'block' : 'none';
 }
 function getSplitPayments() {
-  const splits = [];
-  document.querySelectorAll('.split-row').forEach(function(row) {
+  const splits = [], amounts = allocatedSplitAmounts_();
+  document.querySelectorAll('.split-row').forEach(function(row, i) {
     const amountEx = parseInt(row.querySelector('.split-amount-ex').value) || 0;
-    const amountInc = amountEx + Math.round(amountEx * TAX_RATE);
+    const amountInc = amounts[i];
     const method = row.querySelector('.split-method').value;
     const deadline = row.querySelector('.split-deadline-input').value;
     const isTransfer = method === '銀行振り込み';
@@ -2948,8 +2959,8 @@ async function submitReport() {
       return allCodes.filter(function(v, i, a){ return a.indexOf(v) === i; }).join(',');
     })(),
     today_total: isKankouInv
-      ? Math.round(estTotal * (1 + TAX_RATE))
-      : (isKankou ? Math.round(Math.max(0, diagFeeEx + todayRepairTotal - (couponDiscount||0)) * (1 + TAX_RATE)) : 0),
+      ? ECOPITA_CUSTOMER_TAX.amount(estTotal).inc
+      : (isKankou ? ECOPITA_CUSTOMER_TAX.amount(Math.max(0, diagFeeEx + todayRepairTotal - (couponDiscount||0))).inc : 0),
     auto_issue_invoice: isKankouInv,
     payment_method: isKankou ? document.querySelector('input[name="payment"]:checked').value : '',
     payment_splits: (isKankou && isSplitPayment_()) ? getSplitPayments() : null,
@@ -3037,13 +3048,13 @@ function showSubmitPreview(p, status) {
     h += '<div style="padding:8px 0"><b>' + (p.estimate_doc_type||'見積書') + ':</b></div>';
     if (p.estimate_subject) h += '<div style="padding:4px 12px"><b>件名:</b> ' + escHtml_(p.estimate_subject) + '</div>';
     p.estimate_repairs.forEach(function(r) { h += '<div style="padding:2px 12px;font-size:.85rem">・' + r.name + ' ×' + r.qty + ' ' + fmtYen(r.subtotal) + '</div>'; });
-    h += '<div style="padding:4px 12px;font-weight:700;color:#5c2d91">見積合計（税込）: ' + fmtYen(Math.round(p.estimate_total * 1.1)) + '</div>';
+    h += '<div style="padding:4px 12px;font-weight:700;color:#5c2d91">見積合計（税込）: ' + fmtYen(ECOPITA_CUSTOMER_TAX.amount(p.estimate_total).inc) + '</div>';
   }
 
   if ((status === '予約（請求書あり）' || status === '完工（請求書あり）') && p.estimate_repairs && p.estimate_repairs.length > 0) {
     h += '<div style="padding:8px 0"><b>📑 請求書の内容:</b></div>';
     p.estimate_repairs.forEach(function(r) { h += '<div style="padding:2px 12px;font-size:.85rem">・' + r.name + ' ×' + r.qty + ' ' + fmtYen(r.subtotal) + '</div>'; });
-    var invTaxInc = Math.round(p.estimate_total * 1.1);
+    var invTaxInc = ECOPITA_CUSTOMER_TAX.amount(p.estimate_total).inc;
     h += '<div style="padding:4px 12px;font-weight:700;color:#00796b">請求金額（税込）: ' + fmtYen(invTaxInc) + '</div>';
     if (status === '完工（請求書あり）') {
       h += '<div style="padding:8px 0;border-top:1px solid #eee;margin-top:8px"><b>振込期限:</b> ' + (p.transfer_deadline || '') + '</div>';
@@ -3266,9 +3277,7 @@ async function generateDoc(type) {
   let docItems = [];
   // ★ 版選択UIで選んだ見積書のitemsを優先使用
   if (P._selectedVerItems && P._selectedVerItems.length > 0) {
-    docItems = P._selectedVerItems.map(r => ({
-      name: r.name, price: r.price||0, qty: r.qty||1, subtotal: r.subtotal || (r.price||0) * (r.qty||1)
-    }));
+    docItems = P._selectedVerItems;
   } else if (sp.has_estimate && sp.estimate_repairs && sp.estimate_repairs.length > 0) {
     docItems = sp.estimate_repairs.map(r => ({
       name: r.name, price: r.price, qty: r.qty, subtotal: r.subtotal || r.price * r.qty
@@ -3285,14 +3294,14 @@ async function generateDoc(type) {
   let docTotal = 0;
   if (P._selectedVerItems && P._selectedVerItems.length > 0) {
     const subEx = docItems.reduce((sum, r) => sum + (r.subtotal || 0), 0);
-    docTotal = subEx + Math.round(subEx * 0.1);
+    docTotal = ECOPITA_CUSTOMER_TAX.sumSources([{items:docItems}]).inc;
   } else if (sp.has_estimate) {
-    docTotal = sp.estimate_total || 0;
+    docTotal = ECOPITA_CUSTOMER_TAX.amount(sp.estimate_total || 0).inc;
   } else if (sp.today_total) {
     docTotal = sp.today_total;
   } else if (docItems.length > 0) {
     const subEx = docItems.reduce((sum, r) => sum + (r.subtotal || 0), 0);
-    docTotal = subEx + Math.round(subEx * 0.1);
+    docTotal = ECOPITA_CUSTOMER_TAX.amount(subEx).inc;
   }
 
   var _docEmailEl = document.getElementById('doc_email');

@@ -77,6 +77,7 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
   .payment-transfer .payment-amount{font-size:13pt;color:#c62828}
   .transfer-amount{color:#c62828;font-size:13pt}
   </style>
+<script src="./shared-customer-tax.js?v=20261004-floor-v2"></script>
 </head>
 <body>
 
@@ -453,14 +454,15 @@ function renderSelection(caseId, contracts, versions) {
 
   versions.forEach(function(v) {
     var dtDisp = v.doc_type === '見積書' ? '修理見積書' : v.doc_type;
-    var vItems = (v.items || []).map(function(it) { return { name: it.name, price: it.price||0, qty: it.qty||1, subtotal: it.subtotal||(it.price||0)*(it.qty||1) }; });
+    var vItems = v.items || [];
+    var vSaved = ECOPITA_CUSTOMER_TAX.saved(vItems);
     var vSubEx = vItems.reduce(function(s,it) { return s + it.subtotal; }, 0);
     var data = {
       type: 'version', case_id: caseId, quote_ver: v.ver, quote_type: v.doc_type,
       name: v.name || caseLevelName,
       items: vItems,
-      amount_ex: vSubEx,
-      amount: vSubEx > 0 ? vSubEx + Math.round(vSubEx * 0.1) : (v.amount || 0),
+      amount_ex: vSaved ? vSaved.ex : vSubEx,
+      amount: vSaved ? vSaved.inc : (vSubEx > 0 ? vSubEx + Math.round(vSubEx * 0.1) : (v.amount || 0)),
       label: dtDisp + ' 第' + v.ver + '版（' + v.created + '）'
     };
     allItems.push(data);
@@ -533,7 +535,7 @@ async function goToUriage() {
     var sel = allItems[selections[si]];
     var needItems = !(sel.items && sel.items.length > 0);
     var needFormInfo = (si === 0);
-    if (!needItems && !needFormInfo) continue;
+    if (!needItems && !needFormInfo && (sel.type !== 'contract' || ECOPITA_CUSTOMER_TAX.saved(sel.items))) continue;
     try {
       var ld = await gasCall(
         { form_type: 'lookup', case_id: searchCaseId, contract_id: sel.contract_id || '', p1_sf: 'p1_sf_v1' },
@@ -555,13 +557,17 @@ async function goToUriage() {
         btnN.textContent = '次へ';
         return;
       }
-      if (needItems && ld.ok && ld.order_items && ld.order_items.length > 0) {
-        sel.items = ld.order_items.map(function(it) {
-          return { name: it.name, price: it.price||0, qty: it.qty||1, subtotal: it.subtotal||(it.price||0)*(it.qty||1) };
-        });
+      if (sel.type === 'contract' && (!ld || !ld.ok || !Array.isArray(ld.order_items))) {
+        showError('error_msg', '元の書類の金額を確認できませんでした。再度検索してください');
+        btnN.disabled = false; btnN.textContent = '次へ'; return;
+      }
+      if (sel.type === 'contract' && ld.ok && ld.order_items && ld.order_items.length > 0) {
+        sel.items = ld.order_items;
         var subEx = sel.items.reduce(function(s,it) { return s + it.subtotal; }, 0);
         sel.amount_ex = subEx;
-        sel.amount = subEx + Math.round(subEx * 0.1);
+        var saved = ECOPITA_CUSTOMER_TAX.saved(sel.items);
+        sel.amount_ex = saved ? saved.ex : subEx;
+        sel.amount = saved ? saved.inc : subEx + Math.round(subEx * 0.1);
       }
       // 最初の選択からフォーム情報を取得（items既存でも実行）
       if (needFormInfo) {
@@ -578,6 +584,7 @@ async function goToUriage() {
         if (ld && ld.transfer_deadline) document.getElementById('inv_deadline').value = ld.transfer_deadline;
       }
     } catch(e) {
+      if (sel.type === 'contract') { showError('error_msg', gasCallErrorMessage(e)); btnN.disabled = false; btnN.textContent = '次へ'; return; }
       if (si === 0) {
         lookupData = {};
         showError('error_msg', gasCallErrorMessage(e));
@@ -741,7 +748,7 @@ function getFsItems() {
 function fsRecalc() {
   var items = getFsItems();
   var subEx = items.reduce(function(s, it) { return s + it.subtotal; }, 0);
-  var tax = Math.round(subEx * TAX_RATE);
+  var tax = ECOPITA_CUSTOMER_TAX.tax(subEx);
   var total = subEx + tax;
   document.getElementById('fs_subtotal_ex').textContent = fmtYen(subEx);
   document.getElementById('fs_tax').textContent = fmtYen(tax);
@@ -928,13 +935,9 @@ function showPreview() {
 
   var subtotalEx = 0;
   allLineItems.forEach(function(it) { subtotalEx += (it.subtotal || it.price * (it.qty||1)); });
-  var tax = Math.round(subtotalEx * 0.1);
-  var grandTotal = subtotalEx + tax;
-  if (allLineItems.length === 0 && !fromScratch) {
-    selectedItems.forEach(function(s) { subtotalEx += (s.amount_ex || Math.round((s.amount||0)/1.1)); });
-    tax = Math.round(subtotalEx * 0.1);
-    grandTotal = subtotalEx + tax;
-  }
+  var amounts = fromScratch ? ECOPITA_CUSTOMER_TAX.amount(subtotalEx) : ECOPITA_CUSTOMER_TAX.sumSources(selectedItems);
+  subtotalEx = amounts.ex;
+  var tax = amounts.tax, grandTotal = amounts.inc;
 
   // 確認画面（見積書フォームと同じシンプルな内容確認）
   var rowStyle = 'padding:8px 0;border-bottom:1px solid #eee';
@@ -1019,7 +1022,7 @@ async function issueInvoice() {
       return;
     }
     var fsSubEx = fsItems.reduce(function(s, it) { return s + it.subtotal; }, 0);
-    var fsTotal = fsSubEx + Math.round(fsSubEx * TAX_RATE);
+    var fsTotal = ECOPITA_CUSTOMER_TAX.amount(fsSubEx).inc;
     var fsPaymentMethod = getFsPaymentMethod();
     var fsIsBank = (fsPaymentMethod === '銀行振り込み');
 
@@ -1078,7 +1081,9 @@ async function issueInvoice() {
     allLineItemsForSubmit.forEach(function(it) {
       subtotalExForSubmit += (it.subtotal || (it.price || 0) * (it.qty || 1));
     });
-    var totalIncForSubmit = subtotalExForSubmit + Math.round(subtotalExForSubmit * 0.1);
+    var submitAmounts = ECOPITA_CUSTOMER_TAX.sumSources(selectedItems);
+    subtotalExForSubmit = submitAmounts.ex;
+    var totalIncForSubmit = submitAmounts.inc;
 
     payload = {
       form_type: 'generate_doc',

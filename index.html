@@ -286,6 +286,7 @@ body { font-family:'Noto Sans JP',sans-serif; background:var(--bg); color:var(--
   font-weight: 700;
 }
 </style>
+<script src="./shared-customer-tax.js?v=20261004-floor-v2"></script>
 </head>
 <body>
 
@@ -831,7 +832,7 @@ function generateContractId() {
   return 'AC-' + ts + '-' + rand;
 }
 
-function calcTotalInc() {
+function calcTotalExBeforeCoupons_() {
   const equip = document.getElementById('c_equipment').value, ot = getOrderType();
   let subEx = 0;
   if (ot === '原因究明作業') {
@@ -845,18 +846,21 @@ function calcTotalInc() {
     getInvOptions().forEach(v => { if (v.price > 0) subEx += v.price; });
   }
   getCustomItems().forEach(c => { subEx += c.subtotal; });
-  coupons.forEach(cp => { subEx -= cp.discount; });
-  if (subEx < 0) subEx = 0;
-  return subEx + Math.round(subEx * TAX_RATE);
+  return subEx;
+}
+function calcTotalEx_() { return Math.max(0, calcTotalExBeforeCoupons_() - coupons.reduce(function(s,c){return s+c.discount;},0)); }
+function calcTotalInc() {
+  return ECOPITA_CUSTOMER_TAX.amount(calcTotalEx_()).inc;
 }
 
 function refreshStep3Total() {
   currentTotalInc = calcTotalInc();
-  const step3Ex = Math.round(currentTotalInc / 1.1);
+  const step3Ex = calcTotalEx_();
   document.getElementById('step3_total_display').innerHTML =
     '¥' + step3Ex.toLocaleString('ja-JP') +
     '<span style="font-size:.75rem;font-weight:500;color:#555;margin-left:6px">税込 ¥' + currentTotalInc.toLocaleString('ja-JP') + '</span>';
   updateSplitTotal();
+  renderCouponTags_(coupons, 'coupon_result', 'removeCoupon');
 }
 
 function initSplitRows() {
@@ -890,8 +894,7 @@ function addSplitRow() {
     '<button class="split-remove-btn" onclick="removeSplitRow(this)" type="button">×</button>';
   container.appendChild(div);
   div.querySelector('.split-amount-ex').addEventListener('input', function() {
-    const ex = parseInt(this.value) || 0, inc = ex + Math.round(ex * TAX_RATE);
-    div.querySelector('.split-inc').textContent = '税込: ¥' + inc.toLocaleString('ja-JP');
+
     _debouncedUpdateSplitTotal(); // 全行合計は300msディバウンス
   });
   updateSplitRowHeaders();
@@ -944,11 +947,16 @@ function _debouncedUpdateSplitTotal() {
   _splitTotalTimer = setTimeout(updateSplitTotal, 300);
 }
 
+function allocatedSplitAmounts_() {
+  var exes = Array.from(document.querySelectorAll('.split-row'), function(row){return parseInt(row.querySelector('.split-amount-ex').value)||0;});
+  return ECOPITA_CUSTOMER_TAX.splits(exes, calcTotalEx_(), calcTotalInc());
+}
 function updateSplitTotal() {
+  var amounts = allocatedSplitAmounts_();
   let total = 0;
-  document.querySelectorAll('.split-row').forEach(function(row) {
-    const ex = parseInt(row.querySelector('.split-amount-ex').value) || 0;
-    total += ex + Math.round(ex * TAX_RATE);
+  document.querySelectorAll('.split-row').forEach(function(row,i) {
+    total += amounts[i];
+    row.querySelector('.split-inc').textContent = '税込: ¥' + amounts[i].toLocaleString('ja-JP');
   });
   const valEl = document.getElementById('split_total_display');
   const areaEl = document.getElementById('split_total_area');
@@ -984,10 +992,10 @@ function updateSplitTotal() {
 }
 
 function getSplitPayments() {
-  const splits = [];
-  document.querySelectorAll('.split-row').forEach(function(row) {
+  const splits = [], amounts = allocatedSplitAmounts_();
+  document.querySelectorAll('.split-row').forEach(function(row, i) {
     const amountEx = parseInt(row.querySelector('.split-amount-ex').value) || 0;
-    const amountInc = amountEx + Math.round(amountEx * TAX_RATE);
+    const amountInc = amounts[i];
     const method = row.querySelector('.split-method').value;
     const deadline = row.querySelector('.split-deadline-input').value;
     const isTransfer = method === '銀行振り込み';
@@ -1645,7 +1653,7 @@ function renderCouponTags_(arr, elId, fn) {
   var el = document.getElementById(elId);
   if (!arr || !arr.length) { el.innerHTML = ''; return; }
   var tEx = arr.reduce(function(s, c) { return s + c.discount; }, 0);
-  var tInc = Math.round(tEx * (1 + TAX_RATE));
+  var tInc = ECOPITA_CUSTOMER_TAX.coupon(calcTotalExBeforeCoupons_(), tEx);
   var html = '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">' +
     arr.map(function(c, i) {
       return '<span style="display:inline-flex;align-items:center;gap:4px;background:#e8f5e9;border:1px solid #4caf50;border-radius:8px;padding:5px 10px;font-size:.85rem;font-weight:600">' +
@@ -1999,7 +2007,7 @@ function nextStep() {
       if (subtotalEx < 0) subtotalEx = 0;
     }
 
-    const taxAmount = Math.round(subtotalEx * TAX_RATE), totalInc = subtotalEx + taxAmount;
+    const taxAmount = ECOPITA_CUSTOMER_TAX.tax(subtotalEx), totalInc = subtotalEx + taxAmount;
     document.getElementById('est_customer_name').textContent = document.getElementById('c_name').value + ' 様';
     document.getElementById('est_date').textContent = '発行日：' + new Date().toLocaleDateString('ja-JP');
     document.getElementById('est_items_body').innerHTML = estRows;

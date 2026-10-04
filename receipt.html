@@ -65,6 +65,7 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
 .result-box p{white-space:pre-line}
 .result-link{display:inline-block;margin-top:12px;color:var(--purple);font-weight:800;text-decoration:none}
 </style>
+<script src="./shared-customer-tax.js?v=20261004-floor-v2"></script>
 </head>
 <body>
 
@@ -683,8 +684,10 @@ function showReceiptPreview() {
 
   var total = 0;
   rows.forEach(function(r) { total += Number(r.amount_inc || 0); });
-  var taxEx = Math.round(total / 1.1);
-  var tax = total - taxEx;
+  var breakdown;
+  try { breakdown = reissueMode ? ECOPITA_CUSTOMER_TAX.receiptReissue(rows,total) : ECOPITA_CUSTOMER_TAX.receipt(total); }
+  catch (_) { showError('issue_error', '再発行できません。元の領収書の金額を確認してください'); return; }
+  var taxEx = breakdown.ex, tax = breakdown.tax;
 
   var html = '';
   html += '<div class="preview-row"><span class="preview-label">案件番号</span><span class="preview-value">' + escapeHtml(searchCaseId) + '</span></div>';

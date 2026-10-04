@@ -67,6 +67,7 @@ body { font-family:'Noto Sans JP',sans-serif; background:var(--bg); color:var(--
 <script src="./shared-gas-call.js?v=20260930-gap-v1"></script>
 <script>if(typeof window.gasDiagnosticFetch!=="function")window.gasDiagnosticFetch=window.fetch.bind(window);</script>
 <script src="./shared-screen-latency.js?v=20260930-gap-v1"></script>
+<script src="./shared-customer-tax.js?v=20261004-floor-v2"></script>
 </head>
 <body>
 
@@ -742,11 +743,11 @@ function getQCustomItems() {
 }
 
 // === クーポン表示ヘルパー ===
-function renderQCouponTags() {
+function renderQCouponTags(beforeEx) {
   var el = document.getElementById('q_coupon_result');
   if (!qCoupons || qCoupons.length === 0) { el.innerHTML = ''; return; }
   var totalEx  = qCoupons.reduce(function(s, c) { return s + c.discount; }, 0);
-  var totalInc = Math.round(totalEx * (1 + TAX_RATE));
+  var totalInc = ECOPITA_CUSTOMER_TAX.coupon(beforeEx === undefined ? qRecalc() : beforeEx, totalEx);
   var html = '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">'
     + qCoupons.map(function(c, i) {
       return '<span style="display:inline-flex;align-items:center;gap:4px;background:#e8f5e9;border:1px solid #4caf50;border-radius:8px;padding:5px 10px;font-size:.85rem;font-weight:600">'
@@ -835,8 +836,9 @@ function qRecalc() {
     sub += parseInt(inp.value) || 0;
   });
   getQCustomItems().forEach(function(it) { sub += it.subtotal; });
+  var beforeCouponEx = sub;
   sub = Math.max(0, sub - qCouponDiscount);
-  var tax = Math.round(sub * TAX_RATE), total = sub + tax;
+  var tax = ECOPITA_CUSTOMER_TAX.tax(sub), total = sub + tax;
 
   document.getElementById('q_subtotal_ex').textContent = fmtYen(sub);
   document.getElementById('q_tax_amount').textContent  = fmtYen(tax);
@@ -868,6 +870,8 @@ function qRecalc() {
     h += '<div style="' + rs + ';color:#e65100"><span>クーポン（' + cp.code + '）</span><span>-¥' + cp.discount.toLocaleString() + '</span></div>';
   });
   bk.innerHTML = h;
+  if (qCoupons.length) renderQCouponTags(beforeCouponEx);
+  return beforeCouponEx;
 }
 
 function toggleEmailWarn() {
@@ -939,7 +943,7 @@ async function submitQuote() {
 
   // プレビュー表示
   var subEx = items.reduce(function(s,it) { return s + it.subtotal; }, 0);
-  var taxInc = subEx + Math.round(subEx * 0.1);
+  var taxInc = ECOPITA_CUSTOMER_TAX.amount(subEx).inc;
 
   var h = '';
   h += '<div style="padding:8px 0;border-bottom:1px solid #eee"><b>書類種別:</b> ' + docType + '</div>';
