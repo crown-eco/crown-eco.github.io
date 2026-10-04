@@ -666,14 +666,15 @@ function addBodyItem() {
     '</div>' +
     '<div><label>金額（税込） <span style="color:#c0392b">*</span></label>' +
     '<input type="number" id="body-amount-' + id + '" placeholder="0" min="1" oninput="onBodyAmountChange(' + id + ')"></div>' +
-    '<div id="body-file-area-' + id + '" style="margin-top:8px"><label>領収書写真 <span style="color:#c0392b">*</span></label>' +
-    '<div class="file-input-wrapper"><div class="file-btn" id="file-btn-' + id + '">📷 タップして添付</div>' +
-    '<input type="file" accept="image/*" onchange="onFileChange(' + id + ', this)"></div></div>' +
+    '<div id="body-file-area-' + id + '" style="margin-top:8px"><label>領収書（写真・PDF） <span style="color:#c0392b">*</span></label>' +
+    '<div class="file-input-wrapper"><div class="file-btn" id="file-btn-' + id + '">📷 タップして添付（写真・PDF）</div>' +
+    '<input type="file" accept="image/*,application/pdf" onchange="onFileChange(' + id + ', this)"></div></div>' +
     '<img id="preview-' + id + '" class="receipt-preview hidden">' +
+    '<p id="pdf-preview-' + id + '" class="hidden"></p>' +
     '<div id="file-actions-' + id + '" class="hidden" style="display:none;gap:12px;margin-top:6px">' +
     '<span style="font-size:12px;color:#378ADD;cursor:pointer" onclick="changeFile(' + id + ')">変更</span>' +
     '<span style="font-size:12px;color:#c0392b;cursor:pointer" onclick="deleteFile(' + id + ')">削除</span>' +
-    '<input type="file" accept="image/*" id="change-input-' + id + '" style="display:none" onchange="onFileChange(' + id + ', this)"></div>' +
+    '<input type="file" accept="image/*,application/pdf" id="change-input-' + id + '" style="display:none" onchange="onFileChange(' + id + ', this)"></div>' +
     '<div id="item-error-' + id + '" class="error-msg hidden"></div>';
   container.appendChild(wrap);
   updateTotal();
@@ -689,32 +690,58 @@ function onBodyAmountChange(id) {
   bodyItemData[id].amount = Number(document.getElementById('body-amount-' + id).value) || 0;
   updateTotal();
 }
+function expenseReceiptMimeFromBytes_(bytes) {
+  function at(i) { return (bytes[i] == null ? -1 : bytes[i] & 255); }
+  function text(start,length) { var out='';for(var i=start;i<start+length;i++)out+=String.fromCharCode(at(i));return out; }
+  if(bytes.length>=8 && /^%PDF-[12]\.[0-9]$/.test(text(0,8)))return 'application/pdf';
+  if(bytes.length>=3 && at(0)===255 && at(1)===216 && at(2)===255)return 'image/jpeg';
+  if(bytes.length>=8 && [137,80,78,71,13,10,26,10].every(function(v,i){return at(i)===v;}))return 'image/png';
+  if(bytes.length>=6 && /^GIF8[79]a$/.test(text(0,6)))return 'image/gif';
+  if(bytes.length>=12 && text(0,4)==='RIFF' && text(8,4)==='WEBP')return 'image/webp';
+  if(bytes.length>=16 && text(4,4)==='ftyp') {
+    var size=at(0)*16777216+at(1)*65536+at(2)*256+at(3);
+    if(size<16 || size>bytes.length || size>4096 || size%4)return '';
+    var brands=[text(8,4)];for(var j=16;j<size;j+=4)brands.push(text(j,4));
+    if(brands.some(function(b){return b==='avif' || b==='avis';}))return '';
+    if(brands.some(function(b){return ['heic','heix','hevc','hevx'].indexOf(b)>=0;}))return 'image/heic';
+    if(brands.some(function(b){return ['mif1','msf1'].indexOf(b)>=0;}))return 'image/heif';
+  }
+  return '';
+}
+
 function onFileChange(id, input) {
-  var file = input.files[0];
-  if (!file) return;
-  var reader = new FileReader();
-  reader.onload = function(e) {
-    var dataUrl = e.target.result;
-    bodyItemData[id].file = file;
-    bodyItemData[id].dataUrl = dataUrl.split(',')[1];
-    bodyItemData[id].mime = file.type;
-    var preview = document.getElementById('preview-' + id);
-    preview.src = dataUrl; preview.classList.remove('hidden');
-    var btn = document.getElementById('file-btn-' + id);
-    btn.textContent = '✓ ' + file.name; btn.classList.add('has-file');
-    document.getElementById('body-file-area-' + id).querySelector('.file-input-wrapper').style.display = 'none';
-    var actions = document.getElementById('file-actions-' + id);
-    actions.style.display = 'flex'; actions.classList.remove('hidden');
+  var item=bodyItemData[id], file=input.files[0];if(!item || !file)return;
+  var generation=item.fileGeneration=(item.fileGeneration || 0)+1;
+  if(file.size>10000000){showErr('item-error-'+id,'添付ファイルは10MB以下にしてください');input.value='';return;}
+  if(file.type && ['image/jpeg','image/png','image/heic','image/heif','image/webp','image/gif','application/pdf'].indexOf(file.type)<0){showErr('item-error-'+id,'添付できるのは写真か PDF です');input.value='';return;}
+  var reader=new FileReader();
+  reader.onload=function(e) {
+    if(bodyItemData[id]!==item || item.fileGeneration!==generation)return;
+    var dataUrl=e.target.result,base64=typeof dataUrl==='string'?dataUrl.split(',')[1]:'';
+    var mime=file.type;
+    if(!mime){try{var head=atob(base64.slice(0,5464)),bytes=[];for(var i=0;i<head.length;i++)bytes.push(head.charCodeAt(i));mime=expenseReceiptMimeFromBytes_(bytes);}catch(error){mime='';}}
+    if(!mime){showErr('item-error-'+id,'添付できるのは写真か PDF です');input.value='';return;}
+    item.file=file;item.dataUrl=base64;item.mime=mime;
+    var preview=document.getElementById('preview-'+id),pdf=document.getElementById('pdf-preview-'+id);
+    preview.src=mime==='application/pdf'?'':dataUrl;preview.classList.toggle('hidden',mime==='application/pdf');
+    pdf.textContent=mime==='application/pdf'?'📄 '+file.name:'';pdf.classList.toggle('hidden',mime!=='application/pdf');
+    var btn=document.getElementById('file-btn-'+id);btn.textContent='✓ '+file.name;btn.classList.add('has-file');
+    document.getElementById('body-file-area-'+id).querySelector('.file-input-wrapper').style.display='none';
+    var actions=document.getElementById('file-actions-'+id);actions.style.display='flex';actions.classList.remove('hidden');hideErr('item-error-'+id);
   };
+  reader.onerror=function(){if(bodyItemData[id]===item && item.fileGeneration===generation)showErr('item-error-'+id,'添付ファイルを読み込めません。選び直してください');};
   reader.readAsDataURL(file);
 }
+
 function changeFile(id) { document.getElementById('change-input-' + id).click(); }
 function deleteFile(id) {
+  bodyItemData[id].fileGeneration=(bodyItemData[id].fileGeneration || 0)+1;
+  var pdf=document.getElementById('pdf-preview-'+id);pdf.textContent='';pdf.classList.add('hidden');
   bodyItemData[id].file = null; bodyItemData[id].dataUrl = null; bodyItemData[id].mime = null;
   var preview = document.getElementById('preview-' + id);
   preview.src = ''; preview.classList.add('hidden');
   var btn = document.getElementById('file-btn-' + id);
-  btn.textContent = '📷 タップして添付'; btn.classList.remove('has-file');
+  btn.textContent = '📷 タップして添付（写真・PDF）'; btn.classList.remove('has-file');
   document.getElementById('body-file-area-' + id).querySelector('.file-input-wrapper').style.display = '';
   var actions = document.getElementById('file-actions-' + id);
   actions.style.display = 'none'; actions.classList.add('hidden');
