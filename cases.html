@@ -2,6 +2,7 @@
 <html lang="ja">
 <head>
 <script src="./shared-site-config.js"></script>
+<script src="./shared-auth.js" data-ecopita-auth-errors-only></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>案件一覧</title>
@@ -95,6 +96,7 @@ tbody tr.overdue{background:rgba(248,113,113,.06);}
 <script src="./shared-screen-latency.js?v=20260924-1"></script>
 </head>
 <body>
+<div id="displayStatus" role="status" style="display:none;padding:10px 16px;font-size:13px"></div>
 <div id="loadingScreen" class="state-screen">
   <div class="spinner"></div>
   <span>読み込み中...</span>
@@ -175,40 +177,59 @@ var FILTER_OPTS={
 window.addEventListener('DOMContentLoaded',function(){
   if(window.ECOPITA_SITE_BLOCKED)return;
   try{var s=localStorage.getItem('ecopita_session');if(s){var sess=JSON.parse(s);if(sess.token){if(window.ECOPITA_SITE_NOTICE(sess))return;STATE.token=sess.token;STATE.id=sess.staffId||'';try{STATE.previewAs=sessionStorage.getItem('portal_preview_as')||'';}catch(pe){}
-    // portalからのキャッシュがあれば即表示
-    try{if(window.ECOPITA_SITE.group==='main'&&(!sess.groupId||sess.groupId==='main')){var pc=sessionStorage.getItem('portal_cache');if(pc){var pcd=JSON.parse(pc);if(pcd.cases&&pcd.ts&&Date.now()-pcd.ts<120000&&(pcd.previewAs||'')===(STATE.previewAs||'')){renderFromCache_(pcd.cases);}}}else{sessionStorage.removeItem('portal_cache');}}catch(ce){}
     fetchData();return;}}}catch(e){}
-  window.location.href=window.ECOPITA_SITE.baseUrl + '/portal.html';
+  displayLogin_(true);
 });
 
-function renderFromCache_(cases){
-  // キャッシュから仮表示（fetchData完了で上書きされる）
-  try{
-    document.getElementById('loadingScreen').style.display='none';
-    document.getElementById('mainScreen').style.display='';
-    ALL_ROWS=cases;
-    updateFilterBtns();applyFilters();
-  }catch(e){}
-}
 
-function fetchData(){
-  var screenTiming_ = window.ECOPITA_SCREEN_LATENCY ? window.ECOPITA_SCREEN_LATENCY.begin() : null;
-  document.getElementById('loadingScreen').style.display='flex';
-  document.getElementById('mainScreen').style.display='none';
-  var params='?mode=cases&token='+encodeURIComponent(STATE.token);
+
+// Display-only responses stay in this tab; every request scope has its own key.
+var DISPLAY_SEQ_ = 0;
+window.ECOPITA_DISPLAY_HANDLES_AUTH = true;
+function clearDisplayCache_(){try{for(var i=sessionStorage.length-1;i>=0;i--){var k=sessionStorage.key(i);if(k.indexOf('ecopita_display_v1:')===0)sessionStorage.removeItem(k);}sessionStorage.removeItem('portal_cache');sessionStorage.removeItem('portal_preview_as');}catch(e){}}
+function displayLogin_(removeSession){clearDisplayCache_();if(removeSession)localStorage.removeItem('ecopita_session');window.location.href=window.ECOPITA_SITE.baseUrl+'/login.html?redirect='+encodeURIComponent(window.location.href);}
+function displayStatus_(text,retry){var e=document.getElementById('displayStatus');e.textContent=text;e.style.display=text?'block':'none';if(retry){var b=document.createElement('button');b.textContent='再試行';b.onclick=function(){fetchData();};e.appendChild(b);}}
+function displaySession_(){try{return JSON.parse(localStorage.getItem('ecopita_session')||'null');}catch(e){return null;}}
+function displayCurrent_(request){if(request.seq!==DISPLAY_SEQ_)return false;var s=displaySession_();if(!s||s.token!==request.token||s.staffId!==request.staffId||s.expiresAt!==request.expiresAt||(s.expiresAt&&Date.now()>=s.expiresAt)){displayLogin_(!s||(s.token===request.token));return false;}return request.seq===DISPLAY_SEQ_&&request.viewAs===(STATE.viewAs||'')&&request.previewAs===(STATE.previewAs||'');}
+async function displayRequest_(mode){var seq=++DISPLAY_SEQ_,s=displaySession_();if(!s||!s.token||!s.staffId||(s.expiresAt&&Date.now()>=s.expiresAt)){displayLogin_(true);return null;}if(s.token!==STATE.token||s.staffId!==STATE.id){displayLogin_(false);return null;}var r={seq:seq,token:s.token,staffId:s.staffId,expiresAt:s.expiresAt,viewAs:STATE.viewAs||'',previewAs:STATE.previewAs||'',key:null,cached:null};try{var bytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s.token)),hash=Array.from(new Uint8Array(bytes)).map(function(n){return n.toString(16).padStart(2,'0');}).join('');if(!displayCurrent_(r))return null;var actor=JSON.stringify([s.staffId,s.expiresAt||0,hash]);var owner=sessionStorage.getItem('ecopita_display_v1:owner');if(owner&&owner!==actor){clearDisplayCache_();STATE.viewAs='';STATE.previewAs='';r.viewAs='';r.previewAs='';}sessionStorage.setItem('ecopita_display_v1:owner',actor);r.key='ecopita_display_v1:'+JSON.stringify([mode,window.ECOPITA_SITE.baseUrl,window.ECOPITA_SITE.group,actor,r.viewAs,r.previewAs]);var raw=sessionStorage.getItem(r.key);if(raw){var c=JSON.parse(raw),age=Date.now()-c.ts;if(c.json&&c.json.ok&&age>=0&&age<86400000&&(mode!=='cases'||(Array.isArray(c.json.rows)&&c.json.rows.length)))r.cached=c;else sessionStorage.removeItem(r.key);}}catch(e){}return displayCurrent_(r)?r:null;}
+function displaySave_(r,json){if(!r.key)return;try{sessionStorage.setItem(r.key,JSON.stringify({ts:Date.now(),json:json}));}catch(e){}}
+function displayStamp_(ts){return new Date(ts).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'})+'時点';}
+function displayFailure_(r,msg){if(!displayCurrent_(r))return;document.getElementById('loadingScreen').style.display='none';displayStatus_((r.cached?displayStamp_(r.cached.ts)+'の表示です。':'')+'最新データを取得できませんでした。'+msg,true);}
+async function fetchData(retryCount){
+  retryCount=retryCount||0;
+  var request=await displayRequest_('cases');if(!request)return;
+  var screenTiming_=window.ECOPITA_SCREEN_LATENCY?window.ECOPITA_SCREEN_LATENCY.begin():null;
+  document.getElementById('mainScreen').style.display=request.cached?'block':'none';
+  document.getElementById('loadingScreen').style.display=request.cached?'none':'flex';
+  
+  if(request.cached){var requestedView=STATE.viewAs,requestedPreview=STATE.previewAs;render(request.cached.json);STATE.viewAs=requestedView;STATE.previewAs=requestedPreview;displayStatus_(displayStamp_(request.cached.ts)+'・更新中');}else displayStatus_('最新データを取得中…');
+  var params='?mode=cases&token='+encodeURIComponent(request.token);
   if(window.ECOPITA_SITE.group!=='main')params+='&siteGroup='+encodeURIComponent(window.ECOPITA_SITE.group);
-  if(STATE.viewAs) params+='&view_as='+encodeURIComponent(STATE.viewAs);
-  if(STATE.previewAs) params+='&preview_as='+encodeURIComponent(STATE.previewAs);
-  gasReadFetch(GAS_URL+params, F, { onStatus: gasReadStatusTarget(document.querySelector('#loadingScreen span')) }).then(function(r){return r.json();}).then(function(json){
-    if(!json||!json.ok){
-      if(json&&json.error==='TARGET_ACCESS_REVOKED'){STATE.viewAs='';fetchData();return;}
-      localStorage.removeItem('ecopita_session');
-      window.location.href=window.ECOPITA_SITE.baseUrl + '/portal.html';
-      return;
+  
+  if(request.viewAs)params+='&view_as='+encodeURIComponent(request.viewAs);
+  if(request.previewAs)params+='&preview_as='+encodeURIComponent(request.previewAs);
+  try{
+    var response=await gasReadFetch(GAS_URL+params,F,{onStatus:gasReadStatusTarget(document.querySelector('#loadingScreen span'))});
+    var json=await response.json();if(!displayCurrent_(request))return;
+    var shadowTicket=json&&json._shadow_ticket;if(json)delete json._shadow_ticket;
+    if(!json||!json.ok){var msg=json&&(json.error||json.reason||json.message)||'取得エラー';
+      if(typeof msg==='string'&&msg.indexOf('セッション無効')!==-1&&retryCount===0){
+        displayStatus_((request.cached?displayStamp_(request.cached.ts)+'・':'')+'接続を確認中…');
+        setTimeout(function(){if(displayCurrent_(request))fetchData(1);},1500);return;
+      }
+      if(window.ECOPITA_IS_AUTH_ERROR(msg)){displayLogin_(true);return;}
+      if(msg==='TARGET_ACCESS_REVOKED'){clearDisplayCache_();STATE.viewAs='';fetchData();return;}
+      
+      if(json&&json.portalHidden===true){clearDisplayCache_();document.getElementById('mainScreen').style.display='none';document.getElementById('loadingScreen').style.display='none';displayStatus_(msg,true);return;}
+      throw new Error(msg);
     }
-    render(json);
-    try { if (window.ECOPITA_SCREEN_LATENCY) window.ECOPITA_SCREEN_LATENCY.finish(screenTiming_, json, { url: GAS_URL, portal: true, token: STATE.token }); } catch (ignored) {}
-  }).catch(function(){gasReadStatusTarget(document.querySelector('#loadingScreen span'))(GAS_READ_FINAL_MESSAGE);});
+    
+    render(json);document.getElementById('loadingScreen').style.display='none';document.getElementById('mainScreen').style.display='block';
+    displaySave_(request,json);displayStatus_(displayStamp_(Date.now())+'・更新済み');
+    try{if(window.ECOPITA_SCREEN_LATENCY){window.ECOPITA_SCREEN_LATENCY.bindResponse(json,response);window.ECOPITA_SCREEN_LATENCY.finish(screenTiming_,json,{url:GAS_URL,portal:true,token:request.token});}}catch(e){}
+    
+  }catch(e){displayFailure_(request,e.message||'通信エラー');}
+  
 }
 
 function render(json){
@@ -362,7 +383,7 @@ function renderPreviewControls_(json){
 }
 function reload(){fetchData();}
 function resetDates(){document.getElementById('dateFrom').value='';document.getElementById('dateTo').value='';applyFilters();}
-function doLogout(){localStorage.removeItem('ecopita_session');window.location.href=window.ECOPITA_SITE.baseUrl + '/portal.html';}
+function doLogout(){clearDisplayCache_();localStorage.removeItem('ecopita_session');window.location.href=window.ECOPITA_SITE.baseUrl + '/portal.html';}
 
 function initResize(){
   var handle=document.getElementById('resizeHandle');

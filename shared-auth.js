@@ -1,3 +1,4 @@
+window.ECOPITA_IS_AUTH_ERROR=function(msg){return typeof msg==='string'&&(/セッション(?:が)?(?:無効|切れ|期限切れ)|セッション.*(?:有効期限|失効)|再ログイン|ログインし直|権限.*(?:変更|変わ)/.test(msg)||msg==='invalid_session_token'||msg==='invalid_pass_token'||msg==='SESSION_EXPIRED'||msg==='PERMISSION_CHANGED');};
 /**
  * shared-auth.js — 全ページ共通認証チェック
  *
@@ -20,6 +21,7 @@
  */
 (function() {
   'use strict';
+  if(document.currentScript&&document.currentScript.hasAttribute('data-ecopita-auth-errors-only'))return;
 
   var LOGIN_URL = window.ECOPITA_SITE.baseUrl + '/login.html';
 
@@ -120,6 +122,7 @@
   insertUserBar();
 
   function redirectToLogin() {
+    try{for(var i=sessionStorage.length-1;i>=0;i--){var k=sessionStorage.key(i);if(k.indexOf('ecopita_display_v1:')===0)sessionStorage.removeItem(k);}sessionStorage.removeItem('portal_cache');sessionStorage.removeItem('portal_preview_as');}catch(e){}
     var redirect = encodeURIComponent(location.href);
     location.href = LOGIN_URL + '?redirect=' + redirect;
   }
@@ -187,13 +190,7 @@
         if (ct.indexOf('json') !== -1) {
           res.clone().json().then(function(data) {
             var msg = (data && (data.error || data.reason || data.message)) || '';
-            if (typeof msg === 'string' && (
-              msg.indexOf('セッション無効') !== -1 ||
-              msg.indexOf('セッション切れ') !== -1 ||
-              msg.indexOf('セッションが切れ') !== -1 ||
-              msg === 'invalid_session_token' ||
-              msg === 'invalid_pass_token'
-            )) {
+            if (!window.ECOPITA_DISPLAY_HANDLES_AUTH && window.ECOPITA_IS_AUTH_ERROR(msg)) {
               if (window.ECOPITA_RELOGIN && !window._ecopitaReloginShown) {
                 window._ecopitaReloginShown = true;
                 window.ECOPITA_RELOGIN();
