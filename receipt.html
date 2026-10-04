@@ -428,7 +428,7 @@ function toggleAllRows(flag) {
 function receiptPaperSlipNotice_() {
   var paper = receiptLookup.paper_slip || { status: 'none' };
   if (paper.status === 'approved') return '<div class="notice ok">🧾 紙伝票確認済（' + escapeHtml(paper.approver || '') + '・' + escapeHtml(paper.approved_at || '') + '）</div>';
-  if (paper.status === 'pending') return '<div class="notice warn">運営の確認待ち（申請 ' + escapeHtml(paper.requested_at || '') + '）。確認されると LW でお知らせします。</div>';
+  if (paper.status === 'pending') return '<div class="notice warn">運営の確認待ち（申請 ' + escapeHtml(paper.requested_at || '') + '）。確認が済むと、この画面から発行できるようになります。</div>';
   if (receiptLookup.doc_requirement_met !== false) return '';
   return '<div class="notice warn"><div class="field"><label for="paper_slip_note">伝票番号など（任意・100字）</label><textarea id="paper_slip_note" maxlength="100"></textarea></div><button type="button" class="btn" id="paper_slip_request" onclick="requestPaperSlipApproval_()">📄 紙伝票で契約書を発行済み（運営に確認を依頼する）</button></div>';
 }
