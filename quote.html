@@ -797,6 +797,8 @@ function onQuoteEquipChange() {
 }
 
 function getDiagFee_() {
+  // ハウクリ（HC-）は故障診断費なし（10/8 麗香・estimate.html と同じ）
+  if (Q.prefix === 'HC' || Q.equipment === 'ハウスクリーニング') return 0;
   var sel = document.getElementById('q_custom_diag_fee');
   var custom = sel ? (parseInt(sel.value) || 0) : 0;
   if (custom > 0) return custom;
