@@ -329,6 +329,28 @@ input[type="date"]{width:100%;max-width:100%;box-sizing:border-box;-webkit-appea
       </div>
     </div>
 
+    <div class="card hidden" id="report_slip_photo_section">
+      <div class="card-title">紙伝票の写真（必須・1枚）</div>
+      <p>文字と金額が読める写真を選んでください。写真は報告と一緒に送信します。</p>
+      <input id="report_slip_photo_input" type="file" accept="image/*" capture="environment" onchange="reportSelectSlipPhoto_(this)">
+      <p id="report_slip_photo_status" role="status" aria-live="polite"></p>
+      <img id="report_slip_photo_preview" alt="送信する紙伝票" style="display:none;max-width:100%;max-height:360px">
+    </div>
+    <div class="card hidden" id="report_invoice_section">
+      <div class="card-title">売上に反映する請求書</div>
+      <p id="report_invoice_status" role="status" aria-live="polite"></p>
+      <button type="button" id="report_invoice_retry" onclick="reportLoadInvoiceCandidates_(true)" style="display:none">もう一度</button>
+      <select id="report_invoice_select" aria-label="売上に反映する請求書" onchange="reportSelectInvoice_()" style="display:none;width:100%;padding:12px"></select>
+      <div id="report_invoice_editor" style="display:none">
+        <p>選んだ請求書の内容を反映しました。今回の報告に合わせて変更できます。</p>
+        <div id="report_invoice_items"></div>
+        <button type="button" onclick="reportAddInvoiceItem_()">＋ 明細を追加</button>
+        <p id="report_invoice_amount" aria-live="polite"></p>
+        <p>この請求書を売上に反映します。請求書の新規発行・お客様への請求メール送信はありません。</p>
+      </div>
+    </div>
+    <div class="card hidden" id="report_pending_notice" role="status"></div>
+
     <!-- 失注・キャンセル時の通知 -->
     <div id="notice_loss" class="status-notice loss-notice hidden">
       売上 ¥0 で報告します（広告費は記録されます）
@@ -956,6 +978,10 @@ input[type="date"]{width:100%;max-width:100%;box-sizing:border-box;-webkit-appea
 
   <!-- ===== 送信前プレビュー（固定オーバーレイ） ===== -->
   <div id="preview_view" class="hidden" style="position:fixed;inset:0;background:var(--bg,#f5f7fa);z-index:9998;display:none;overflow-y:auto;padding:15px 20px">
+    <div class="card hidden" id="report_intake_notice" role="status">
+      <p id="report_intake_message"></p>
+      <button type="button" class="btn-submit btn-primary hidden" id="report_intake_new" onclick="reportStartNextIntakeReport_()">新しい報告を作成</button>
+    </div>
     <div style="max-width:500px;margin:0 auto">
       <div style="background:#fff;border-radius:14px;box-shadow:0 2px 8px rgba(0,0,0,.06);padding:18px;border:2px solid #c62828">
         <div style="font-weight:700;color:#c62828;text-align:center;font-size:1.1rem;margin-bottom:14px">📋 送信内容を確認</div>
@@ -981,6 +1007,7 @@ input[type="date"]{width:100%;max-width:100%;box-sizing:border-box;-webkit-appea
 <script>if(typeof window.gasDiagnosticFetch!=="function")window.gasDiagnosticFetch=window.fetch.bind(window);</script>
 <script src="./shared-screen-latency.js?v=20260930-gap-v1"></script>
 <script src="./write-async-status.js?v=20260930-gap-v1"></script>
+<script src="./shared-consent-photo.js?v=20260924"></script>
 <script>
 // ================================
 // ★ GAS WebアプリのURLをここに貼る ★
@@ -994,7 +1021,7 @@ function toLocalYMD(d) {
 }
 
 // === 業務報告の提出anchor（ack喪失後の再送でも同じXを使う） ===
-// 未完了payloadは案件単位で最大48時間だけ保持し、sync ok後にだけ消す。
+// 48時間は再照会の境界。未確定IDは期限だけで捨てない。画像本体は保存しない。
 var REPORT_PENDING_STORAGE_PREFIX_ = 'ecopita_report_pending_v1:';
 var REPORT_PENDING_MAX_AGE_MS_ = 48 * 60 * 60 * 1000;
 var REPORT_SUBMISSION_STAMP_RE_ = /^\d{14}$/;
@@ -1003,6 +1030,17 @@ window._reportPendingSubmissionMemory = window._reportPendingSubmissionMemory ||
 
 function reportPendingStorageKey_(caseId) {
   return REPORT_PENDING_STORAGE_PREFIX_ + String(caseId || '').trim();
+}
+
+function reportCompletedIntakeAnchorMs_(caseId) {
+  var stamp;
+  try { stamp = localStorage.getItem(reportPendingStorageKey_(caseId) + ':completed_anchor') || ''; }
+  catch (_) { throw new Error('前回の送信時刻を確認できません。もう一度確認してください。'); }
+  if (!stamp) return 0;
+  var ms = Date.UTC(Number(stamp.slice(0,4)), Number(stamp.slice(4,6))-1, Number(stamp.slice(6,8)),
+    Number(stamp.slice(8,10))-9, Number(stamp.slice(10,12)), Number(stamp.slice(12,14)));
+  if (!REPORT_SUBMISSION_STAMP_RE_.test(stamp) || !isFinite(ms) || reportSubmissionJstStamp_(ms) !== stamp) throw new Error('前回の送信時刻を確認できません。運営に連絡してください。');
+  return ms;
 }
 
 function reportSubmissionJstStamp_(value) {
@@ -1039,7 +1077,7 @@ function reportPendingEnvelopeValid_(envelope, caseId, nowMs) {
   if (!envelope || envelope.version !== 1 || !envelope.payload) return false;
   if (String(envelope.case_id || '').trim() !== String(caseId || '').trim()) return false;
   var savedAt = Number(envelope.saved_at_ms || 0);
-  if (!isFinite(savedAt) || savedAt <= 0 || nowMs - savedAt < 0 || nowMs - savedAt > REPORT_PENDING_MAX_AGE_MS_) return false;
+  if (!isFinite(savedAt) || savedAt <= 0) return false;
   var at = String(envelope.payload.report_submission_at || '');
   var token = String(envelope.payload.report_submission_token || '');
   var scopedCaseId = String(envelope.payload.report_submission_case_id || '').trim();
@@ -1049,15 +1087,39 @@ function reportPendingEnvelopeValid_(envelope, caseId, nowMs) {
 
 function reportReadPendingSubmission_(caseId, nowMs) {
   var key = reportPendingStorageKey_(caseId);
-  var envelope = window._reportPendingSubmissionMemory[key] || null;
+  var memory = window._reportPendingSubmissionMemory[key] || null;
+  var envelope = memory;
   try {
     var raw = localStorage.getItem(key);
     if (raw) envelope = JSON.parse(raw);
-  } catch (e) {}
+  } catch (e) { throw new Error('前回の送信情報を確認できません。運営に連絡してください。'); }
+  // A known intake ACK must still block resending if its localStorage update failed.
+  // A different identity saved by another tab always wins over this page's memory.
+  if (memory && memory.intake_id && envelope && memory.payload && envelope.payload
+      && memory.payload.report_submission_token === envelope.payload.report_submission_token
+      && memory.payload.report_submission_at === envelope.payload.report_submission_at) envelope = memory;
+  var currentStaff = window.ECOPITA_SESSION && window.ECOPITA_SESSION.staffId;
+  if (envelope && envelope.payload && currentStaff && envelope.payload.staff_id && String(envelope.payload.staff_id).padStart(4, '0') !== String(currentStaff).padStart(4, '0')) throw new Error('前回の送信情報の担当者を確認できません。運営に連絡してください。');
   if (reportPendingEnvelopeValid_(envelope, caseId, nowMs)) return envelope;
-  delete window._reportPendingSubmissionMemory[key];
-  try { localStorage.removeItem(key); } catch (e2) {}
+  if (envelope) throw new Error('前回の送信情報を確認できません。運営に連絡してください。');
   return null;
+}
+
+function reportPendingSafePayload_(payload) {
+  var safe = JSON.parse(JSON.stringify(payload));
+  delete safe.sessionToken;
+  if (safe.report_attachment && safe.report_attachment.photo) delete safe.report_attachment.photo.base64;
+  return safe;
+}
+
+function reportSavePendingEnvelope_(envelope) {
+  var key = reportPendingStorageKey_(envelope.case_id);
+  var safe = Object.assign({}, envelope, { payload: reportPendingSafePayload_(envelope.payload) });
+  // A durable identity must be saved before a request can leave this page.
+  try { localStorage.setItem(key, JSON.stringify(safe)); }
+  catch (e) { throw new Error('再送用の情報を保存できません。ブラウザの保存領域を確認してください。'); }
+  window._reportPendingSubmissionMemory[key] = safe;
+  return safe;
 }
 
 function reportPreparePendingSubmission_(payload, nowMs) {
@@ -1065,11 +1127,13 @@ function reportPreparePendingSubmission_(payload, nowMs) {
   var caseId = String((payload && payload.case_id) || '').trim();
   if (!payload || !caseId) return payload;
   var existing = reportReadPendingSubmission_(caseId, currentMs);
+  if (existing && existing.sent) throw new Error('前回の送信結果を確認してから、同じ内容を再送してください。');
   if (existing) {
     payload.report_submission_at = existing.payload.report_submission_at;
     payload.report_submission_token = existing.payload.report_submission_token;
   } else {
-    payload.report_submission_at = reportSubmissionJstStamp_(currentMs);
+    var completedAnchor = reportCompletedIntakeAnchorMs_(caseId);
+    payload.report_submission_at = reportSubmissionJstStamp_(Math.max(currentMs, completedAnchor ? completedAnchor + 1000 : 0));
     payload.report_submission_token = reportSubmissionUuid_();
   }
   payload.report_submission_case_id = caseId;
@@ -1077,12 +1141,28 @@ function reportPreparePendingSubmission_(payload, nowMs) {
     version: 1,
     case_id: caseId,
     saved_at_ms: existing ? existing.saved_at_ms : currentMs,
-    payload: payload
+    payload: payload,
+    sent: false
   };
-  var key = reportPendingStorageKey_(caseId);
-  window._reportPendingSubmissionMemory[key] = envelope;
-  try { localStorage.setItem(key, JSON.stringify(envelope)); } catch (e) {}
+  reportSavePendingEnvelope_(envelope);
   return payload;
+}
+
+function reportMarkPendingSent_(payload) {
+  var envelope = reportReadPendingSubmission_(payload.case_id, Date.now());
+  if (!envelope || envelope.payload.report_submission_token !== payload.report_submission_token) {
+    throw new Error('送信情報が変更されました。前回の送信結果を確認してください。');
+  }
+  if (envelope.intake_id) throw new Error('この報告は受付済みです。再送せず、受付状況を確認してください。');
+  if (!envelope.sent && envelope.replacement === true) reportRestorePendingPhoto_(payload, false);
+  if (envelope.sent) {
+    var fixed = reportPendingSafePayload_(envelope.payload), incoming = reportPendingSafePayload_(payload);
+    delete fixed.confirm_new_report; delete incoming.confirm_new_report;
+    if (JSON.stringify(fixed) !== JSON.stringify(incoming)) throw new Error('再送する内容が前回と異なります。運営に連絡してください。');
+  }
+  envelope.payload = payload;
+  envelope.sent = true;
+  reportSavePendingEnvelope_(envelope);
 }
 
 function reportClearPendingSubmission_(payload, nowMs) {
@@ -1099,6 +1179,351 @@ function reportClearPendingSubmission_(payload, nowMs) {
   try { localStorage.removeItem(key); } catch (e) {}
   return true;
 }
+
+function reportIntakeMessage_(state) {
+  if (state === 'DONE') return '預かり分の反映が完了しました。別の報告は「新しい報告を作成」から始めてください。';
+  if (state === 'MANUAL') return '受付済みです。反映状況は運営の確認が必要です。入力は保持しています。再送せず運営へ連絡してください。';
+  return '受付済み（売上への反映は少し遅れます）。再送は不要です。「受付状況を確認」で状況を確認できます。';
+}
+
+function reportRenderIntake_(pending) {
+  if (!pending || !pending.intake_id) return;
+  var message = reportIntakeMessage_(pending.intake_state);
+  var notice = document.getElementById('report_pending_notice');
+  notice.classList.remove('hidden'); notice.textContent = message;
+  document.getElementById('report_intake_notice').classList.remove('hidden');
+  document.getElementById('report_intake_message').textContent = message;
+  document.getElementById('report_intake_new').classList.toggle('hidden', pending.intake_state !== 'DONE');
+  ['btn_submit', 'btn_confirm_send'].forEach(function(id) {
+    var button = document.getElementById(id); button.disabled = false; button.textContent = '受付状況を確認';
+  });
+}
+
+function reportRememberIntake_(payload, response) {
+  if (!response || response.accepted_pending !== true && !response.intake_state && !response.intake_id) return false;
+  var current = reportReadPendingSubmission_(payload.case_id, Date.now());
+  if (!current || current.payload.report_submission_token !== payload.report_submission_token
+      || current.payload.report_submission_at !== payload.report_submission_at) throw new Error('前回の受付情報を確認できません。運営に連絡してください。');
+  var mode = current.payload.report_attachment && current.payload.report_attachment.mode;
+  var id = response.intake_id || current.intake_id, state = response.intake_state;
+  var done = state === 'DONE' && response.accepted_pending === false && response.report_response && response.report_response.ok === true;
+  var waiting = ['QUEUED', 'WAIT_DB', 'WAIT_OBSERVE', 'RECONCILING', 'MANUAL'].indexOf(state) >= 0;
+  if (response.ok !== true || response.found === false || ['paper_slip', 'auto_invoice'].indexOf(mode) < 0
+      || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(id || ''))
+      || !done && !(waiting && (response.accepted_pending === true || state === 'MANUAL'))
+      || response.can_start_new === true || response.can_retry === true
+      || current.intake_id && current.intake_id !== id
+      || response.report_submission_token && response.report_submission_token !== payload.report_submission_token
+      || response.report_submission_at && response.report_submission_at !== payload.report_submission_at) {
+    throw new Error('受付状況を確認できません。入力を残して、もう一度確認してください。');
+  }
+  // Only fixed intake metadata is persisted; arbitrary response fields never enter storage.
+  var next = Object.assign({}, current, {sent:true,intake_id:id,intake_state:state,payload:reportPendingSafePayload_(current.payload)});
+  window._reportPendingSubmissionMemory[reportPendingStorageKey_(payload.case_id)] = next;
+  window._pendingPayload = reportPendingSafePayload_(current.payload);
+  reportRenderIntake_(next);
+  reportSavePendingEnvelope_(next);
+  return true;
+}
+
+function reportStartNextIntakeReport_() {
+  try {
+    var payload = window._pendingPayload;
+    var current = payload && reportReadPendingSubmission_(payload.case_id, Date.now());
+    if (!current || !current.intake_id || current.intake_state !== 'DONE'
+        || current.payload.report_submission_token !== payload.report_submission_token
+        || current.payload.report_submission_at !== payload.report_submission_at) throw new Error('前回の反映完了を確認してから、新しい報告を作成してください。');
+    // The next explicit submit gets a later anchor even within the same second or
+    // after reloading. Store only the timestamp; do not allocate a new token here.
+    var previousCompleted = reportCompletedIntakeAnchorMs_(payload.case_id);
+    var completedStamp = current.payload.report_submission_at;
+    if (previousCompleted && reportSubmissionJstStamp_(previousCompleted) > completedStamp) completedStamp = reportSubmissionJstStamp_(previousCompleted);
+    localStorage.setItem(reportPendingStorageKey_(payload.case_id) + ':completed_anchor', completedStamp);
+    if (!reportClearPendingSubmission_(payload) || reportReadPendingSubmission_(payload.case_id, Date.now())) throw new Error('前回の送信情報を整理できません。もう一度確認してください。');
+    window._pendingPayload = null;
+    document.getElementById('report_intake_notice').classList.add('hidden');
+    document.getElementById('report_pending_notice').classList.add('hidden');
+    document.getElementById('report_intake_new').classList.add('hidden');
+    document.getElementById('btn_confirm_send').textContent = '送信する';
+    document.getElementById('btn_submit').textContent = '完了報告を送信';
+    hidePreview();
+  } catch (error) { alert(error.message); }
+}
+
+// A new identity requires an explicit server decision for this pending submission.
+// Keep the fixed business payload; replacing an abandoned receipt never sends automatically.
+function reportReplacePendingSubmission_(payload, response, fromStatus, nowMs) {
+  if (response && (response.accepted_pending === true || response.intake_state && response.intake_state !== 'FAILED')) return null;
+  var permitted = response && response.can_start_new === true && (fromStatus === true
+    ? response.ok === true && (response.found === false || response.found === true && response.state === 'failed')
+    : response.ok === false && response.reason === 'report_attachment_abandoned');
+  if (!permitted) return null;
+  var currentMs = Number(nowMs == null ? Date.now() : nowMs);
+  var current = reportReadPendingSubmission_(payload.case_id, currentMs);
+  if (!current || current.payload.report_submission_token !== payload.report_submission_token
+      || current.payload.report_submission_at !== payload.report_submission_at) {
+    throw new Error('送信情報が変更されました。前回の送信結果を確認してください。');
+  }
+  var stamp = String(current.payload.report_submission_at || '');
+  var oldMs = Date.UTC(Number(stamp.slice(0,4)), Number(stamp.slice(4,6))-1, Number(stamp.slice(6,8)),
+    Number(stamp.slice(8,10))-9, Number(stamp.slice(10,12)), Number(stamp.slice(12,14)));
+  if (!REPORT_SUBMISSION_STAMP_RE_.test(stamp) || !isFinite(oldMs) || reportSubmissionJstStamp_(oldMs) !== stamp) {
+    throw new Error('前回の送信時刻を確認できません。運営に連絡してください。');
+  }
+  var next = reportPendingSafePayload_(current.payload);
+  next.report_submission_at = reportSubmissionJstStamp_(Math.max(currentMs, oldMs + 1000));
+  next.report_submission_token = reportSubmissionUuid_();
+  if (next.report_submission_token === current.payload.report_submission_token) throw new Error('再送情報を作成できません。もう一度お試しください。');
+  delete next.report_attachment_operation_id;
+  delete next.async_report_id; delete next.async_uriage_error;
+  // The exact retained business payload keeps the user's explicit recent-report
+  // confirmation. Dropping it would repeat confirm -> abandoned -> confirm forever.
+  if(next.confirm_new_report!==true)delete next.confirm_new_report;
+  next.sessionToken = reportAttachmentSession_();
+  var photo = next.report_attachment && next.report_attachment.photo;
+  var supplied = payload.report_attachment && payload.report_attachment.photo;
+  var memoryPhoto = reportAttachmentUi_.caseId === next.case_id && reportAttachmentUi_.photo;
+  if (photo && supplied && supplied.sha256 === photo.sha256 && supplied.base64) photo.base64 = supplied.base64;
+  else if (photo && memoryPhoto && memoryPhoto.sha256 === photo.sha256 && memoryPhoto.base64) photo.base64 = memoryPhoto.base64;
+  reportSavePendingEnvelope_({version:1,case_id:next.case_id,saved_at_ms:currentMs,payload:next,sent:false,replacement:true});
+  window._pendingPayload = next;
+  return next;
+}
+
+function reportRestorePendingPhoto_(payload, fileReady) {
+  payload.sessionToken = reportAttachmentSession_();
+  var photo = payload.report_attachment && payload.report_attachment.photo;
+  if (photo && !fileReady && !photo.base64) {
+    var current = reportAttachmentUi_.caseId === payload.case_id && reportAttachmentUi_.photo;
+    if (!current || current.sha256 !== photo.sha256 || !current.base64) throw new Error('前回と同じ紙伝票の写真を選んでから再送してください。前回の入力内容は保持しています。');
+    photo.base64 = current.base64;
+  }
+  return payload;
+}
+
+// BEGIN REPORT_ATTACHMENT_CLIENT
+var reportAttachmentUi_ = { caseId: '', generation: 0, candidateState: 'idle', candidates: [], selected: null, photo: null, photoBusy: false, photoSelection: 0 };
+
+function reportAttachmentSession_() {
+  return window.ECOPITA_SESSION ? window.ECOPITA_SESSION.token || '' : '';
+}
+
+async function reportAttachmentCall_(body) {
+  body = Object.assign({}, body, { sessionToken: reportAttachmentSession_() });
+  var response = await gasReadFetch(GAS_API_URL, { method: 'POST', body: JSON.stringify(body) });
+  return response.json();
+}
+
+function reportAttachmentCase_() { return String(P.case_id || '').trim(); }
+
+function reportSyncAttachmentUi_(status) {
+  var caseId = reportAttachmentCase_(), s = reportAttachmentUi_;
+  if (s.caseId !== caseId) {
+    s.caseId = caseId; s.generation++; s.candidateState = 'idle'; s.candidates = []; s.selected = null;
+    s.photo = null; s.photoBusy = false; s.photoSelection++;
+    document.getElementById('report_slip_photo_preview').style.display = 'none';
+    document.getElementById('report_slip_photo_status').textContent = '';
+    document.getElementById('report_invoice_editor').style.display = 'none';
+  }
+  document.getElementById('report_slip_photo_section').classList.toggle('hidden', status !== '完工');
+  document.getElementById('report_invoice_section').classList.toggle('hidden', status !== '完工（請求書あり）');
+  var notice = document.getElementById('report_pending_notice');
+  try {
+    var pending = caseId && reportReadPendingSubmission_(caseId, Date.now());
+    notice.classList.toggle('hidden', !pending || !pending.sent);
+    notice.textContent = pending && pending.sent ? '前回の送信結果が未確認です。送信ボタンで結果を確認し、必要な場合は前回と同じ内容を再送します。' : '';
+  } catch (e) { notice.classList.remove('hidden'); notice.textContent = e.message; }
+  if (status === '完工（請求書あり）') {
+    if (caseId && isCleanCaseIdClient_(caseId) && s.candidateState === 'idle') reportLoadInvoiceCandidates_(false);
+    reportRenderInvoiceCandidates_();
+  } else {
+    document.getElementById('section_reserve_est').style.display = '';
+    document.getElementById('toggle_estimate_box').style.display = '';
+  }
+  if (pending && pending.intake_id) reportRenderIntake_(pending);
+}
+
+function reportCandidateState_(result) {
+  if (!result || result.ok !== true || result.complete !== true || !Array.isArray(result.candidates)) return 'error';
+  if (result.blocked === true) return 'blocked';
+  if (result.candidates.some(function(c) { return !c || !c.key || !c.source_digest || c.status !== 'available' || !Array.isArray(c.items) || !c.items.length || !Number.isFinite(Number(c.total)); })) return 'error';
+  return result.candidates.length ? 'ready' : 'none';
+}
+
+async function reportLoadInvoiceCandidates_(force) {
+  var s = reportAttachmentUi_, caseId = reportAttachmentCase_();
+  if (!caseId || !isCleanCaseIdClient_(caseId)) return;
+  if (!force && s.candidateState === 'loading') return;
+  var generation = ++s.generation;
+  s.caseId = caseId; s.candidateState = 'loading'; s.selected = null; s.candidates = [];
+  reportRenderInvoiceCandidates_();
+  try {
+    var result = await reportAttachmentCall_({ form_type: 'report_invoice_candidates', case_id: caseId });
+    if (generation !== s.generation || caseId !== reportAttachmentCase_()) return;
+    s.candidateState = reportCandidateState_(result);
+    s.candidates = s.candidateState === 'ready' ? result.candidates : [];
+  } catch (e) {
+    if (generation !== s.generation || caseId !== reportAttachmentCase_()) return;
+    s.candidateState = 'error';
+  }
+  reportRenderInvoiceCandidates_();
+}
+
+function reportRenderInvoiceCandidates_() {
+  var s = reportAttachmentUi_, select = document.getElementById('report_invoice_select');
+  var message = { idle: '案件番号を入力してください。', loading: '請求書を読み込んでいます…', error: '読み込めませんでした。もう一度', blocked: '処理中または確認が必要な請求書があります。運営に連絡してください。', none: '選べる請求書がありません（この仕組みより前に出した請求書は選べません）。今までどおり入力してください。', ready: '売上に反映する請求書を1枚選んでください。' };
+  document.getElementById('report_invoice_status').textContent = message[s.candidateState];
+  document.getElementById('report_invoice_retry').style.display = /^(error|blocked)$/.test(s.candidateState) ? '' : 'none';
+  select.style.display = s.candidateState === 'ready' ? '' : 'none';
+  var selectedKey = s.selected && s.selected.key;
+  select.replaceChildren();
+  var first = document.createElement('option'); first.value = ''; first.textContent = '請求書を選択'; select.appendChild(first);
+  s.candidates.forEach(function(c) {
+    var option = document.createElement('option'); option.value = c.key;
+    option.textContent = (c.invoice_no || '請求書') + ' ／ ' + (c.recorded_at || '') + ' ／ ¥' + Number(c.total).toLocaleString();
+    option.selected = c.key === selectedKey; select.appendChild(option);
+  });
+  document.getElementById('report_invoice_editor').style.display = s.selected ? '' : 'none';
+  if (getEffectiveStatus() === '完工（請求書あり）') {
+    document.getElementById('section_reserve_est').style.display = s.candidateState === 'none' ? '' : 'none';
+    document.getElementById('toggle_estimate_box').style.display = 'none';
+    document.getElementById('btn_submit').textContent = s.selected ? '選んだ請求書で完了報告を送信' : '完了報告を送信';
+  }
+}
+
+function reportAddInvoiceItem_(item) {
+  var row = document.createElement('div'); row.className = 'report-invoice-item';
+  row.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;margin:8px 0';
+  [['name','明細','text'],['price','単価（税抜）','number'],['qty','数量','number']].forEach(function(field) {
+    var input = document.createElement('input'); input.dataset.field = field[0]; input.type = field[2];
+    input.setAttribute('aria-label', field[1]); input.placeholder = field[1];
+    input.value = item ? item[field[0]] : (field[0] === 'qty' ? 1 : '');
+    input.style.cssText = field[0] === 'name' ? 'flex:2;min-width:120px;padding:8px' : 'width:100px;padding:8px';
+    if (input.type === 'number') input.step = 'any';
+    input.oninput = reportUpdateInvoiceAmount_; row.appendChild(input);
+  });
+  var remove = document.createElement('button'); remove.type = 'button'; remove.textContent = '削除';
+  remove.onclick = function() { row.remove(); reportUpdateInvoiceAmount_(); }; row.appendChild(remove);
+  document.getElementById('report_invoice_items').appendChild(row);
+  reportUpdateInvoiceAmount_();
+}
+
+function reportSelectInvoice_() {
+  var s = reportAttachmentUi_, key = document.getElementById('report_invoice_select').value;
+  s.selected = s.candidates.find(function(c) { return c.key === key; }) || null;
+  document.getElementById('report_invoice_items').replaceChildren();
+  if (s.selected) {
+    s.selected.items.forEach(reportAddInvoiceItem_);
+    document.getElementById('est_transfer_name').value = s.selected.transfer_name || '';
+    if (s.selected.transfer_deadline != null) document.getElementById('est_transfer_deadline').value = s.selected.transfer_deadline;
+  }
+  reportRenderInvoiceCandidates_(); reportUpdateInvoiceAmount_();
+}
+
+function reportSelectedInvoiceValues_() {
+  var source = reportAttachmentUi_.selected;
+  if (!source) return null;
+  var items = Array.from(document.querySelectorAll('#report_invoice_items .report-invoice-item')).map(function(row) {
+    var name = row.querySelector('[data-field="name"]').value.trim();
+    var price = Number(row.querySelector('[data-field="price"]').value), qty = Number(row.querySelector('[data-field="qty"]').value);
+    return { name: name, price: price, qty: qty, subtotal: price * qty };
+  });
+  var unchanged = items.length === source.items.length && items.every(function(item, index) {
+    var original = source.items[index];
+    return item.name === String(original.name || '') && item.price === Number(original.price) && item.qty === Number(original.qty);
+  });
+  if (unchanged) items = JSON.parse(JSON.stringify(source.items));
+  var ex = items.reduce(function(sum, item) { return sum + Number(item.subtotal); }, 0);
+  return { source: source, items: items, ex: ex, total: unchanged ? Number(source.total) : ECOPITA_CUSTOMER_TAX.amount(Math.max(0, ex)).inc, unchanged: unchanged };
+}
+
+function reportUpdateInvoiceAmount_() {
+  var value = reportSelectedInvoiceValues_();
+  document.getElementById('report_invoice_amount').textContent = value ? '請求書の金額: ¥' + Number(value.source.total).toLocaleString() + ' ／ 今回の報告: ¥' + Number(value.total).toLocaleString() : '';
+}
+
+async function reportSelectSlipPhoto_(input) {
+  var s = reportAttachmentUi_, file = input.files && input.files[0], selection = ++s.photoSelection, caseId = reportAttachmentCase_();
+  if (!file) return;
+  s.photoBusy = true;
+  var status = document.getElementById('report_slip_photo_status'); status.textContent = '写真を準備しています…';
+  try {
+    var photo = await window.ECOPITA_CONSENT_PHOTO.compress(file);
+    var raw = atob(photo.data), bytes = new Uint8Array(raw.length);
+    for (var i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+    if (bytes.length > 2097152 || !window.crypto || !window.crypto.subtle) throw new Error('photo');
+    var hash = await window.crypto.subtle.digest('SHA-256', bytes);
+    if (selection !== s.photoSelection || caseId !== reportAttachmentCase_()) return;
+    s.photo = { mime: photo.mime, base64: photo.data, sha256: Array.from(new Uint8Array(hash)).map(function(b) { return b.toString(16).padStart(2, '0'); }).join('') };
+    var preview = document.getElementById('report_slip_photo_preview'); preview.src = 'data:' + photo.mime + ';base64,' + photo.data; preview.style.display = 'block';
+    status.textContent = '文字と金額が読めることをご確認ください。';
+  } catch (e) { if (selection === s.photoSelection) status.textContent = '写真を準備できませんでした。JPEGなど別の写真を選ぶか、撮り直してください。'; }
+  finally { if (selection === s.photoSelection) { s.photoBusy = false; input.value = ''; } }
+}
+
+function reportAttachToPayload_(payload) {
+  var s = reportAttachmentUi_, status = payload.contract_status;
+  if (status === '完工') {
+    if (s.caseId !== payload.case_id || s.photoBusy || !s.photo) throw new Error('紙伝票の写真を1枚選んでください。');
+    payload.report_attachment = { schema: 1, mode: 'paper_slip', photo: Object.assign({}, s.photo) };
+  } else if (status === '完工（請求書あり）') {
+    if (s.caseId !== payload.case_id || !/^(ready|none)$/.test(s.candidateState)) throw new Error('請求書を読み込めませんでした。もう一度読み込んでください。');
+    if (s.candidateState === 'ready') {
+      var value = reportSelectedInvoiceValues_();
+      if (!value || !value.items.length || value.items.some(function(item) { return !item.name || !Number.isFinite(item.price) || !Number.isFinite(item.qty) || item.qty <= 0; })) throw new Error('請求書を選び、明細を確認してください。');
+      payload.report_attachment = { schema: 1, mode: 'selected_invoice', invoice_key: value.source.key, source_digest: value.source.source_digest };
+      payload.today_repairs = value.items; payload.estimate_repairs = value.items;
+      payload.today_total = value.total; payload.estimate_total = value.ex;
+      payload.today_repair_total = value.ex;
+      payload.diag_fee = 0; payload.coupon_discount = 0; payload.coupon_codes = '';
+      payload.has_estimate = false; payload.auto_issue_invoice = false;
+    } else {
+      payload.report_attachment = { schema: 1, mode: 'auto_invoice' };
+      payload.has_estimate = false; payload.auto_issue_invoice = true;
+    }
+  }
+  return payload;
+}
+
+function reportAttachmentAsyncPayload_(payload, syncResult) {
+  var clean = Object.assign({}, payload, { form_type: 'estimate_async', async_report_id: syncResult.report_id || '', async_uriage_error: syncResult.uriage_error || '' });
+  delete clean.report_attachment;
+  delete clean.report_attachment_operation_id;
+  if (syncResult.report_attachment_operation_id) clean.report_attachment_operation_id = syncResult.report_attachment_operation_id;
+  return clean;
+}
+
+async function reportRecoverPending_(caseId) {
+  var pending = reportReadPendingSubmission_(caseId, Date.now());
+  if (pending && !pending.sent && pending.replacement === true && Date.now() - pending.saved_at_ms <= REPORT_PENDING_MAX_AGE_MS_) {
+    var replacement = reportRestorePendingPhoto_(reportPendingSafePayload_(pending.payload), false);
+    window._pendingPayload = replacement;
+    return replacement;
+  }
+  if (!pending || (!pending.sent && Date.now() - pending.saved_at_ms <= REPORT_PENDING_MAX_AGE_MS_)) return null;
+  // Reservation/loss reports keep their existing writer; no attachment receipt exists.
+  if (!pending.payload.report_attachment) return reportPendingSafePayload_(pending.payload);
+  var response = await reportAttachmentCall_({ form_type: 'report_attachment_status', case_id: caseId, route: 'report', client_submission_id: pending.payload.report_submission_token, report_submission_token: pending.payload.report_submission_token });
+  if (!response || response.ok !== true) throw new Error('前回の送信結果を確認できませんでした。もう一度送信ボタンを押してください。');
+  if (reportRememberIntake_(pending.payload, response)) return reportPendingSafePayload_(pending.payload);
+  var next = reportReplacePendingSubmission_(pending.payload, response, true);
+  if (next) {
+    reportRestorePendingPhoto_(next, false);
+    return next;
+  }
+  if (pending.intake_id) {
+    reportRenderIntake_(pending);
+    throw new Error('受付状況を確認できません。再送せず、もう一度状況を確認してください。');
+  }
+  if (response.found === true && response.state === 'done') {
+    reportClearPendingSubmission_(pending.payload);
+    throw new Error('前回の売上・添付処理は完了しています。新しい報告は内容を確認して送信してください。');
+  }
+  if (response.found !== true || response.can_retry !== true) throw new Error(response.state === 'done' ? '前回の売上・添付処理は完了しています。画面を開き直してください。' : '前回の報告は処理中または確認が必要です。運営に連絡してください。');
+  var payload = reportPendingSafePayload_(pending.payload);
+  return reportRestorePendingPhoto_(payload, response.file_ready);
+}
+// END REPORT_ATTACHMENT_CLIENT
 
 function isCleanCaseIdClient_(v) {
   return /^(?:YA-[A-Z]?\d+|HM-\d+|CP-\d+|CPD-\d+|CPM-\d+|EC-\d+|HC-\d+|RM-\d+)$/.test(String(v || '').trim());
@@ -2663,6 +3088,7 @@ function onStatusChange() {
     else if (isHold) { btn.classList.add('btn-hold'); btn.textContent = '不通・保留として報告'; }
 
     recalc();
+    reportSyncAttachmentUi_(status);
   }, 10);
 }
 
@@ -2679,6 +3105,14 @@ function getSelectedItems(prefix) {
 
 async function submitReport() {
   syncManualInputs();
+
+  try {
+    var recoveredPayload = await reportRecoverPending_(reportAttachmentCase_());
+    if (recoveredPayload) {
+      reportShowPreparedPreview_(recoveredPayload);
+      return;
+    }
+  } catch (recoveryError) { alert(recoveryError.message); return; }
 
   const isManualMode = document.getElementById('customer_input_section').style.display !== 'none';
   const p1SfCaseId = isManualMode ? buildCaseId() : P.case_id;
@@ -2735,6 +3169,11 @@ async function submitReport() {
   const isReserveInv = (status === '予約（請求書あり）');
   const isDiagEst = false;
   const isReserve = isReserveEst || isReserveNo || isReserveInv;
+
+  if (isKankouInv && (reportAttachmentUi_.caseId !== P.case_id || !/^(ready|none)$/.test(reportAttachmentUi_.candidateState) || (reportAttachmentUi_.candidateState === 'ready' && !reportAttachmentUi_.selected))) {
+    alert(reportAttachmentUi_.candidateState === 'ready' ? '売上に反映する請求書を1枚選んでください。' : '請求書の読み込みを確認してから送信してください。');
+    btn.disabled = false; btn.textContent = '完了報告を送信'; return;
+  }
 
   // 予約サブ未選択チェック
   if (document.querySelector('input[name="contract_status"]:checked').value === '予約' && !reserveSubStatus) {
@@ -2815,7 +3254,7 @@ async function submitReport() {
     });
   }
 
-  if (isKankou && (P.is_repair || currentIsHC)) {
+  if (isKankouPlain && (P.is_repair || currentIsHC)) {
     var realTodayItems = todayItems.filter(function(it) { return !it.name.startsWith('クーポン'); });
     if (realTodayItems.length === 0) {
       alert('作業項目を1つ以上入力してください');
@@ -2832,7 +3271,7 @@ async function submitReport() {
   let estNote = '';
   let estSubject = '';
 
-  if (isKankou && document.getElementById('chk_estimate').checked) {
+  if (isKankouPlain && document.getElementById('chk_estimate').checked) {
     hasEstimate = true;
     var _estChkDocTypeSub = (document.querySelector('input[name="est_chk_doc_type"]:checked') || {}).value || '見積書';
     if (_estChkDocTypeSub === '診断見積書') {
@@ -2896,6 +3335,11 @@ async function submitReport() {
       return;
     }
   } else if (isReserveInv || isKankouInv) {
+    var selectedReportInvoice = isKankouInv ? reportSelectedInvoiceValues_() : null;
+    if (selectedReportInvoice) {
+      estItems = selectedReportInvoice.items;
+      estTotal = selectedReportInvoice.ex;
+    } else {
     // 請求書モード: resestのアイテムを請求書用として取得（予約時/完工時共通）
     hasEstimate = false; // 見積書ではない
     var _invDocTypeSub = (document.querySelector('input[name="res_est_doc_type"]:checked') || {}).value || '見積書';
@@ -2924,6 +3368,7 @@ async function submitReport() {
       btn.disabled = false;
       btn.textContent = isKankouInv ? '完工＋請求書を発行して送信' : '予約＋請求書ありで報告';
       return;
+    }
     }
   }
 
@@ -3002,9 +3447,25 @@ async function submitReport() {
   };
 
   // この提出操作がsync okになるまで、再押下・再読込でも同じanchor/tokenを使う。
-  reportPreparePendingSubmission_(payload);
+  try {
+    reportAttachToPayload_(payload);
+    reportPreparePendingSubmission_(payload);
+  } catch (attachmentError) {
+    alert(attachmentError.message);
+    btn.disabled = false; btn.textContent = '完了報告を送信'; return;
+  }
 
   // プレビュー表示
+  reportShowPreparedPreview_(payload);
+  return;
+}
+
+function reportShowPreparedPreview_(payload) {
+  var status = payload.contract_status;
+  var isKankouPlain = status === '完工', isKankouInv = status === '完工（請求書あり）';
+  var isKankou = isKankouPlain || isKankouInv, isReserveEst = status === '予約（見積あり）';
+  var isReserveNo = status === '予約（見積なし）', isReserveInv = status === '予約（請求書あり）';
+  var isDiagEst = false, hasEstimate = !!payload.has_estimate, isReserve = isReserveEst || isReserveNo || isReserveInv;
   window._pendingPayload = payload;
   window._pendingStatus = status;
   window._pendingFlags = { isKankou, isKankouPlain, isKankouInv, isReserveEst, isReserveNo, isReserveInv, isDiagEst, hasEstimate, isReserve };
@@ -3013,6 +3474,7 @@ async function submitReport() {
 }
 
 function showSubmitPreview(p, status) {
+  var pendingIntake = reportReadPendingSubmission_(p.case_id, Date.now());
   var h = '';
   var sLabel = status;
   var sColor = '#2196F3';
@@ -3024,6 +3486,9 @@ function showSubmitPreview(p, status) {
   h += '<div style="text-align:center;padding:8px;background:' + sColor + '15;border-radius:8px;margin-bottom:12px"><span style="font-weight:700;color:' + sColor + ';font-size:1.1rem">' + sLabel + '</span></div>';
 
   h += '<div style="padding:8px 0;border-bottom:1px solid #eee"><b>案件番号:</b> ' + (p.case_id||'') + '</div>';
+  if (p.report_attachment) {
+    h += '<div style="padding:8px 0">' + (p.report_attachment.mode === 'paper_slip' ? '紙伝票の写真1枚を添付します。' : p.report_attachment.mode === 'selected_invoice' ? '選んだ請求書を売上に反映します。新しい請求書は発行しません。' : '請求書を自動発行します。') + '</div>';
+  }
   var isCorpEst = p.customer_type === '法人・団体' && p.company_name;
   var custLabelEst = isCorpEst
     ? p.company_name + ' 御中<br><span style="margin-left:1em;color:#5f6368">担当 ' + (p.contact_name || p.name || '') + '</span>'
@@ -3056,12 +3521,12 @@ function showSubmitPreview(p, status) {
   if ((status === '予約（請求書あり）' || status === '完工（請求書あり）') && p.estimate_repairs && p.estimate_repairs.length > 0) {
     h += '<div style="padding:8px 0"><b>📑 請求書の内容:</b></div>';
     p.estimate_repairs.forEach(function(r) { h += '<div style="padding:2px 12px;font-size:.85rem">・' + r.name + ' ×' + r.qty + ' ' + fmtYen(r.subtotal) + '</div>'; });
-    var invTaxInc = ECOPITA_CUSTOMER_TAX.amount(p.estimate_total).inc;
+    var invTaxInc = p.report_attachment && p.report_attachment.mode === 'selected_invoice' ? p.today_total : ECOPITA_CUSTOMER_TAX.amount(p.estimate_total).inc;
     h += '<div style="padding:4px 12px;font-weight:700;color:#00796b">請求金額（税込）: ' + fmtYen(invTaxInc) + '</div>';
     if (status === '完工（請求書あり）') {
       h += '<div style="padding:8px 0;border-top:1px solid #eee;margin-top:8px"><b>振込期限:</b> ' + (p.transfer_deadline || '') + '</div>';
       h += '<div style="padding:8px 0"><b>振込名義:</b> ' + (p.transfer_name || '') + '</div>';
-      h += '<div style="padding:8px 0;background:#e3f2fd;border-radius:4px;color:#1565c0;font-size:.85rem">※ 送信と同時に請求書を自動発行してお客様にメール送信します</div>';
+      if (!(pendingIntake && pendingIntake.intake_id) && (!p.report_attachment || p.report_attachment.mode !== 'selected_invoice')) h += '<div style="padding:8px 0;background:#e3f2fd;border-radius:4px;color:#1565c0;font-size:.85rem">※ 送信と同時に請求書を自動発行してお客様にメール送信します</div>';
     }
   }
 
@@ -3084,6 +3549,8 @@ function showSubmitPreview(p, status) {
   else if (fs.isReserveInv) btn.textContent = '予約＋請求書ありで報告';
   else if (fs.isReserveNo) btn.textContent = '予約として報告';
   else btn.textContent = '報告を送信';
+  if (pendingIntake && pendingIntake.intake_id) reportRenderIntake_(pendingIntake);
+  else document.getElementById('report_intake_notice').classList.add('hidden');
 }
 
 function hidePreview() {
@@ -3158,6 +3625,17 @@ async function confirmSend() {
   btnC.disabled = true; btnC.textContent = '送信中...';
 
   var payload = window._pendingPayload;
+  var existingPending = payload && reportReadPendingSubmission_(payload.case_id, Date.now());
+  if (existingPending && existingPending.intake_id) {
+    try {
+      var recovered = await reportRecoverPending_(payload.case_id);
+      if (recovered) reportShowPreparedPreview_(recovered);
+    } catch (intakeError) { alert(intakeError.message); }
+    var retained = reportReadPendingSubmission_(payload.case_id, Date.now());
+    if (retained && retained.intake_id) reportRenderIntake_(retained);
+    else { btnC.disabled = false; btnC.textContent = '送信する'; }
+    return;
+  }
   var status = window._pendingStatus;
   var fs = window._pendingFlags;
   var isKankou = fs.isKankou, isReserveEst = fs.isReserveEst, isDiagEst = fs.isDiagEst, hasEstimate = fs.hasEstimate;
@@ -3165,6 +3643,7 @@ async function confirmSend() {
   // Phase 1: スプレッドシート書き込み（同期）
   var syncResult = {};
   try {
+    reportMarkPendingSent_(payload);
     var resp = await gasDiagnosticFetch(GAS_API_URL, { method: 'POST', body: JSON.stringify(payload) });
     syncResult = await resp.json();
     if (syncResult && syncResult.ok === false && syncResult.reason === 'recent_report_exists' && syncResult.recent) {
@@ -3177,20 +3656,35 @@ async function confirmSend() {
         return;
       }
       payload.confirm_new_report = true;
+      reportMarkPendingSent_(payload);
       btnC.textContent = '登録中...';
       resp = await gasDiagnosticFetch(GAS_API_URL, { method: 'POST', body: JSON.stringify(payload) });
       syncResult = await resp.json();
     }
     if (!syncResult.ok) {
+      var replacementPayload = reportReplacePendingSubmission_(payload, syncResult, false);
+      var submissionNotice = document.getElementById('report_pending_notice');
+      submissionNotice.classList.remove('hidden');
+      submissionNotice.textContent = replacementPayload
+        ? '入力を保持して再送の準備をしました。内容を確認し、もう一度「送信する」を押してください。'
+        : '入力と請求書の選択は保持しています。送信結果を確認できないため、同じ内容で再送してください。';
+      if (syncResult.reason === 'report_attachment_selected_unavailable') submissionNotice.textContent = 'いまは請求書を選べません。入力はこのまま残っています。少し待ってからもう一度押してください';
       btnC.disabled = false; btnC.textContent = '送信する';
       alert('送信エラー: ' + (syncResult.error || '送信に失敗しました'));
       return;
     }
+    if (reportRememberIntake_(payload, syncResult)) return;
     // サーバがsync成功をackした提出だけ消す。別タブの新しい未完了操作はtoken照合で消さない。
     reportClearPendingSubmission_(payload);
   } catch(e) {
-    btnC.disabled = false; btnC.textContent = '送信する';
-    alert('通信エラー: ネットワーク接続を確認してください');
+    var knownIntake = reportReadPendingSubmission_(payload.case_id, Date.now());
+    if (knownIntake && knownIntake.intake_id) {
+      reportRenderIntake_(knownIntake);
+      alert('受付済みです。受付情報の保存を確認できませんでした。再送せず、受付状況を確認してください。');
+    } else {
+      btnC.disabled = false; btnC.textContent = '送信する';
+      alert('通信エラー: ネットワーク接続を確認してください');
+    }
     return;
   }
 
@@ -3239,15 +3733,16 @@ async function confirmSend() {
   }
 
   // Phase 2: PDF/メール/LWメッセージ（バックグラウンド）
-  var asyncPayload = Object.assign({}, payload, {
-    form_type: 'estimate_async',
-    async_report_id: syncResult.report_id || '',
-    async_uriage_error: syncResult.uriage_error || ''
-  });
+  var asyncPayload = reportAttachmentAsyncPayload_(payload, syncResult);
   fetch(GAS_API_URL, { method: 'POST', body: JSON.stringify(asyncPayload) }).catch(function(){});
   window._submittedPayload = payload;
 
   window._submittedPayload = payload;
+  } catch(unexpectedError) {
+    var rememberedIntake = payload && window._reportPendingSubmissionMemory[reportPendingStorageKey_(payload.case_id)];
+    if (rememberedIntake && rememberedIntake.intake_id) reportRenderIntake_(rememberedIntake);
+    else if (btnC) { btnC.disabled = false; btnC.textContent = '送信する'; }
+    alert('送信状況を確認できません。入力を残して、もう一度確認してください。');
   } finally {
     try { if (window.ECOPITA_SCREEN_LATENCY) window.ECOPITA_SCREEN_LATENCY.finish(screenTiming_, syncResult, { url: GAS_API_URL }); } catch (ignored) {}
   }

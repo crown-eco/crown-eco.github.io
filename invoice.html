@@ -1000,6 +1000,81 @@ function showPreview() {
   window.scrollTo(0, 0);
 }
 
+// BEGIN INVOICE_SUBMISSION_CLIENT
+function invoiceSubmissionKey_(caseId) {
+  var staff = window.ECOPITA_SESSION ? window.ECOPITA_SESSION.staffId || '' : '';
+  return 'ecopita_invoice_submission_v1:' + staff + ':' + caseId;
+}
+
+function invoiceSubmissionSave_(pending) {
+  var safe = JSON.parse(JSON.stringify(pending));
+  if (safe.payload) delete safe.payload.sessionToken;
+  if (safe.async_payload) delete safe.async_payload.sessionToken;
+  localStorage.setItem(invoiceSubmissionKey_(safe.case_id), JSON.stringify(safe));
+  return safe;
+}
+
+function invoiceSubmissionPrepare_(payload) {
+  var raw = localStorage.getItem(invoiceSubmissionKey_(payload.case_id));
+  if (raw) {
+    var existing = JSON.parse(raw);
+    if (!existing || existing.case_id !== payload.case_id || !existing.payload || !/^[0-9a-f-]{36}$/i.test(existing.payload.doc_submission_id || '')) throw new Error('前回の請求書発行情報を確認できません。運営に連絡してください。');
+    return existing;
+  }
+  if (!window.crypto || typeof window.crypto.randomUUID !== 'function') throw new Error('このブラウザでは安全な送信情報を作成できません。ブラウザを更新してください。');
+  payload.doc_submission_id = window.crypto.randomUUID();
+  return invoiceSubmissionSave_({ version: 1, case_id: payload.case_id, saved_at_ms: Date.now(), payload: payload, phase2_sent: false });
+}
+
+async function invoiceSubmissionCheck_(pending) {
+  if (!pending.phase2_sent && Date.now() - pending.saved_at_ms <= 48 * 60 * 60 * 1000) return;
+  var response = await gasCall({ form_type: 'report_attachment_status', route: pending.payload.write_uriage === true ? 'doc_invoice' : 'issue', case_id: pending.case_id, client_submission_id: pending.payload.doc_submission_id, doc_submission_id: pending.payload.doc_submission_id }, { mode: 'lookup', url: GAS_URL });
+  if (!response || response.ok !== true) throw new Error('前回の請求書発行結果を確認できませんでした。もう一度お試しください。');
+  if (response.found === true && response.state === 'done') {
+    invoiceSubmissionComplete_(pending);
+    throw new Error('前回の請求書発行は受け付け済みです。売上・添付処理は完了しています。');
+  }
+  if (response.found === true && response.can_retry === true) return;
+  if(response.can_start_new===true && (response.found===false || response.found===true && response.state==='failed')) {
+    invoiceSubmissionRestart_(pending,response.restart_after_ms);
+    throw new Error('前回の受付は売上書込み前に終了しています。入力を残して新しい受付を用意しました。もう一度発行ボタンを押してください。');
+  }
+  throw new Error('前回の請求書は処理中または確認が必要です。運営に連絡してください。');
+}
+
+function invoiceSubmissionRestart_(pending,restartAfter) {
+  var raw=localStorage.getItem(invoiceSubmissionKey_(pending.case_id)),current=raw?JSON.parse(raw):null;
+  if(!current || !current.payload || current.payload.doc_submission_id!==pending.payload.doc_submission_id)throw new Error('送信情報が変更されました。画面を開き直してください。');
+  if(!window.crypto || typeof window.crypto.randomUUID!=='function')throw new Error('このブラウザでは再送情報を用意できません。');
+  var next=JSON.parse(JSON.stringify(pending));
+  next.payload.doc_submission_id=window.crypto.randomUUID();
+  next.payload.doc_submission_after_ms=Math.max(Date.now(),Number(restartAfter)||0);
+  delete next.prepared;delete next.async_payload;next.phase2_sent=false;next.saved_at_ms=Date.now();
+  invoiceSubmissionSave_(next);window._invoicePendingReviewed=next.payload.doc_submission_id;
+  return next;
+}
+
+function invoiceSubmissionComplete_(pending) {
+  var key = invoiceSubmissionKey_(pending.case_id), raw = localStorage.getItem(key);
+  if (!raw) return;
+  var current = JSON.parse(raw);
+  if (current.payload && current.payload.doc_submission_id === pending.payload.doc_submission_id) localStorage.removeItem(key);
+}
+
+function invoiceSubmissionSameInput_(left, right) {
+  function clean(value) { var copy = JSON.parse(JSON.stringify(value)); delete copy.doc_submission_id; delete copy.doc_submission_after_ms; delete copy.sessionToken; return JSON.stringify(copy); }
+  return clean(left) === clean(right);
+}
+
+function invoiceShowPendingPreview_(pending) {
+  var p = pending.payload;
+  var lines = ['前回の発行結果が未確認です。再送する内容を確認してください。', '今回入力し直した内容はまだ送信しません。', '', '送信先: ' + (p.email || ''), '金額（税込）: ¥' + Number(p.total || 0).toLocaleString(), '売上報告: ' + (p.write_uriage ? 'する' : 'しない')];
+  (p.items || []).forEach(function(item) { lines.push(String(item.name || '') + ' × ' + Number(item.qty || 0) + ' ／ ¥' + Number(item.subtotal || 0).toLocaleString()); });
+  var preview = document.getElementById('preview_content'); preview.textContent = lines.join('\n'); preview.style.whiteSpace = 'pre-wrap';
+  window._invoicePendingReviewed = p.doc_submission_id;
+}
+// END INVOICE_SUBMISSION_CLIENT
+
 async function issueInvoice() {
   if (invoiceP1SfBlocked_('preview_error')) return;
   if (!fromScratch && selections.length === 0) { showError('issue_error', '元データを選択してください'); return; }
@@ -1120,15 +1195,29 @@ async function issueInvoice() {
   }
 
   try {
+    var pendingInvoice = invoiceSubmissionPrepare_(payload);
+    if (!invoiceSubmissionSameInput_(payload, pendingInvoice.payload) && window._invoicePendingReviewed !== pendingInvoice.payload.doc_submission_id) {
+      invoiceShowPendingPreview_(pendingInvoice);
+      btn.disabled = false; btn.textContent = '前回の内容で再送'; return;
+    }
+    await invoiceSubmissionCheck_(pendingInvoice);
+    // Repeated clicks and page reloads use the first payload, including the sales choice.
+    payload = JSON.parse(JSON.stringify(pendingInvoice.payload));
+    writeUriage = payload.write_uriage === true;
+    customer = payload;
     // Phase 1: データ補完・検証（即応答）
-    var r = await gasCall(payload, { mode: 'submit', url: GAS_URL });
+    var r = pendingInvoice.prepared || await gasCall(payload, { mode: 'submit', url: GAS_URL });
     if (!r.ok) {
       showError('preview_error', r.error || '発行に失敗しました');
       btn.disabled = false; btn.textContent = '📑 発行する';
       return;
     }
     var enriched = r.enriched || {};
-    var asyncPayload = Object.assign({}, payload, enriched, { form_type: 'generate_doc_async' });
+    var asyncPayload = pendingInvoice.async_payload || Object.assign({}, payload, enriched, { form_type: 'generate_doc_async', doc_submission_id: payload.doc_submission_id });
+    pendingInvoice.prepared = r;
+    pendingInvoice.async_payload = asyncPayload;
+    pendingInvoice.phase2_sent = true;
+    invoiceSubmissionSave_(pendingInvoice);
     var statusMode = writeUriage && r.write_async_status_enabled === true;
     var asyncResult = null;
     // 状態表示modeでは、売上DB commitを行うPhase 2の応答前に「保存」を表示しない。
@@ -1140,6 +1229,7 @@ async function issueInvoice() {
         btn.disabled = false; btn.textContent = '📑 発行する';
         return;
       }
+      invoiceSubmissionComplete_(pendingInvoice);
     }
     // 完了画面はPhase 1成功後、売上記録があるstatus modeではDB commit応答後に表示。
     document.getElementById('step1').classList.add('hidden');
@@ -1177,6 +1267,7 @@ async function issueInvoice() {
     if (!statusMode) fetch(GAS_URL, { method: 'POST', body: JSON.stringify(asyncPayload) })
       .then(function(x) { return x.json(); })
       .then(function(res) {
+        if (res && res.ok === true) invoiceSubmissionComplete_(pendingInvoice);
         if (res && res.ok === false) {
           fetch(GAS_URL, { method: 'POST', body: JSON.stringify({
             form_type: 'async_fail_report',
