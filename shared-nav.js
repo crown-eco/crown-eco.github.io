@@ -74,6 +74,16 @@
       color: '#5c2d91'
     },
     {
+      name: 'クレカ用URL発行',
+      sub: 'お客様へカード決済のメールを送る',
+      icon: '💳',
+      url: window.ECOPITA_SITE.baseUrl + '/card-pay.html',
+      color: '#C05621',
+      adminOnly: true,
+      // 2026-10-21 00:00 JST から全員に表示（system の ALPHANOTE_CARD_PAY_OPEN と同じ日時）
+      openFrom: Date.UTC(2026, 9, 20, 15, 0)
+    },
+    {
       name: '業務成績ポータル',
       sub: '受付数・成約率・売上確認',
       icon: '📊',
@@ -453,7 +463,7 @@
     var groupId = String(session && session.groupId || 'main').trim().toLowerCase() || 'main';
     var visibleSites = SITES.filter(function (site) {
       if (site.hiddenForGroup && window.ECOPITA_SITE.group !== 'main') return false;
-      if (site.adminOnly && !isAdmin && !(site.groupAdminAllowed && window.ECOPITA_SITE_GROUP_ADMIN(session))) return false;
+      if (site.adminOnly && !isAdmin && !(site.openFrom && Date.now() >= site.openFrom) && !(site.groupAdminAllowed && window.ECOPITA_SITE_GROUP_ADMIN(session))) return false;
       if (site.hiddenForGroup && groupId !== 'main' && !isAdmin) return false;
       if (rewardHidden && site.name === '報酬確認ポータル') return false;
       return true;
