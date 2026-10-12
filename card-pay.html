@@ -35,7 +35,7 @@ input:focus{outline:2px solid var(--purple);outline-offset:2px}input:disabled{ba
     <h2 id="caseTitle">1. 送る内容を確認</h2>
     <form id="previewForm" novalidate>
       <div class="field"><label for="caseId">案件番号</label><input id="caseId" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="例：CP-12345"></div>
-      <div id="paperField" class="field" hidden><label for="paperAmount">紙伝票の請求額（税込・円）</label><input id="paperAmount" type="text" inputmode="numeric" autocomplete="off" placeholder="例：10000" aria-describedby="paperHint"><p id="paperHint" class="hint">請求書がない案件の金額を入力してください。</p></div>
+      <div id="paperField" class="field" hidden><label for="paperAmount">紙伝票の請求額（税込・円）</label><input id="paperAmount" type="text" inputmode="numeric" autocomplete="off" placeholder="例：10000" aria-describedby="paperHint"><p id="paperHint" class="hint">契約書がない案件（紙伝票）の金額を入力してください。</p></div>
       <div id="emailField" class="field" hidden><label for="manualEmail">送信先メールアドレス</label><input id="manualEmail" type="email" inputmode="email" autocomplete="email" placeholder="example@email.com" aria-describedby="emailHint"><p id="emailHint" class="hint">この案件に登録された宛先がないため、入力してください。</p></div>
       <div id="selfTestField" class="field" hidden><label><input id="selfTest" type="checkbox" style="width:auto"> 自分宛てに試し送信</label><p class="hint">管理者用に設定された宛先へ送ります。金額はこの案件の請求額です。</p></div>
       <button class="btn secondary" id="reissueButton" type="button" hidden>出し直す</button>
@@ -49,7 +49,7 @@ input:focus{outline:2px solid var(--purple);outline-offset:2px}input:disabled{ba
       <div class="row"><dt>案件番号</dt><dd id="previewCase"></dd></div>
       <div class="row"><dt>請求額（税込）</dt><dd id="previewAmount" class="amount"></dd></div>
       <div class="row"><dt>送信先</dt><dd id="previewEmail"></dd></div>
-      <div class="row"><dt>請求書番号</dt><dd id="previewInvoice"></dd></div>
+      <div class="row"><dt>契約番号</dt><dd id="previewInvoice"></dd></div>
       <div class="row"><dt>有効期限</dt><dd>本日中</dd></div>
     </dl>
     <p class="send-note">金額と宛先を確認してから送信してください。</p>
@@ -72,7 +72,6 @@ input:focus{outline:2px solid var(--purple);outline-offset:2px}input:disabled{ba
   var busy = false, revision = 0, approved = null, entryState = 'allowed';
   var params = new URLSearchParams(location.search);
   caseInput.value = params.get('c') || params.get('case_id') || '';
-  var reportEntry = params.get('from') === 'report';
   if (params.has('c')) entryState = 'checking';
 
   function sessionToken() { return window.ECOPITA_SESSION && window.ECOPITA_SESSION.token || ''; }
@@ -132,6 +131,7 @@ input:focus{outline:2px solid var(--purple);outline-offset:2px}input:disabled{ba
     return gasCall(payload, { url: endpoint, mode: 'submit' });
   }
   function safeBusinessError(data) {
+    if (data && data.reason === 'contract_not_card') return '契約書の支払い方法がクレジットカードではありません。契約書を出し直してください';
     if (data && data.reason === 'not_open') return 'この機能は準備中です';
     if (data && data.reason === 'test_forbidden') return '試し送信は管理者だけ利用できます';
     if (data && data.reason === 'needs_reconfirm') return '送る内容が変わりました。もう一度「内容を確認」を押してください。';
@@ -161,20 +161,11 @@ input:focus{outline:2px solid var(--purple);outline-offset:2px}input:disabled{ba
     renderControls();
     message('formMessage', '内容を確認しています…');
     try {
-      var until = Date.now() + 30000, data, p;
-      while (true) {
-        data = await call('card_pay_send', input, { action: 'preview' });
-        if (capturedRevision !== revision || capturedSession !== sessionToken() || !sameValues(input, values())) return;
-        if (!data || data.ok !== true) { message('formMessage', safeBusinessError(data), 'error'); return; }
-        if (!validPreview(data.preview, input)) { message('formMessage', '内容を確認できません。管理者に連絡してください。', 'error'); return; }
-        p = data.preview;
-        if (!reportEntry || !p.paper) break;
-        byId('paperField').hidden = byId('emailField').hidden = true;
-        if (Date.now() >= until) { message('formMessage', '請求書がまだ作られていません。少し待ってからもう一度開いてください', 'error'); return; }
-        message('formMessage', '請求書が作られるのを待っています…');
-        await new Promise(function(resolve) { setTimeout(resolve, Math.min(3000, until - Date.now())); });
-        if (capturedRevision !== revision || capturedSession !== sessionToken() || !sameValues(input, values())) return;
-      }
+      var data = await call('card_pay_send', input, { action: 'preview' });
+      if (capturedRevision !== revision || capturedSession !== sessionToken() || !sameValues(input, values())) return;
+      if (!data || data.ok !== true) { message('formMessage', safeBusinessError(data), 'error'); return; }
+      if (!validPreview(data.preview, input)) { message('formMessage', '内容を確認できません。管理者に連絡してください。', 'error'); return; }
+      var p = data.preview;
       byId('paperField').hidden = !p.paper;
       byId('emailField').hidden = !p.needs_email;
       byId('previewCase').textContent = p.case_id;
