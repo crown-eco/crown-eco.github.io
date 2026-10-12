@@ -38,7 +38,7 @@ input:focus{outline:2px solid var(--purple);outline-offset:2px}input:disabled{ba
       <div id="paperField" class="field" hidden><label for="paperAmount">紙伝票の請求額（税込・円）</label><input id="paperAmount" type="text" inputmode="numeric" autocomplete="off" placeholder="例：10000" aria-describedby="paperHint"><p id="paperHint" class="hint">契約書がない案件（紙伝票）の金額を入力してください。</p></div>
       <div id="emailField" class="field" hidden><label for="manualEmail">送信先メールアドレス</label><input id="manualEmail" type="email" inputmode="email" autocomplete="email" placeholder="example@email.com" aria-describedby="emailHint"><p id="emailHint" class="hint">この案件に登録された宛先がないため、入力してください。</p></div>
       <div id="selfTestField" class="field" hidden><label><input id="selfTest" type="checkbox" style="width:auto"> 自分宛てに試し送信</label><p class="hint">管理者用に設定された宛先へ送ります。金額はこの案件の請求額です。</p></div>
-      <button class="btn secondary" id="reissueButton" type="button" hidden>出し直す</button>
+      <button class="btn secondary" id="reissueButton" type="button" hidden>送り直す</button>
       <button class="btn secondary" id="previewButton" type="submit">内容を確認</button>
     </form>
     <p id="formMessage" class="notice" role="status" aria-live="polite" hidden></p>
@@ -53,14 +53,8 @@ input:focus{outline:2px solid var(--purple);outline-offset:2px}input:disabled{ba
       <div class="row"><dt>有効期限</dt><dd>本日中</dd></div>
     </dl>
     <p class="send-note">金額と宛先を確認してから送信してください。</p>
-    <button class="btn" id="sendButton" type="button" disabled>決済用メールを送信</button>
+    <button class="btn" id="sendButton" type="button" disabled>お客様にカード払いのメールを送る</button>
     <p id="sendMessage" class="notice" role="status" aria-live="polite" hidden></p>
-  </section>
-  <section class="card" aria-labelledby="statusTitle">
-    <h2 id="statusTitle">決済状況</h2>
-    <p class="status-help">入力した案件の、最新の決済用メールを確認します。</p>
-    <button class="btn secondary" id="statusButton" type="button">決済を確認</button>
-    <p id="statusMessage" class="notice" role="status" aria-live="polite" hidden></p>
   </section>
 </main>
 <script>
@@ -72,7 +66,7 @@ input:focus{outline:2px solid var(--purple);outline-offset:2px}input:disabled{ba
   var busy = false, revision = 0, approved = null, entryState = 'allowed';
   var params = new URLSearchParams(location.search);
   caseInput.value = params.get('c') || params.get('case_id') || '';
-  if (params.has('c')) entryState = 'checking';
+
 
   function sessionToken() { return window.ECOPITA_SESSION && window.ECOPITA_SESSION.token || ''; }
   function values() { return { case_id: caseInput.value.trim(), paper_amount: amountInput.value.trim(), manual_email: emailInput.value.trim(), self_test: selfTest.checked === true }; }
@@ -92,10 +86,11 @@ input:focus{outline:2px solid var(--purple);outline-offset:2px}input:disabled{ba
   function renderControls() {
     caseInput.disabled = amountInput.disabled = emailInput.disabled = selfTest.disabled = busy;
     selfTestAccess();
-    byId('previewButton').disabled = busy || entryState !== 'allowed';
-    byId('statusButton').disabled = busy;
+    byId('previewButton').disabled = busy;
+
     byId('reissueButton').hidden = entryState !== 'existing';
-    byId('reissueButton').disabled = busy;
+    byId('reissueButton').disabled = busy || !approved;
+    byId('sendButton').hidden = entryState === 'existing';
     byId('sendButton').disabled = busy || !approved || !sameValues(approved.input, values()) || approved.session !== sessionToken();
     byId('cardPayMain').setAttribute('aria-busy', busy ? 'true' : 'false');
   }
@@ -109,7 +104,7 @@ input:focus{outline:2px solid var(--purple);outline-offset:2px}input:disabled{ba
       amountInput.value = emailInput.value = '';
       byId('paperField').hidden = byId('emailField').hidden = true;
       message('formMessage', '');
-      message('statusMessage', '');
+
     } else {
       message('formMessage', '入力を変更しました。「内容を確認」を押してください。');
     }
@@ -146,7 +141,8 @@ input:focus{outline:2px solid var(--purple);outline-offset:2px}input:disabled{ba
   }
   async function preview(event) {
     if (event) event.preventDefault();
-    if (busy || entryState !== 'allowed') return;
+    if (busy) return;
+    entryState = 'allowed';
     approved = null;
     byId('previewCard').hidden = true;
     message('sendMessage', '');
@@ -165,7 +161,9 @@ input:focus{outline:2px solid var(--purple);outline-offset:2px}input:disabled{ba
       if (capturedRevision !== revision || capturedSession !== sessionToken() || !sameValues(input, values())) return;
       if (!data || data.ok !== true) { message('formMessage', safeBusinessError(data), 'error'); return; }
       if (!validPreview(data.preview, input)) { message('formMessage', '内容を確認できません。管理者に連絡してください。', 'error'); return; }
+      if (!data.sent_record || typeof data.sent_record.sent !== 'boolean' || typeof data.sent_record.sent_at_jst !== 'string' || (!data.sent_record.sent && data.sent_record.sent_at_jst)) { message('formMessage', '送信記録を確認できません。管理者に連絡してください。', 'error'); return; }
       var p = data.preview;
+      entryState = data.sent_record.sent ? 'existing' : 'allowed';
       byId('paperField').hidden = !p.paper;
       byId('emailField').hidden = !p.needs_email;
       byId('previewCase').textContent = p.case_id;
@@ -175,7 +173,7 @@ input:focus{outline:2px solid var(--purple);outline-offset:2px}input:disabled{ba
       byId('previewCard').hidden = false;
       if (p.ready && typeof data.preview_token === 'string' && data.preview_token) {
         approved = { input: input, token: data.preview_token, session: capturedSession };
-        message('formMessage', '送る内容を確認しました。');
+        message('formMessage', data.sent_record.sent ? 'この案件はすでにカード払いのメールを送っています（' + (data.sent_record.sent_at_jst || '送信日時不明') + '）' : '送る内容を確認しました。');
       } else if (p.ready) {
         message('formMessage', '内容を確認できません。管理者に連絡してください。', 'error');
       } else {
@@ -191,39 +189,17 @@ input:focus{outline:2px solid var(--purple);outline-offset:2px}input:disabled{ba
     approved = null;
     busy = true;
     renderControls();
-    message('sendMessage', '送信しています。このままお待ちください。');
+    message('sendMessage', '送信しています（30 秒ほどかかることがあります）。画面を閉じずにお待ちください。');
     try {
       var data = await call('card_pay_send', sending.input, { action: 'send', preview_token: sending.token });
       if (capturedRevision !== revision || sending.session !== sessionToken()) return;
       if (data && data.ok === true && data.status === 'sent' && typeof data.request_id === 'string' && data.request_id) {
-        message('sendMessage', sending.input.self_test ? '試し送信しました。管理者用に設定された宛先のメールをご確認ください。' : '決済用メールを送信しました。お客様にメールをご確認いただいてください。', 'success');
+        message('sendMessage', sending.input.self_test ? '試し送信しました。管理者用に設定された宛先のメールをご確認ください。' : '送信しました。お客様のメールに支払い用のリンクが届きます。', 'success');
       } else {
         message('sendMessage', safeBusinessError(data), 'error');
       }
     } catch (error) { message('sendMessage', '送信結果を確認できません。続けて送信せず、管理者に連絡してください。', 'error'); }
     finally { busy = false; renderControls(); }
-  }
-  async function status(initial) {
-    if (busy) return;
-    var input;
-    try { input = checkedInput(); } catch (error) { message('statusMessage', error.message, 'error'); return; }
-    var capturedRevision = revision, capturedSession = sessionToken(), openPreview = false;
-    busy = true;approved = null;byId('previewCard').hidden = true;
-    renderControls();
-    message('statusMessage', '決済状況を確認しています…');
-    try {
-      var data = await call('card_pay_status', input);
-      if (capturedRevision !== revision || capturedSession !== sessionToken() || !sameValues(input, values())) return;
-      var labels = { unpaid: 'まだ決済されていません。', paid: '決済済みです。', canceled: 'この決済用メールは取り消されています。', expired: 'この決済用メールは期限が切れています。', unknown: '決済状況は管理者が確認中です。' };
-      if (data && data.ok === true && data.status === 'not_sent') {
-        entryState = 'allowed';message('statusMessage', 'この案件の決済用メールはまだ送信されていません。');openPreview = initial === true;
-      } else if (data && (data.ok === true && Object.prototype.hasOwnProperty.call(labels, data.status) || data.ok === false && data.reason === 'provider_status_unknown')) {
-        entryState = 'existing';
-        message('statusMessage', 'この案件はすでに決済メールを送っています。\n' + (data.ok === true ? labels[data.status] : labels.unknown));
-      } else { entryState = 'blocked';message('statusMessage', safeBusinessError(data), 'error'); }
-    } catch (error) { entryState = 'blocked';message('statusMessage', '決済状況を確認できませんでした。時間をおいて「決済を確認」を押してください。', 'error'); }
-    finally { busy = false;renderControls(); }
-    if (openPreview) await preview();
   }
   caseInput.addEventListener('input', function() { invalidate(true); });
   amountInput.addEventListener('input', function() { invalidate(false); });
@@ -231,10 +207,11 @@ input:focus{outline:2px solid var(--purple);outline-offset:2px}input:disabled{ba
   selfTest.addEventListener('change', function() { invalidate(false); });
   byId('previewForm').addEventListener('submit', preview);
   byId('sendButton').addEventListener('click', send);
-  byId('statusButton').addEventListener('click', function() { status(false); });
-  byId('reissueButton').addEventListener('click', function() { if (busy || entryState !== 'existing') return;entryState = 'allowed';renderControls();preview(); });
+  byId('reissueButton').addEventListener('click', function() { if (busy || entryState !== 'existing') return;send(); });
   renderControls();
-  if (params.has('c')) status(true);
+  // Fire once per page. No case/customer data and no UI dependency on the reply.
+  try { Promise.resolve(gasCall({form_type:'card_pay_warm',sessionToken:sessionToken()}, {url:endpoint,mode:'submit'})).catch(function(){}); } catch (ignored) {}
+  if (params.has('c')) preview();
 })();
 </script>
 <script src="./shared-nav.js"></script>
