@@ -65,6 +65,7 @@ input:focus{outline:2px solid var(--purple);outline-offset:2px}input:disabled{ba
   var caseInput = byId('caseId'), amountInput = byId('paperAmount'), emailInput = byId('manualEmail'), selfTest = byId('selfTest');
   var busy = false, revision = 0, approved = null, entryState = 'allowed';
   var params = new URLSearchParams(location.search);
+  var fromOrder = params.get('from') === 'order';
   caseInput.value = params.get('c') || params.get('case_id') || '';
 
 
@@ -139,6 +140,26 @@ input:focus{outline:2px solid var(--purple);outline-offset:2px}input:disabled{ba
       typeof p.paper === 'boolean' && typeof p.needs_email === 'boolean' && typeof p.ready === 'boolean' && p.self_test === input.self_test &&
       (!p.ready || p.amount !== null && !!p.email);
   }
+  function validSentRecord(data) {
+    return data && data.sent_record && typeof data.sent_record.sent==='boolean' && typeof data.sent_record.sent_at_jst==='string' && (data.sent_record.sent || !data.sent_record.sent_at_jst);
+  }
+  async function orderPreview(input, capturedRevision, capturedSession) {
+    var deadline=Date.now()+60000, waiting='契約書の登録を待っています。少し待ってからもう一度開いてください';
+    while(true){
+      if(capturedRevision!==revision || capturedSession!==sessionToken() || !sameValues(input,values()))return null;
+      var remaining=deadline-Date.now();if(remaining<=0)return {ok:false,error:waiting};
+      var timer, data;
+      try {data=await Promise.race([call('card_pay_send',input,{action:'preview'}),new Promise(function(resolve){timer=setTimeout(function(){resolve({ok:false,error:waiting});},remaining);})]);}
+      finally {clearTimeout(timer);}
+      if(capturedRevision!==revision || capturedSession!==sessionToken() || !sameValues(input,values()))return null;
+      if(!data || data.ok!==true || !validPreview(data.preview,input) || !validSentRecord(data) || data.preview.paper!==true)return data;
+      // A missing contract from the order entry never authorizes paper/manual-amount UI.
+      byId('paperField').hidden=byId('emailField').hidden=true;
+      message('formMessage','契約書の登録を待っています…');
+      remaining=deadline-Date.now();if(remaining<=0)return {ok:false,error:waiting};
+      await new Promise(function(resolve){setTimeout(resolve,Math.min(3000,remaining));});
+    }
+  }
   async function preview(event) {
     if (event) event.preventDefault();
     if (busy) return;
@@ -157,11 +178,11 @@ input:focus{outline:2px solid var(--purple);outline-offset:2px}input:disabled{ba
     renderControls();
     message('formMessage', '内容を確認しています…');
     try {
-      var data = await call('card_pay_send', input, { action: 'preview' });
+      var data = await (fromOrder ? orderPreview(input,capturedRevision,capturedSession) : call('card_pay_send', input, { action: 'preview' }));
       if (capturedRevision !== revision || capturedSession !== sessionToken() || !sameValues(input, values())) return;
       if (!data || data.ok !== true) { message('formMessage', safeBusinessError(data), 'error'); return; }
       if (!validPreview(data.preview, input)) { message('formMessage', '内容を確認できません。管理者に連絡してください。', 'error'); return; }
-      if (!data.sent_record || typeof data.sent_record.sent !== 'boolean' || typeof data.sent_record.sent_at_jst !== 'string' || (!data.sent_record.sent && data.sent_record.sent_at_jst)) { message('formMessage', '送信記録を確認できません。管理者に連絡してください。', 'error'); return; }
+      if (!validSentRecord(data)) { message('formMessage', '送信記録を確認できません。管理者に連絡してください。', 'error'); return; }
       var p = data.preview;
       entryState = data.sent_record.sent ? 'existing' : 'allowed';
       byId('paperField').hidden = !p.paper;

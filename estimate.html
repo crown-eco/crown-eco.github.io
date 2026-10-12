@@ -1229,7 +1229,6 @@ function reportRememberIntake_(payload, response) {
   window._pendingPayload = reportPendingSafePayload_(current.payload);
   reportRenderIntake_(next);
   reportSavePendingEnvelope_(next);
-  if (done) reportCardPayJump_(next.payload);
   return true;
 }
 
@@ -1248,7 +1247,6 @@ function reportStartNextIntakeReport_() {
     localStorage.setItem(reportPendingStorageKey_(payload.case_id) + ':completed_anchor', completedStamp);
     if (!reportClearPendingSubmission_(payload) || reportReadPendingSubmission_(payload.case_id, Date.now())) throw new Error('前回の送信情報を整理できません。もう一度確認してください。');
     window._pendingPayload = null;
-    if (reportCardPayJumpTimer_ !== null) { clearTimeout(reportCardPayJumpTimer_);reportCardPayJumpTimer_ = null; }
     document.getElementById('report_intake_notice').classList.add('hidden');
     document.getElementById('report_pending_notice').classList.add('hidden');
     document.getElementById('report_intake_new').classList.add('hidden');
@@ -3665,39 +3663,9 @@ function _showRecentReportChoice_(recent, windowMinutes) {
   });
 }
 
-// BEGIN CARD_PAY_REPORT_JUMP
-var reportCardPayJumpTimer_ = null;
-function reportCardPayNavUrl_() {
-  // Consume the same visible links the nine-dot menu renders; no date/admin copy.
-  var site = window.ECOPITA_SITE, session = window.ECOPITA_SESSION;
-  if (!site || !site.baseUrl || !session || !session.token) return null;
-  var expected = new URL(site.baseUrl.replace(/\/$/, '') + '/card-pay.html');
-  var links = document.querySelectorAll('#ecopita-nav-panel a[href]');
-  for (var i = 0; i < links.length; i++) {
-    var url = new URL(links[i].href, location.href);
-    if (url.origin === expected.origin && url.pathname === expected.pathname) return expected;
-  }
-  return null;
-}
-function reportCardPayJump_(payload, expectedSession) {
-  if (!payload || ['完工', '完工（請求書あり）'].indexOf(payload.contract_status) < 0 || payload.payment_method !== 'クレジットカード' || !isCleanCaseIdClient_(payload.case_id)) return;
-  var session = window.ECOPITA_SESSION, url = reportCardPayNavUrl_();
-  if (!url || !session || expectedSession && session.token !== expectedSession || String(payload.staff_id || '').padStart(4, '0') !== String(session.staffId || '').padStart(4, '0')) return;
-  var token = session.token, caseId = payload.case_id;
-  if (reportCardPayJumpTimer_ !== null) clearTimeout(reportCardPayJumpTimer_);
-  reportCardPayJumpTimer_ = setTimeout(function() {
-    reportCardPayJumpTimer_ = null;
-    // Recheck current session and the currently visible menu before leaving the completion UI.
-    var current = window.ECOPITA_SESSION, target = reportCardPayNavUrl_();
-    if (!current || current.token !== token || !target) return;
-    target.searchParams.set('c', caseId);target.searchParams.set('from', 'report');
-    location.assign(target.href);
-  }, 1000);
-}
-// END CARD_PAY_REPORT_JUMP
+
 
 async function confirmSend() {
-  var cardPaySubmitSession_ = window.ECOPITA_SESSION && window.ECOPITA_SESSION.token;
   var screenTiming_ = window.ECOPITA_SCREEN_LATENCY ? window.ECOPITA_SCREEN_LATENCY.begin() : null;
   try {
   var btnC = document.getElementById('btn_confirm_send');
@@ -3778,14 +3746,11 @@ async function confirmSend() {
 
   var doneMsg = document.getElementById('done_msg');
   var asyncAcceptance = syncResult && syncResult.write_async_status;
-  var cardPayBackgroundReady_ = false, cardPayWriteReady_ = !(asyncAcceptance && asyncAcceptance.enabled === true);
-  var cardPayMaybeJump_ = function() { if (cardPayBackgroundReady_ && cardPayWriteReady_) reportCardPayJump_(payload, cardPaySubmitSession_); };
   if (asyncAcceptance && asyncAcceptance.enabled === true) {
     if (window.WriteAsyncStatusV1) {
       window.WriteAsyncStatusV1.start({
         acceptance: asyncAcceptance,
         target: doneMsg,
-        onReflected: function() { cardPayWriteReady_ = true;cardPayMaybeJump_(); },
         pendingMessage: window.WriteAsyncStatusV1.COPY.reportPending,
         callStatus: function(operationIds, latencyOperation) {
           return window.WriteAsyncStatusV1.callGasStatus(GAS_API_URL, operationIds, latencyOperation);
@@ -3816,7 +3781,7 @@ async function confirmSend() {
 
   // Phase 2: PDF/メール/LWメッセージ（バックグラウンド）
   var asyncPayload = reportAttachmentAsyncPayload_(payload, syncResult);
-  fetch(GAS_API_URL, { method: 'POST', body: JSON.stringify(asyncPayload) }).catch(function(){}).then(function() { cardPayBackgroundReady_ = true;cardPayMaybeJump_(); });
+  fetch(GAS_API_URL, { method: 'POST', body: JSON.stringify(asyncPayload) }).catch(function(){});
   window._submittedPayload = payload;
 
   window._submittedPayload = payload;

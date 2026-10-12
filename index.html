@@ -2088,6 +2088,32 @@ function closePrivacyOverlayConfirmed() {
   closePrivacyOverlay();
 }
 
+// BEGIN CARD_PAY_ORDER_JUMP
+var orderCardPayJumpTimer_ = null;
+function orderCardPayNavUrl_() {
+  // Reuse the currently visible nine-dot link; no copied date/admin gate.
+  var site=window.ECOPITA_SITE, session=window.ECOPITA_SESSION;
+  if(!site || !site.baseUrl || !session || !session.token)return null;
+  var expected=new URL(site.baseUrl.replace(/\/$/,'')+'/card-pay.html');
+  var links=document.querySelectorAll('#ecopita-nav-panel a[href]');
+  for(var i=0;i<links.length;i++){var url=new URL(links[i].href,location.href);if(url.origin===expected.origin && url.pathname===expected.pathname)return expected;}
+  return null;
+}
+function orderCardPayJump_(payload) {
+  if(!payload || !/^(?:YA-[A-Z]?\d+|HM-\d+|CP-\d+|CPD-\d+|CPM-\d+|EC-\d+|HC-\d+|RM-\d+)$/.test(payload.case_id || ''))return;
+  var card=payload.payment_method==='クレジットカード' || payload.payment_method==='ご相談' && Array.isArray(payload.payment_splits) && payload.payment_splits.some(function(p){return p && p.method==='クレジットカード' && Number.isSafeInteger(p.amount_inc) && p.amount_inc>0;});
+  var session=window.ECOPITA_SESSION, target=orderCardPayNavUrl_();
+  if(!card || !target || !session || session.token!==payload.sessionToken || String(session.staffId||'').padStart(4,'0')!==String(payload.emp_id||'').padStart(4,'0'))return;
+  var token=session.token, caseId=payload.case_id;
+  if(orderCardPayJumpTimer_!==null)clearTimeout(orderCardPayJumpTimer_);
+  orderCardPayJumpTimer_=setTimeout(function(){
+    orderCardPayJumpTimer_=null;var current=window.ECOPITA_SESSION,url=orderCardPayNavUrl_();
+    if(!current || current.token!==token || !url)return;
+    url.searchParams.set('c',caseId);url.searchParams.set('from','order');location.assign(url.href);
+  },1000);
+}
+// END CARD_PAY_ORDER_JUMP
+
 async function doSubmit() {
   if (!consentCanSubmit_()) { consentGateVisible_(true); return; }
   var screenTiming_ = window.ECOPITA_SCREEN_LATENCY ? window.ECOPITA_SCREEN_LATENCY.begin() : null;
@@ -2175,9 +2201,11 @@ async function doSubmit() {
   consentAttachOrder_(payload);
   contractId = payload.contract_id;
   const landingBaseline = _dupGuardSnapshots[payload.case_id] || null;
+  var orderCardPayDirectSuccess_ = false;
   // Phase 1: スプレッドシート書き込み（同期）
   try {
     var result = await gasCall(payload, { mode: 'submit', url: GAS_API_URL });
+    orderCardPayDirectSuccess_ = !!(result && result.ok === true);
     if (result && result.ok === false && result.reason === 'recent_order_exists' && result.recent) {
       btn.textContent = '確認してください';
       var userWaitMark_; try { userWaitMark_ = window.ECOPITA_SCREEN_LATENCY && window.ECOPITA_SCREEN_LATENCY.mark(screenTiming_, 'user_wait'); } catch (ignored) {}
@@ -2236,11 +2264,13 @@ async function doSubmit() {
   consentPhotoState_.attempt = null;
   consentPhotoState_.allowed = false;
   document.getElementById('consentPhotoPreview').src = '';
+  var orderCardPayBackgroundOk_ = false;
   fetch(GAS_API_URL, { method: 'POST', body: JSON.stringify(asyncPayload) })
     .then(function(r) { return r.json(); })
     .then(function(res) {
+      orderCardPayBackgroundOk_ = !!(res && res.ok === true);
       if (res && res.ok === false) {
-        fetch(GAS_API_URL, {
+        return fetch(GAS_API_URL, {
           method: 'POST',
           body: JSON.stringify({
             form_type: 'async_fail_report',
@@ -2251,7 +2281,8 @@ async function doSubmit() {
         }).catch(function(){});
       }
     })
-    .catch(function(){ /* 通信断のみ。サーバ側処理は継続中の可能性が高いため黙殺 */ });
+    .catch(function(){ /* 通信断のみ。サーバ側処理は継続中の可能性が高いため黙殺 */ })
+    .then(function(){ if(orderCardPayDirectSuccess_ && orderCardPayBackgroundOk_)orderCardPayJump_(payload); });
   } finally {
     try { if (window.ECOPITA_SCREEN_LATENCY) window.ECOPITA_SCREEN_LATENCY.finish(screenTiming_, result, { url: GAS_API_URL }); } catch (ignored) {}
   }
