@@ -133,6 +133,8 @@ input[type="date"]{width:100%;max-width:100%;box-sizing:border-box;-webkit-appea
 .btn-kankou-sub{flex:1;padding:12px 8px;border:2px solid #42a5f5;border-radius:10px;background:#fff;font-size:.9rem;font-weight:700;color:#1565c0;cursor:pointer;text-align:center;transition:all .2s}
 .btn-kankou-sub:hover{background:#e3f2fd}
 .btn-kankou-sub.active{background:#42a5f5;color:#fff;border-color:#1565c0}
+.btn-slip-photo{flex:1;padding:12px 8px;border:2px solid #42a5f5;border-radius:10px;background:#fff;font-size:.9rem;font-weight:700;color:#1565c0;cursor:pointer;text-align:center}
+.btn-slip-photo:hover{background:#e3f2fd}
 .btn-diag-est{background:#0288d1;color:#fff}
 /* 顧客種別トグル */
 .cust-type-label{transition:all .2s}
@@ -336,8 +338,14 @@ input[type="date"]{width:100%;max-width:100%;box-sizing:border-box;-webkit-appea
     <button type="button" id="btn_report_back" onclick="reportShowPage_(1)" style="margin-bottom:16px;padding:10px 16px;border:1px solid var(--border);border-radius:8px;background:#fff;cursor:pointer">戻る</button>
     <div class="card hidden" id="report_slip_photo_section">
       <div class="card-title">紙伝票の写真（必須・1枚）</div>
-      <p>文字と金額が読める写真を選んでください。写真は報告と一緒に送信します。</p>
-      <input id="report_slip_photo_input" type="file" accept="image/*" capture="environment" onchange="reportSelectSlipPhoto_(this)">
+      <p>紙伝票をその場で撮影するか、写真フォルダから選んでください。文字と金額が読める写真にしてください。写真は報告と一緒に送信します。</p>
+      <!-- capture 付きはカメラ直行・なしは写真フォルダも選べるので、入口を2つに分ける -->
+      <div style="display:flex;gap:8px;margin:8px 0">
+        <button type="button" class="btn-slip-photo" onclick="document.getElementById('report_slip_photo_camera').click()">📷 その場で撮影</button>
+        <button type="button" class="btn-slip-photo" onclick="document.getElementById('report_slip_photo_input').click()">🖼 写真フォルダから選ぶ</button>
+      </div>
+      <input id="report_slip_photo_camera" type="file" accept="image/*" capture="environment" style="display:none" onchange="reportSelectSlipPhoto_(this)">
+      <input id="report_slip_photo_input" type="file" accept="image/*" style="display:none" onchange="reportSelectSlipPhoto_(this)">
       <p id="report_slip_photo_status" role="status" aria-live="polite"></p>
       <img id="report_slip_photo_preview" alt="送信する紙伝票" style="display:none;max-width:100%;max-height:360px">
     </div>
@@ -1320,7 +1328,11 @@ async function reportAttachmentCall_(body) {
   return response.json();
 }
 
-function reportAttachmentCase_() { return String(P.case_id || '').trim(); }
+// 手入力の案件番号は送信ボタンまで P.case_id に入らないので、入力欄から読む
+function reportAttachmentCase_() {
+  var manual = document.getElementById('customer_input_section').style.display !== 'none';
+  return String((manual ? buildCaseId() : P.case_id) || '').trim();
+}
 
 function reportSyncAttachmentUi_(status) {
   var caseId = reportAttachmentCase_(), s = reportAttachmentUi_;
@@ -2932,6 +2944,8 @@ function reportNextPage_() {
   const raw = document.querySelector('input[name="contract_status"]:checked').value;
   if (raw === '完工' && !kankouSubStatus) return reportPageError_('紙伝票か請求書かを選んでください', 'btn_report_next');
   if (raw === '予約' && !reserveSubStatus) return reportPageError_('予約の種類（なし/見積書あり）を選択してください', 'btn_report_next');
+  // 契約状況を選んだ後に案件番号を変えても、紙伝票・請求書を今の案件に合わせる
+  reportSyncAttachmentUi_(getEffectiveStatus());
   reportShowPage_(2);
   return true;
 }
