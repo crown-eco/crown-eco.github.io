@@ -53,7 +53,9 @@
   // 0051: business-read allowlist. Authentication and writes never enter retries.
   var READ_POST_ROUTES = ['lookup', 'contract_list', 'quote_lookup', 'receipt_lookup', 'reserve_lookup',
     'coupon_lookup', 'staff_lookup', 'staff_flags', 'duplicate_guard_lookup', 'resend_lookup',
-    'resend_nonbounce_lookup', 'expense_lookup', 'write_async_status'];
+    'resend_nonbounce_lookup', 'expense_lookup', 'write_async_status',
+    // 業務報告（紙伝票写真／発行済み請求書）の確認経路。estimate.html の reportAttachmentCall_ が gasReadFetch で呼ぶ（2026-10-23・GAS_READ_ROUTE_DENIED の修理）
+    'report_attachment_status', 'report_invoice_candidates'];
   var READ_GET_ACTIONS = ['bootstrap', 'changeDate', 'viewReferree', 'expense_lookup',
     'company_dashboard', 'company_dashboard_graph', 'company_dashboard_advconfirm'];
   var READ_RETRY_MESSAGE = '返事が届かなかったので取り直しています…';
