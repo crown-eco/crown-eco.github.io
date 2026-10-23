@@ -63,6 +63,9 @@ body { font-family:'Noto Sans JP',sans-serif; background:var(--bg); color:var(--
 .complete-links .link-invoice { background:var(--blue-light); color:var(--blue); border:2px solid var(--blue); }
 .complete-links .link-edit { background:var(--purple-light); color:var(--purple); border:2px solid var(--purple); }
 .email-warn { color:var(--red); font-weight:600; font-size:.85rem; margin-top:4px; }
+.order-type-label { border:2px solid var(--border);border-radius:10px;padding:12px 5px;text-align:center;font-size:.9rem;font-weight:600;cursor:pointer;background:#fff;transition:all .2s;display:flex;align-items:center;justify-content:center;min-height:50px; }
+.order-type-label input { display:none; }
+.order-type-label:has(input:checked) { border-color:var(--blue);background:var(--blue-light);color:var(--blue); }
 </style>
 <script src="./shared-gas-call.js?v=20260930-gap-v1"></script>
 <script>if(typeof window.gasDiagnosticFetch!=="function")window.gasDiagnosticFetch=window.fetch.bind(window);</script>
@@ -121,9 +124,17 @@ body { font-family:'Noto Sans JP',sans-serif; background:var(--bg); color:var(--
 
   <!-- メイン編集画面 -->
   <div id="main_view" class="hidden">
+    <div id="q_unregistered_notice" class="card hidden">この案件はまだ注文・業務報告の記録がありません。お客様情報を確認・入力して発行できます。</div>
 
     <div class="card">
       <div class="card-title">🏠 お客様情報</div>
+      <div id="q_customer_type_choice" class="hidden" style="margin-bottom:12px">
+        <div style="margin-bottom:8px">お客様種別 <span style="color:red">※必須</span></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <label class="order-type-label"><input type="radio" name="q_customer_type" value="個人" checked onchange="onQuoteCustomerTypeChange()">個人</label>
+          <label class="order-type-label"><input type="radio" name="q_customer_type" value="法人・団体" onchange="onQuoteCustomerTypeChange()">法人・団体</label>
+        </div>
+      </div>
       <div class="info-row"><span class="info-label">案件番号</span><span class="info-val" id="d_case_id"></span></div>
       <div class="info-row"><span class="info-label">お客様名</span><input type="text" id="d_name" style="font-weight:600;text-align:right;padding:6px 8px;border:2px solid var(--border);border-radius:8px;font-size:.9rem;background:#fff;max-width:60%"></div>
       <div id="q_corp_fields" class="hidden">
@@ -438,6 +449,7 @@ async function loadData(caseId) {
       document.getElementById('h_case_id').textContent = caseId;
       return;
     }
+    Q.registered          = r.registered !== false;
     Q.case_id             = r.case_id;
     Q.name                = r.name    || '';
     Q.email               = r.email   || '';
@@ -446,7 +458,7 @@ async function loadData(caseId) {
     Q.banchi              = r.banchi  || '';
     Q.building            = r.building || '';
     Q.equipment           = r.equipment || '';
-    Q.staff_id            = r.staff_id  || '';
+    Q.staff_id            = r.staff_id || (!Q.registered && window.ECOPITA_SESSION ? window.ECOPITA_SESSION.staffId : '') || '';
     Q.prefix              = r.prefix    || '';
     Q.estimate_versions      = r.estimate_versions      || 0;
     Q.diag_estimate_versions = r.diag_estimate_versions || 0;
@@ -474,7 +486,11 @@ function renderMain() {
   document.getElementById('d_name').value = Q.name;
   document.getElementById('q_company_name').value = Q.company_name;
   document.getElementById('q_contact_name').value = Q.contact_name;
-  document.getElementById('q_corp_fields').classList.toggle('hidden', Q.customer_type !== '法人・団体');
+  document.getElementById('q_unregistered_notice').classList.toggle('hidden', Q.registered !== false);
+  document.getElementById('q_customer_type_choice').classList.toggle('hidden', Q.registered !== false);
+  if (Q.registered === false && !Q.customer_type) Q.customer_type = '個人';
+  document.querySelectorAll('input[name="q_customer_type"]').forEach(function(radio) { radio.checked = radio.value === Q.customer_type; });
+  updateQuoteCustomerTypeFields();
 
   document.getElementById('d_tel').value = Q.tel;
   document.getElementById('d_address').value = Q.address;
@@ -530,7 +546,20 @@ function renderMain() {
   if (Q.versions.length > 0) onVersionChange(); else onDocTypeChange();
 }
 
+function updateQuoteCustomerTypeFields() {
+  var corporate = Q.customer_type === '法人・団体';
+  document.getElementById('q_corp_fields').classList.toggle('hidden', !corporate);
+  document.getElementById('q_company_name').required = Q.registered === false && corporate;
+}
+
+function onQuoteCustomerTypeChange() {
+  if (Q.registered !== false) return;
+  Q.customer_type = (document.querySelector('input[name="q_customer_type"]:checked') || {}).value || '個人';
+  updateQuoteCustomerTypeFields();
+}
+
 function syncQuoteCustomerFields() {
+  onQuoteCustomerTypeChange();
   Q.name = document.getElementById('d_name').value.trim();
   Q.tel = document.getElementById('d_tel').value.trim();
   Q.address = document.getElementById('d_address').value.trim();
@@ -912,6 +941,10 @@ async function submitQuote() {
   var docType = (document.querySelector('input[name="q_doc_type"]:checked') || {}).value || '見積書';
   syncQuoteCustomerFields();
 
+  if (Q.registered === false && Q.customer_type === '法人・団体' && !Q.company_name) {
+    alert('会社名を入力してください'); document.getElementById('q_company_name').focus(); return;
+  }
+
   if (!email && !confirm('メールアドレスが空です。メール送信なし（PDF保存のみ）で発行しますか？')) return;
 
   var items = [];
@@ -995,7 +1028,8 @@ async function confirmQuoteSend() {
     form_type: 'quote', doc_type: pq.docType, subject: pq.subject,
     case_id: Q.case_id, name: Q.name,
     customer_type: Q.customer_type || '個人',
-    company_name: Q.company_name || '', contact_name: Q.contact_name || '',
+    company_name: Q.customer_type === '法人・団体' ? Q.company_name || '' : '',
+    contact_name: Q.customer_type === '法人・団体' ? Q.contact_name || '' : '',
     email: pq.email, tel: Q.tel, address: Q.address, banchi: Q.banchi, building: Q.building,
     equipment: Q.equipment, staff_id: pq.staffId, items: pq.items,
     expiry: document.getElementById('q_expiry').value,
