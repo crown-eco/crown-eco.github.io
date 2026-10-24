@@ -56,7 +56,7 @@
     'resend_nonbounce_lookup', 'expense_lookup', 'write_async_status',
     // 業務報告（紙伝票写真／発行済み請求書）の確認経路。estimate.html の reportAttachmentCall_ が gasReadFetch で呼ぶ（2026-10-23・GAS_READ_ROUTE_DENIED の修理）
     'report_attachment_status', 'report_invoice_candidates'];
-  var READ_GET_ACTIONS = ['bootstrap', 'changeDate', 'viewReferree', 'expense_lookup',
+  var READ_GET_ACTIONS = ['bootstrap', 'changeDate', 'viewReferree', 'expense_lookup', 'expense_aircon_catalog',
     'company_dashboard', 'company_dashboard_graph', 'company_dashboard_advconfirm'];
   var READ_RETRY_MESSAGE = '返事が届かなかったので取り直しています…';
   var READ_FINAL_MESSAGE = '数分待ってからもう一度開いてください';

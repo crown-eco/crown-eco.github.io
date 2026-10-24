@@ -44,6 +44,12 @@ input[type=text]:focus,input[type=number]:focus{outline:none;border-color:#378AD
 .receipt-item-title{font-size:12px;font-weight:600;color:#555}
 .receipt-delete{font-size:12px;color:#c0392b;cursor:pointer;padding:2px 6px}
 .receipt-preview{width:100%;max-height:160px;object-fit:contain;border-radius:8px;border:1px solid #e0e0e0;display:block;margin-top:8px}
+.aircon-fields{min-width:0;max-width:100%;margin-top:12px;border-top:1px solid #ddd;padding-top:10px;overflow-wrap:anywhere}
+.aircon-unit{min-width:0;margin:10px 0;padding:8px;border:1px solid #ddd;border-radius:8px}
+.aircon-fields select{display:block;width:100%;min-width:0;max-width:100%;height:40px;margin-bottom:8px;border:1px solid #d0d0d0;border-radius:8px;background:#fff;font-size:14px}
+.aircon-fields input{min-width:0;max-width:100%;margin-bottom:8px}
+.aircon-fields .add-btn{max-width:100%;white-space:normal;text-align:left}
+.aircon-note{font-size:11px;color:#666;line-height:1.6;margin-top:6px}
 .file-input-wrapper{position:relative}
 .file-input-wrapper input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
 .file-btn{width:100%;height:38px;border:1px dashed #b0b0b0;border-radius:8px;background:#fff;font-size:13px;color:#555;display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer}
@@ -219,6 +225,8 @@ var staffId = '';
 var selectedContract = null;
 var bodyItemCount = 0;
 var bodyItemData = {};
+var airconCatalog = { epoch: 0, status: 'idle', categories: [], models: Object.create(null) };
+var AIRCON_LOAD_ERROR = '型番の一覧を読み込めませんでした。少し待ってから「本体代」を付け直してください';
 var _totpPassToken = '', _totpStaffId = '', _totpMode = '', _totpDisplayName = '', _countdownTimer = null;
 var ALL_SCREENS = ['app-screen'];
 
@@ -336,7 +344,7 @@ function callApi(payload) {
   var json = JSON.stringify(payload);
   var encoded = btoa(unescape(encodeURIComponent(json)));
   var url = GAS_URL + '?_portal_data=' + encodeURIComponent(encoded);
-  return (payload.action === 'expense_lookup' ? gasReadFetch(url, { redirect: 'follow' }, { onStatus: gasReadStatusTarget('search-error') }) : fetch(url, { redirect: 'follow' })).then(function(r) { return r.json(); });
+  return (payload.action === 'expense_lookup' ? gasReadFetch(url, { redirect: 'follow' }, { onStatus: gasReadStatusTarget('search-error') }) : payload.action === 'expense_aircon_catalog' ? gasReadFetch(url, { redirect: 'follow' }, {}) : fetch(url, { redirect: 'follow' })).then(function(r) { return r.json(); });
 }
 
 function init() {
@@ -649,12 +657,141 @@ function toggleBody() {
   var checked = document.getElementById('chk-body').checked;
   document.getElementById('body-fields').style.display = checked ? '' : 'none';
   hideErr('kind-error'); hideErr('body-error'); updateTotal();
+  if (checked) {
+    Object.keys(airconCatalog.models).forEach(function(key) { if (airconCatalog.models[key].status === 'error') delete airconCatalog.models[key]; });
+    loadAirconCatalog();
+    Object.keys(bodyItemData).forEach(function(id) { bodyItemData[id].units.forEach(function(unit) { if (unit.maker) loadAirconModels(id, unit); }); });
+    renderAllAirconItems();
+  }
+}
+
+// The date window belongs to GAS. Keep original option values for submission;
+// normalization and the SII single-character placeholder apply to filtering only.
+function normalizeAirconModel(value) { return String(value || '').normalize('NFKC').toUpperCase().replace(/\s/g, ''); }
+function airconModelMatches(model, query) {
+  var pattern = normalizeAirconModel(model), input = normalizeAirconModel(query);
+  if (!input) return true;
+  function matchAt(start, length) {
+    for (var i = 0; i < length; i++) if (pattern[start + i] !== '■' && pattern[start + i] !== input[i]) return false;
+    return true;
+  }
+  for (var start = 0; start + input.length <= pattern.length; start++) if (matchAt(start, input.length)) return true;
+  return input.length >= pattern.length && matchAt(0, pattern.length);
+}
+function resetAirconCatalog() {
+  airconCatalog = { epoch: airconCatalog.epoch + 1, status: 'idle', categories: [], models: Object.create(null) };
+}
+function renderAllAirconItems() { Object.keys(bodyItemData).forEach(renderAirconItem); }
+function isAirconUnknownAction(res) {
+  return res && res.ok === false && (res.reason === 'unknown_action' || res.error === '不明なアクション: expense_aircon_catalog');
+}
+function loadAirconCatalog() {
+  if (airconCatalog.status === 'ready' || airconCatalog.status === 'legacy' || airconCatalog.status === 'loading') return;
+  var catalog = airconCatalog;
+  catalog.status = 'loading';
+  renderAllAirconItems();
+  post({ action: 'expense_aircon_catalog' }).then(function(res) {
+    if (catalog !== airconCatalog) return;
+    if (isAirconUnknownAction(res)) { catalog.status = 'legacy'; renderAllAirconItems(); return; }
+    if (!res || !res.ok || !Array.isArray(res.categories) || !res.categories.every(function(c) {
+      return (c.category === '家庭用' || c.category === '業務用') && Array.isArray(c.makers) && c.makers.every(function(m) { return typeof m.name === 'string' && m.name && m.name.length <= 60 && Number(m.count) >= 0; });
+    })) throw new Error('invalid catalog');
+    catalog.categories = res.categories;
+    catalog.status = 'ready';
+    renderAllAirconItems();
+  }).catch(function() { if (catalog === airconCatalog) { catalog.status = 'error'; renderAllAirconItems(); } });
+}
+function airconModelsKey(unit) { return JSON.stringify([unit.category, unit.maker]); }
+function loadAirconModels(id, unit) {
+  var catalog = airconCatalog, item = bodyItemData[id], category = unit.category, maker = unit.maker;
+  var key = airconModelsKey(unit), entry = catalog.models[key];
+  if (!entry) {
+    entry = catalog.models[key] = { status: 'loading', rows: [] };
+    entry.promise = post({ action: 'expense_aircon_catalog', category: category, maker: maker }).then(function(res) {
+      if (catalog !== airconCatalog) return;
+      if (!res || !res.ok || res.category !== category || res.maker !== maker || !Array.isArray(res.models) || !res.models.every(function(row) {
+        return Array.isArray(row) && typeof row[0] === 'string' && row[0] && row[0].length <= 60;
+      })) throw new Error('invalid models');
+      entry.rows = res.models; entry.status = 'ready';
+    }).catch(function() { if (catalog === airconCatalog) entry.status = 'error'; });
+  }
+  entry.promise.then(function() {
+    if (catalog === airconCatalog && bodyItemData[id] === item && item.units.indexOf(unit) >= 0 && unit.category === category && unit.maker === maker) renderAirconItem(id);
+  });
+}
+function addAirconUnit(id) {
+  var item = bodyItemData[id];
+  if (!item || item.units.length >= 10) return;
+  item.units.push({ category: '', maker: '', model: '', filter: '' }); renderAirconItem(id);
+}
+function removeAirconUnit(id, unit) {
+  var item = bodyItemData[id], index = item ? item.units.indexOf(unit) : -1;
+  if (index > 0) { item.units.splice(index, 1); renderAirconItem(id); }
+}
+function renderAirconItem(id) {
+  var item = bodyItemData[id], host = document.getElementById('aircon-fields-' + id);
+  if (!item || !host) return;
+  host.innerHTML = ''; host.style.display = airconCatalog.status === 'legacy' ? 'none' : '';
+  if (airconCatalog.status === 'legacy') return;
+  function note(parent, text) { var el = document.createElement('p'); el.className = 'aircon-note'; el.textContent = text; parent.appendChild(el); return el; }
+  note(host, 'エアコン本体');
+  if (airconCatalog.status !== 'ready') note(host, airconCatalog.status === 'error' ? AIRCON_LOAD_ERROR : '型番の一覧を読み込み中...');
+  function select(parent, label, rows, value, change) {
+    var el = document.createElement('select'), caption = document.createElement('label'); caption.textContent = label;
+    caption.appendChild(el); parent.appendChild(caption);
+    [['', '選んでください']].concat(rows).forEach(function(row) { var option = document.createElement('option'); option.value = row[0]; option.textContent = row[1]; el.appendChild(option); });
+    el.value = value; el.disabled = airconCatalog.status !== 'ready' || !rows.length; el.onchange = function() { change(el.value); }; return el;
+  }
+  item.units.forEach(function(unit, index) {
+    var box = document.createElement('div'); box.className = 'aircon-unit'; host.appendChild(box); note(box, (index + 1) + '台目');
+    select(box, '区分', [['家庭用', 'ルームエアコン（家庭用）'], ['業務用', '業務用エアコン']], unit.category, function(value) {
+      unit.category = value; unit.maker = ''; unit.model = ''; unit.filter = ''; renderAirconItem(id);
+    });
+    var category = airconCatalog.categories.filter(function(c) { return c.category === unit.category; })[0];
+    var makers = category ? category.makers : [];
+    select(box, 'メーカー', makers.map(function(m) { return [m.name, m.name]; }), unit.maker, function(value) {
+      unit.maker = value; unit.model = ''; unit.filter = ''; if (value) loadAirconModels(id, unit); renderAirconItem(id);
+    });
+    if (unit.category === '業務用' && airconCatalog.status === 'ready' && !makers.some(function(m) { return m.count > 0; })) note(box, '業務用の型番はまだ登録されていません。領収書の型番を管理者に伝えてください。');
+    var label = document.createElement('label'); label.textContent = '型番の絞り込み'; box.appendChild(label);
+    var filter = document.createElement('input'); filter.type = 'text'; filter.placeholder = '例：AN22'; filter.value = unit.filter; filter.disabled = !unit.maker; label.appendChild(filter);
+    var modelArea = document.createElement('div'); box.appendChild(modelArea);
+    function renderModels() {
+      modelArea.innerHTML = '';
+      var entry = airconCatalog.models[airconModelsKey(unit)];
+      var rows = entry && entry.status === 'ready' ? entry.rows : [];
+      var filtered = rows.filter(function(row) { return airconModelMatches(row[0], unit.filter); });
+      if (unit.model && !filtered.some(function(row) { return row[0] === unit.model; })) unit.model = '';
+      select(modelArea, '型番（' + filtered.length + '件）', filtered.map(function(row) { return [row[0], row[0] + (row[1] !== '' && row[1] != null ? '（' + row[1] + 'kW）' : '')]; }), unit.model, function(value) { unit.model = value; renderModels(); });
+      if (unit.maker && (!entry || entry.status === 'loading')) note(modelArea, '型番の一覧を読み込み中...');
+      if (entry && entry.status === 'error') note(modelArea, AIRCON_LOAD_ERROR);
+      if (unit.model.indexOf('■') >= 0) note(modelArea, '■は色・仕様で変わる 1 文字です');
+    }
+    filter.oninput = function() { unit.filter = filter.value; renderModels(); }; renderModels();
+    if (index > 0) { var remove = document.createElement('button'); remove.type = 'button'; remove.className = 'add-btn'; remove.textContent = 'このエアコンを削除'; remove.onclick = function() { removeAirconUnit(id, unit); }; box.appendChild(remove); }
+  });
+  var add = document.createElement('button'); add.type = 'button'; add.className = 'add-btn'; add.textContent = '＋ この領収書に別のエアコンを追加'; add.disabled = item.units.length >= 10; add.onclick = function() { addAirconUnit(id); }; host.appendChild(add);
+  note(host, '本体代はエアコン本体だけです。一覧に無い型番は申請できません。一覧に無いときは管理者に連絡してください。');
+  note(host, '型番一覧の出典：「省エネ型製品情報サイト」（経済産業省資源エネルギー庁）を加工して作成／SII公開データ');
+}
+function validAirconUnits(item) {
+  if (airconCatalog.status === 'legacy') return true;
+  return airconCatalog.status === 'ready' && Array.isArray(item.units) && item.units.length >= 1 && item.units.length <= 10 && item.units.every(function(unit) {
+    var category = airconCatalog.categories.filter(function(c) { return c.category === unit.category; })[0];
+    var entry = airconCatalog.models[airconModelsKey(unit)];
+    return category && category.makers.some(function(m) { return m.name === unit.maker; }) && entry && entry.status === 'ready' && entry.rows.some(function(row) { return row[0] === unit.model; });
+  });
+}
+function expenseBodyPayloadItem(item, url) {
+  var result = { amount: item.amount, receipt_url: url };
+  if (airconCatalog.status !== 'legacy') result.units = item.units.map(function(unit) { return { category: unit.category, maker: unit.maker, model: unit.model }; });
+  return result;
 }
 
 function addBodyItem() {
   bodyItemCount++;
   var id = bodyItemCount;
-  bodyItemData[id] = { amount: 0, file: null, dataUrl: null, mime: null };
+  bodyItemData[id] = { amount: 0, file: null, dataUrl: null, mime: null, units: [{ category: '', maker: '', model: '', filter: '' }] };
   var container = document.getElementById('body-items-container');
   var wrap = document.createElement('div');
   wrap.className = 'receipt-item';
@@ -675,8 +812,10 @@ function addBodyItem() {
     '<span style="font-size:12px;color:#378ADD;cursor:pointer" onclick="changeFile(' + id + ')">変更</span>' +
     '<span style="font-size:12px;color:#c0392b;cursor:pointer" onclick="deleteFile(' + id + ')">削除</span>' +
     '<input type="file" accept="image/*,application/pdf" id="change-input-' + id + '" style="display:none" onchange="onFileChange(' + id + ', this)"></div>' +
+    '<div id="aircon-fields-' + id + '" class="aircon-fields"></div>' +
     '<div id="item-error-' + id + '" class="error-msg hidden"></div>';
   container.appendChild(wrap);
+  renderAirconItem(id);
   updateTotal();
 }
 
@@ -779,6 +918,7 @@ function validate() {
     if (activeItems.length === 0) { showErr('body-error', '本体代の金額を1件以上入力してください'); return false; }
     for (var i = 0; i < activeItems.length; i++) {
       if (!activeItems[i].data.dataUrl) { showErr('item-error-' + activeItems[i].id, '領収書を添付してください'); return false; }
+      if (!validAirconUnits(activeItems[i].data)) { showErr('item-error-' + activeItems[i].id, airconCatalog.status === 'error' ? AIRCON_LOAD_ERROR : '各エアコンの区分・メーカー・型番を一覧から選んでください。型番の一覧を読めない場合は、少し待ってから「本体代」を付け直してください'); return false; }
     }
   }
   return true;
@@ -800,6 +940,7 @@ function submitExpense() {
 
   // 領収書を先に1枚ずつアップロード
   var uploadPromises = activeItems.map(function(it, idx) {
+    var payloadItem = expenseBodyPayloadItem(it.data, '');
     return postUpload({
       form_type: 'expense_upload_receipt',
       receipt_base64: it.data.dataUrl,
@@ -807,7 +948,8 @@ function submitExpense() {
       label: buildReceiptLabel(idx)
     }).then(function(res) {
       if (!res.ok) throw new Error(res.error || '領収書アップロード失敗');
-      return { amount: it.data.amount, receipt_url: res.url };
+      payloadItem.receipt_url = res.url;
+      return payloadItem;
     });
   });
 
@@ -847,6 +989,7 @@ function submitExpense() {
     });
 }
 function resetForm() {
+  resetAirconCatalog();
   selectedContract = null; bodyItemCount = 0; bodyItemData = {};
   document.getElementById('e_case_num').value = '';
   document.getElementById('e_case_alpha').value = '';
@@ -866,6 +1009,7 @@ function resetForm() {
 }
 
 function doLogout() {
+  resetAirconCatalog();
   localStorage.removeItem('ecopita_session');
   sessionToken = ''; staffId = '';
   selectedContract = null; bodyItemCount = 0; bodyItemData = {};
