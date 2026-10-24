@@ -225,7 +225,7 @@ var staffId = '';
 var selectedContract = null;
 var bodyItemCount = 0;
 var bodyItemData = {};
-var airconCatalog = { epoch: 0, status: 'idle', categories: [], models: Object.create(null) };
+var airconCatalog = { epoch: 0, status: 'idle', categories: [], models: Object.create(null), prefetchStarted: false, prefetchPending: false };
 var AIRCON_LOAD_ERROR = '型番の一覧を読み込めませんでした。少し待ってから「本体代」を付け直してください';
 var _totpPassToken = '', _totpStaffId = '', _totpMode = '', _totpDisplayName = '', _countdownTimer = null;
 var ALL_SCREENS = ['app-screen'];
@@ -361,6 +361,7 @@ function showApp(displayName) {
   document.getElementById('staff-name-label').textContent = (displayName || staffId) + '（' + staffId + '）';
   onPrefixChange();
   if (document.getElementById('body-items-container').children.length === 0) addBodyItem();
+  prefetchAirconCatalog();
 }
 
 async function doLogin() {
@@ -679,44 +680,98 @@ function airconModelMatches(model, query) {
   return input.length >= pattern.length && matchAt(0, pattern.length);
 }
 function resetAirconCatalog() {
-  airconCatalog = { epoch: airconCatalog.epoch + 1, status: 'idle', categories: [], models: Object.create(null) };
+  airconCatalog = { epoch: airconCatalog.epoch + 1, status: 'idle', categories: [], models: Object.create(null), prefetchStarted: false, prefetchPending: false };
 }
 function renderAllAirconItems() { Object.keys(bodyItemData).forEach(renderAirconItem); }
 function isAirconUnknownAction(res) {
   return res && res.ok === false && (res.reason === 'unknown_action' || res.error === '不明なアクション: expense_aircon_catalog');
 }
-function loadAirconCatalog() {
-  if (airconCatalog.status === 'ready' || airconCatalog.status === 'legacy' || airconCatalog.status === 'loading') return;
-  var catalog = airconCatalog;
+function validAirconCategories(res) {
+  return res && res.ok && Array.isArray(res.categories) && res.categories.every(function(c) {
+    return (c.category === '家庭用' || c.category === '業務用') && Array.isArray(c.makers) && c.makers.every(function(m) { return typeof m.name === 'string' && m.name && m.name.length <= 60 && Number(m.count) >= 0; });
+  });
+}
+function validAirconModelRows(rows) {
+  return Array.isArray(rows) && rows.every(function(row) { return Array.isArray(row) && typeof row[0] === 'string' && row[0] && row[0].length <= 60; });
+}
+function fetchAirconCatalogMetadata(catalog) {
+  if (catalog.metadataPromise && catalog.status === 'loading') return catalog.metadataPromise;
   catalog.status = 'loading';
   renderAllAirconItems();
-  post({ action: 'expense_aircon_catalog' }).then(function(res) {
+  catalog.metadataPromise = post({ action: 'expense_aircon_catalog' }).then(function(res) {
     if (catalog !== airconCatalog) return;
     if (isAirconUnknownAction(res)) { catalog.status = 'legacy'; renderAllAirconItems(); return; }
-    if (!res || !res.ok || !Array.isArray(res.categories) || !res.categories.every(function(c) {
-      return (c.category === '家庭用' || c.category === '業務用') && Array.isArray(c.makers) && c.makers.every(function(m) { return typeof m.name === 'string' && m.name && m.name.length <= 60 && Number(m.count) >= 0; });
-    })) throw new Error('invalid catalog');
+    if (!validAirconCategories(res)) throw new Error('invalid catalog');
     catalog.categories = res.categories;
     catalog.status = 'ready';
     renderAllAirconItems();
   }).catch(function() { if (catalog === airconCatalog) { catalog.status = 'error'; renderAllAirconItems(); } });
+  return catalog.metadataPromise;
+}
+function loadAirconCatalog() {
+  if (airconCatalog.prefetchPending) return airconCatalog.prefetchPromise;
+  if (airconCatalog.status === 'ready' || airconCatalog.status === 'legacy') return;
+  return fetchAirconCatalogMetadata(airconCatalog);
+}
+function prefetchAirconCatalog() {
+  var catalog = airconCatalog;
+  if (catalog.prefetchStarted) return catalog.prefetchPromise;
+  catalog.prefetchStarted = true; catalog.prefetchPending = true;
+  if (catalog.status !== 'ready' && catalog.status !== 'legacy') catalog.status = 'loading';
+  var started = Date.now(), logged = false;
+  function record(mode, count) {
+    if (logged || catalog !== airconCatalog) return;
+    logged = true; catalog.prefetchMs = Math.max(0, Date.now() - started);
+    console.log('expense_aircon_prefetch mode=' + mode + ' models=' + count + ' ms=' + catalog.prefetchMs);
+  }
+  renderAllAirconItems();
+  catalog.prefetchPromise = post({ action: 'expense_aircon_catalog', all: true }).then(function(res) {
+    if (catalog !== airconCatalog) return;
+    if (isAirconUnknownAction(res)) { record('legacy', 0); catalog.status = 'legacy'; return; }
+    if (!validAirconCategories(res)) { record('fallback', 0); throw new Error('invalid catalog'); }
+    // Validate every expected manufacturer before publishing any all-mode memo.
+    // An older GAS may ignore all:true and return only categories.
+    var memo = Object.create(null), count = 0;
+    var complete = res.models && typeof res.models === 'object' && !Array.isArray(res.models) && res.categories.every(function(category) {
+      var makers = Object.prototype.hasOwnProperty.call(res.models, category.category) && res.models[category.category];
+      return makers && typeof makers === 'object' && !Array.isArray(makers) && category.makers.every(function(maker) {
+        if (!Object.prototype.hasOwnProperty.call(makers, maker.name) || !validAirconModelRows(makers[maker.name]) || makers[maker.name].length !== Number(maker.count)) return false;
+        var rows = makers[maker.name]; count += rows.length;
+        memo[airconModelsKey({ category: category.category, maker: maker.name })] = { status: 'ready', rows: rows, promise: Promise.resolve() };
+        return true;
+      });
+    });
+    catalog.categories = res.categories; catalog.status = 'ready';
+    if (complete) catalog.models = memo;
+    record(complete ? 'all' : 'per_maker', complete ? count : 0);
+  }).catch(function() {
+    if (catalog !== airconCatalog) return;
+    record('fallback', 0);
+    if (catalog.status !== 'ready' && catalog.status !== 'legacy') return fetchAirconCatalogMetadata(catalog);
+  }).then(function() {
+    if (catalog === airconCatalog) { catalog.prefetchPending = false; renderAllAirconItems(); }
+  });
+  return catalog.prefetchPromise;
 }
 function airconModelsKey(unit) { return JSON.stringify([unit.category, unit.maker]); }
 function loadAirconModels(id, unit) {
   var catalog = airconCatalog, item = bodyItemData[id], category = unit.category, maker = unit.maker;
+  function current() { return catalog === airconCatalog && bodyItemData[id] === item && item.units.indexOf(unit) >= 0 && unit.category === category && unit.maker === maker; }
+  if (catalog.prefetchPending) {
+    return catalog.prefetchPromise.then(function() { if (current() && catalog.status === 'ready') return loadAirconModels(id, unit); });
+  }
+  if (!current() || catalog.status !== 'ready') return;
   var key = airconModelsKey(unit), entry = catalog.models[key];
   if (!entry) {
     entry = catalog.models[key] = { status: 'loading', rows: [] };
     entry.promise = post({ action: 'expense_aircon_catalog', category: category, maker: maker }).then(function(res) {
       if (catalog !== airconCatalog) return;
-      if (!res || !res.ok || res.category !== category || res.maker !== maker || !Array.isArray(res.models) || !res.models.every(function(row) {
-        return Array.isArray(row) && typeof row[0] === 'string' && row[0] && row[0].length <= 60;
-      })) throw new Error('invalid models');
+      if (!res || !res.ok || res.category !== category || res.maker !== maker || !validAirconModelRows(res.models)) throw new Error('invalid models');
       entry.rows = res.models; entry.status = 'ready';
     }).catch(function() { if (catalog === airconCatalog) entry.status = 'error'; });
   }
-  entry.promise.then(function() {
-    if (catalog === airconCatalog && bodyItemData[id] === item && item.units.indexOf(unit) >= 0 && unit.category === category && unit.maker === maker) renderAirconItem(id);
+  return entry.promise.then(function() {
+    if (current()) renderAirconItem(id);
   });
 }
 function addAirconUnit(id) {
@@ -989,7 +1044,6 @@ function submitExpense() {
     });
 }
 function resetForm() {
-  resetAirconCatalog();
   selectedContract = null; bodyItemCount = 0; bodyItemData = {};
   document.getElementById('e_case_num').value = '';
   document.getElementById('e_case_alpha').value = '';
