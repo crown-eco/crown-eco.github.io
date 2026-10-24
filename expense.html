@@ -358,7 +358,10 @@ function init() {
 
 function showApp(displayName) {
   showScreen('app-screen');
-  document.getElementById('staff-name-label').textContent = (displayName || staffId) + '（' + staffId + '）';
+  // 担当者名の欄は 2026-04-12 のヘッダー整理で無くなった。欄が無いとここで止まり、
+  // 下の「領収書 1 枚目の用意」と型番の先読みが走らなかった（2026-10-24 発見）。欄があるときだけ書く。
+  var staffNameLabel = document.getElementById('staff-name-label');
+  if (staffNameLabel) staffNameLabel.textContent = (displayName || staffId) + '（' + staffId + '）';
   onPrefixChange();
   if (document.getElementById('body-items-container').children.length === 0) addBodyItem();
   prefetchAirconCatalog();
