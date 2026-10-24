@@ -810,7 +810,7 @@ function renderAirconItem(id) {
     select(box, 'メーカー', makers.map(function(m) { return [m.name, m.name]; }), unit.maker, function(value) {
       unit.maker = value; unit.model = ''; unit.filter = ''; if (value) loadAirconModels(id, unit); renderAirconItem(id);
     });
-    if (unit.category === '業務用' && airconCatalog.status === 'ready' && !makers.some(function(m) { return m.count > 0; })) note(box, '業務用の型番はまだ登録されていません。領収書の型番を管理者に伝えてください。');
+    if (unit.category === '業務用' && airconCatalog.status === 'ready' && !makers.some(function(m) { return m.count > 0; })) note(box, '業務用の型番はまだ登録されていません。領収書の型番を公式LINE エコピタ管理までご連絡ください。');
     var label = document.createElement('label'); label.textContent = '型番の絞り込み'; box.appendChild(label);
     var filter = document.createElement('input'); filter.type = 'text'; filter.placeholder = '例：AN22'; filter.value = unit.filter; filter.disabled = !unit.maker; label.appendChild(filter);
     var modelArea = document.createElement('div'); box.appendChild(modelArea);
@@ -829,7 +829,8 @@ function renderAirconItem(id) {
     if (index > 0) { var remove = document.createElement('button'); remove.type = 'button'; remove.className = 'add-btn'; remove.textContent = 'このエアコンを削除'; remove.onclick = function() { removeAirconUnit(id, unit); }; box.appendChild(remove); }
   });
   var add = document.createElement('button'); add.type = 'button'; add.className = 'add-btn'; add.textContent = '＋ この領収書に別のエアコンを追加'; add.disabled = item.units.length >= 10; add.onclick = function() { addAirconUnit(id); }; host.appendChild(add);
-  note(host, '本体代はエアコン本体だけです。一覧に無い型番は申請できません。一覧に無いときは管理者に連絡してください。');
+  note(host, '経費申請をできるのは、メーカー施工費とエアコン本体代のみです。');
+  note(host, '一覧に型番が見つからないときは、公式LINE エコピタ管理までご連絡ください。');
   note(host, '型番一覧の出典：「省エネ型製品情報サイト」（経済産業省資源エネルギー庁）を加工して作成／SII公開データ');
 }
 function validAirconUnits(item) {
