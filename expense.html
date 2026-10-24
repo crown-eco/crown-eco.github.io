@@ -829,9 +829,9 @@ function renderAirconItem(id) {
     if (index > 0) { var remove = document.createElement('button'); remove.type = 'button'; remove.className = 'add-btn'; remove.textContent = 'このエアコンを削除'; remove.onclick = function() { removeAirconUnit(id, unit); }; box.appendChild(remove); }
   });
   var add = document.createElement('button'); add.type = 'button'; add.className = 'add-btn'; add.textContent = '＋ この領収書に別のエアコンを追加'; add.disabled = item.units.length >= 10; add.onclick = function() { addAirconUnit(id); }; host.appendChild(add);
-  note(host, '経費申請をできるのは、メーカー施工費とエアコン本体代のみです。');
+  note(host, '経費申請の対象になるのは、メーカー施工費とエアコン本体代のみです。');
   note(host, '一覧に型番が見つからないときは、公式LINE エコピタ管理までご連絡ください。');
-  note(host, '型番一覧の出典：「省エネ型製品情報サイト」（経済産業省資源エネルギー庁）を加工して作成／SII公開データ');
+  // 型番一覧の出典（画面には出さない・麗香 2026-10-24）：「省エネ型製品情報サイト」（経済産業省資源エネルギー庁）を加工して作成／SII公開データ。
 }
 function validAirconUnits(item) {
   if (airconCatalog.status === 'legacy') return true;
