@@ -86,6 +86,69 @@
     Object.keys(values).forEach(function(key) { values[key]=Math.round(values[key]); if(!valid(values[key]))throw Error('invalid duration'); });
     return values;
   }
+  // Only new Pages with an active, visible, consumed request opt in. Old library
+  // versions have no hooks and keep the server's synchronous recording.
+  function relayRequest(operation, url, request) {
+    try {
+      if (!operation || operation.ended || operation.ambiguous || (root.document && root.document.hidden)) return null;
+      if (typeof root.setTimeout !== 'function' || typeof root.fetch !== 'function') return null;
+      var target = new URL(String(url), root.location && root.location.href), wire = Object.assign({}, request || {});
+      var method = String(wire.method || 'GET').toUpperCase(), data, portal = false, encoded = false;
+      if (method === 'POST') {
+        // The business request must already be materialized to fetch; its size is
+        // not the bounded telemetry cache payload. Large photo/signature calls opt in too.
+        if (typeof wire.body !== 'string') return null;
+        data = JSON.parse(wire.body);
+      } else if (method === 'GET') {
+        if (target.searchParams.has('_portal_data')) {
+          data = JSON.parse(decodeURIComponent(escape(root.atob(target.searchParams.get('_portal_data'))))); encoded = true;
+        } else { data = Object.fromEntries(target.searchParams); portal = true; }
+      } else return null;
+      if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
+      var ft = String(data.form_type || ''), action = String(data.action || ''), mode = String(data.mode || '');
+      // These business calls consume JSON in shared-gas-call. order_async and
+      // other fire-and-forget endpoints are deliberately not in this list.
+      var accepted = portal ? ['json','cases','group_reward'].indexOf(mode)>=0 :
+        ['order','estimate','receipt_lookup','receipt','quote_lookup','quote','contract_list','generate_doc'].indexOf(ft)>=0 ||
+        ((!ft || ft==='portal_api') && ['bootstrap','changeDate','viewReferree','company_dashboard'].indexOf(action)>=0);
+      if (!accepted) return null;
+      data = Object.assign({}, data, {_latency_relay:1});
+      if (method === 'POST') wire.body = JSON.stringify(data);
+      else if (encoded) target.searchParams.set('_portal_data', root.btoa(unescape(encodeURIComponent(JSON.stringify(data)))));
+      else target.searchParams.set('_latency_relay','1');
+      return {url:target.toString(), request:wire, endpoint:target.origin+target.pathname, portal:portal,
+        token:typeof data.sessionToken === 'string' && data.sessionToken ? data.sessionToken : (typeof data.token === 'string' ? data.token : '')};
+    } catch (ignored) { return null; }
+  }
+  function relayResponse(context, value) {
+    try {
+      // Parsing text is restricted to this already-opted-in request.
+      if (typeof value === 'string') value = JSON.parse(value);
+      var receipt = value && value._latency_receipt;
+      if (!context || context.sent || typeof receipt !== 'string' || !/^[a-f0-9]{64}$/.test(receipt)) return;
+      context.sent = true;
+      var sent = false;
+      function send() {
+        if (sent) return; sent = true;
+        try {
+          var endpoint = context.endpoint, fields = {_latency_receipt:receipt}, request;
+          if (context.portal) {
+            fields.mode = 'latency_server'; if (context.token) fields.token = context.token;
+            endpoint += '?' + new URLSearchParams(fields).toString(); request = {redirect:'follow'};
+          } else {
+            fields.form_type = 'latency_server'; if (context.token) fields.sessionToken = context.token;
+            request = {method:'POST', body:JSON.stringify(fields), redirect:'follow'};
+          }
+          Promise.resolve(root.fetch(endpoint, request)).catch(function() {});
+        } catch (ignored) {}
+      }
+      // Response is already consumed. Paint first when possible; a hidden-tab
+      // timer also drains the server sample without inventing browser timings.
+      root.setTimeout(send,300);
+      if (typeof root.requestAnimationFrame === 'function') root.requestAnimationFrame(function() { root.requestAnimationFrame(send); });
+    } catch (ignored) {}
+  }
+
   function finish(operation, response, options) {
     try {
       if (!operation || operation.ended) return;
@@ -128,5 +191,5 @@
       });
     } catch (ignored) {}
   }
-  root.ECOPITA_SCREEN_LATENCY = { begin: begin, finish: finish, capture: capture, startCall: startCall, endCall: endCall, bind: bind, bindResponse: bindResponse, mark: mark, endMark: endMark };
+  root.ECOPITA_SCREEN_LATENCY = { relayRequest: relayRequest, relayResponse: relayResponse, begin: begin, finish: finish, capture: capture, startCall: startCall, endCall: endCall, bind: bind, bindResponse: bindResponse, mark: mark, endMark: endMark };
 })(window);

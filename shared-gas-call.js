@@ -1,12 +1,14 @@
 (function(root) {
   'use strict';
 
-  // Only fixed timing hooks; never pass URLs, bodies, errors or credentials to telemetry.
+  // Timing hooks use fixed values. Relay hooks inspect a request locally and retain only endpoint/token.
   function latencyHook(method, args) {
     try { var api=root.ECOPITA_SCREEN_LATENCY; return api && typeof api[method]==='function' ? api[method].apply(api,args||[]) : null; } catch (ignored) { return null; }
   }
   function diagnosticFetch(fetchFn, receiver, url, request, operation) {
     var record=latencyHook('startCall',[operation]);
+    var relay=record && latencyHook('relayRequest',[operation,url,request]);
+    if (relay) { url=relay.url; request=relay.request; }
     // The business call executes exactly once, outside every diagnostic catch.
     var promise;
     try { promise=fetchFn.call(receiver,url,request); } catch(error) { latencyHook('endCall',[record]); throw error; }
@@ -19,7 +21,7 @@
           response[method]=function() {
             var body;
             try { body=original.apply(this,arguments); } catch(error) { latencyHook('endCall',[record]); throw error; }
-            return Promise.resolve(body).then(function(value) { latencyHook('endCall',[record,method==='json'?value:null]); return value; },function(error) { latencyHook('endCall',[record]); throw error; });
+            return Promise.resolve(body).then(function(value) { latencyHook('endCall',[record,method==='json'?value:null]); if(relay)latencyHook('relayResponse',[relay,value]); return value; },function(error) { latencyHook('endCall',[record]); throw error; });
           };
         });
       } catch(ignored) {}
@@ -53,9 +55,9 @@
   // 0051: business-read allowlist. Authentication and writes never enter retries.
   var READ_POST_ROUTES = ['lookup', 'contract_list', 'quote_lookup', 'receipt_lookup', 'reserve_lookup',
     'coupon_lookup', 'staff_lookup', 'staff_flags', 'duplicate_guard_lookup', 'resend_lookup',
-    'resend_nonbounce_lookup', 'expense_lookup', 'write_async_status',
-    // 業務報告（紙伝票写真／発行済み請求書）の確認経路。estimate.html の reportAttachmentCall_ が gasReadFetch で呼ぶ（2026-10-23・GAS_READ_ROUTE_DENIED の修理）
-    'report_attachment_status', 'report_invoice_candidates'];
+    'resend_nonbounce_lookup', 'expense_lookup', 'write_async_status', 'report_attachment_status',
+    // 業務報告の「発行済み請求書」候補の取得。estimate.html の reportAttachmentCall_ が gasReadFetch で呼ぶ（2026-10-23・GAS_READ_ROUTE_DENIED の修理・Crown 2ed076f2 と同じ）
+    'report_invoice_candidates'];
   var READ_GET_ACTIONS = ['bootstrap', 'changeDate', 'viewReferree', 'expense_lookup', 'expense_aircon_catalog',
     'company_dashboard', 'company_dashboard_graph', 'company_dashboard_advconfirm'];
   var READ_RETRY_MESSAGE = '返事が届かなかったので取り直しています…';
@@ -209,11 +211,13 @@
             var record = await race((async function() {
               var latencyCall=latencyHook('startCall',[latencyOperation]);
               try {
-              var response = await fetchFn.call(root, url, wire);
+              var relay=latencyCall && latencyHook('relayRequest',[latencyOperation,url,wire]);
+              var response = await fetchFn.call(root, relay ? relay.url : url, relay ? relay.request : wire);
               if (!response || response.ok === false) throw readError('GAS_READ_HTTP');
               var text = typeof response.text === 'function' ? await response.text() : JSON.stringify(await response.json());
               var data = JSON.parse(text);
               if (!data || typeof data !== 'object') throw readError('GAS_READ_JSON');
+              if(relay)latencyHook('relayResponse',[relay,data]);
               latencyHook('endCall',[latencyCall]);
               return { latencyCall: latencyCall, text: text, status: response.status || 200, statusText: response.statusText || '',
                 headers: response.headers, redirected: !!response.redirected, url: response.url || '', businessOk: data.ok !== false };
@@ -513,6 +517,7 @@
   }
 
   function gasCallErrorMessage(error) {
+    if (error && error.message === 'GAS_READ_ROUTE_DENIED') return '画面の読み取り処理を開始できませんでした。画面を開き直しても解消しない場合は運営に連絡してください。';
     return error && error.userMessage ? error.userMessage : TRANSPORT_MESSAGE;
   }
 

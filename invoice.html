@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>請求書発行</title>
 <script src="./shared-auth.js"></script>
-<script src="./shared-gas-call.js?v=20260914-read-v1"></script>
+<script src="./shared-gas-call.js?v=20261021-invoice-status-v1"></script>
 <script src="./write-async-status.js?v=20260902-v1"></script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -28,6 +28,10 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
 .btn{display:block;width:100%;padding:14px;border-radius:12px;border:none;font-size:1.1rem;font-weight:700;cursor:pointer;background:var(--purple);color:#fff;margin-top:8px}
 .btn:disabled{opacity:.5;cursor:not-allowed}
 .btn:hover:not(:disabled){opacity:.9}
+.receipt-help{margin-top:12px;padding-top:12px;border-top:1px solid var(--border)}
+.receipt-help .btn{background:#fff;color:var(--purple);border:1px solid var(--purple);font-size:.9rem;padding:12px 8px}
+.receipt-help p{font-size:.8rem;color:var(--text-sub);margin-top:6px}
+#saved_receipt_number{color:var(--text);font-size:.9rem;overflow-wrap:anywhere;user-select:text;-webkit-user-select:text}
 .error-msg{display:none;margin-top:12px;padding:12px;background:#ffebee;border:2px solid var(--red);border-radius:8px;color:var(--red);font-weight:600;font-size:.9rem;text-align:center}
 .select-item{border:2px solid var(--border);border-radius:10px;padding:14px;cursor:pointer;background:#fff;transition:border-color .2s;margin-bottom:8px;position:relative}
 .select-item:hover{border-color:var(--purple)}
@@ -100,7 +104,7 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
             <option value="YA">YA</option><option value="HM">HM</option>
             <option value="CP">CP</option><option value="EC">EC</option><option value="HC">HC</option>
           </select>
-          <select id="case_alpha" style="display:none;padding:10px 8px;border:2px solid var(--purple);border-radius:8px;font-size:1rem;font-weight:700;color:var(--purple);min-width:64px">
+          <select id="case_alpha" onchange="updatePreview()" style="display:none;padding:10px 8px;border:2px solid var(--purple);border-radius:8px;font-size:1rem;font-weight:700;color:var(--purple);min-width:64px">
             <option value="">-</option>
             <option>A</option><option>B</option><option>C</option><option>D</option><option>E</option>
             <option>F</option><option>G</option><option>H</option><option>I</option><option>J</option>
@@ -115,6 +119,11 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
       </div>
       <button class="btn" id="btn_search" onclick="doSearch()" disabled>検索</button>
       <div class="error-msg" id="error_msg"></div>
+      <div class="receipt-help">
+        <button type="button" class="btn" id="btn_saved_receipt" onclick="invoiceShowSavedReceipt_()">保存された受付番号を見る</button>
+        <p>入力した案件の番号を表示します。発行・送信はしません。</p>
+        <p id="saved_receipt_number" role="status" aria-live="polite"></p>
+      </div>
     </div>
   </div>
 
@@ -322,6 +331,8 @@ function buildCaseId() {
 }
 
 function updatePreview() {
+  var receipt = document.getElementById('saved_receipt_number');
+  if (receipt) receipt.textContent = '';
   var id = buildCaseId();
   document.getElementById('preview_val').textContent = id || '---';
   document.getElementById('btn_search').disabled = !id;
@@ -1000,7 +1011,57 @@ function showPreview() {
   window.scrollTo(0, 0);
 }
 
+// BEGIN INVOICE_RECEIPT_DISPLAY
+function invoiceShowSavedReceipt_() {
+  var output = document.getElementById('saved_receipt_number');
+  output.textContent = '';
+  try {
+    var session = window.ECOPITA_SESSION;
+    var current = JSON.parse(localStorage.getItem('ecopita_session') || 'null');
+    function expired(value) { return value != null && (!Number.isFinite(Number(value)) || Number(value) <= Date.now()); }
+    if (!session || typeof session.staffId !== 'string' || !session.staffId || !session.token ||
+        !current || current.staffId !== session.staffId || current.token !== session.token ||
+        expired(session.expiresAt) || expired(current.expiresAt)) {
+      output.textContent = 'ログイン状態を確認できません。同じ担当者でログインし直してください。';
+      return;
+    }
+    var caseId = buildCaseId();
+    if (!/^[A-Z]{2}-[A-Z]?\d+$/.test(caseId)) {
+      output.textContent = '上の案件番号を入力してください。検索ボタンは押さなくて大丈夫です。';
+      return;
+    }
+    var raw = localStorage.getItem(invoiceSubmissionKey_(caseId));
+    if (!raw) {
+      output.textContent = 'この担当者・案件の保存された受付番号はありません。発行した時と同じ端末・ブラウザか確認してください。';
+      return;
+    }
+    var pending = JSON.parse(raw), payload = pending && pending.payload;
+    if (!pending || pending.version !== 1 || pending.case_id !== caseId || !payload ||
+        payload.case_id !== caseId || payload.staff_id !== session.staffId ||
+        typeof payload.doc_submission_id !== 'string' ||
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(payload.doc_submission_id)) {
+      output.textContent = '保存された受付情報を確認できません。この画面を運営に見せてください。';
+      return;
+    }
+    output.textContent = payload.doc_submission_id;
+  } catch (e) {
+    output.textContent = '保存された受付情報を読み取れません。この画面を運営に見せてください。';
+  }
+}
+window.addEventListener('storage', function(event) {
+  if (event.key === 'ecopita_session' || event.key === null) {
+    document.getElementById('saved_receipt_number').textContent = '';
+  }
+});
+// END INVOICE_RECEIPT_DISPLAY
+
 // BEGIN INVOICE_SUBMISSION_CLIENT
+function invoiceSubmissionError_(message) {
+  var error = new Error(message);
+  error.userMessage = message;
+  return error;
+}
+
 function invoiceSubmissionKey_(caseId) {
   var staff = window.ECOPITA_SESSION ? window.ECOPITA_SESSION.staffId || '' : '';
   return 'ecopita_invoice_submission_v1:' + staff + ':' + caseId;
@@ -1018,10 +1079,10 @@ function invoiceSubmissionPrepare_(payload) {
   var raw = localStorage.getItem(invoiceSubmissionKey_(payload.case_id));
   if (raw) {
     var existing = JSON.parse(raw);
-    if (!existing || existing.case_id !== payload.case_id || !existing.payload || !/^[0-9a-f-]{36}$/i.test(existing.payload.doc_submission_id || '')) throw new Error('前回の請求書発行情報を確認できません。運営に連絡してください。');
+    if (!existing || existing.case_id !== payload.case_id || !existing.payload || !/^[0-9a-f-]{36}$/i.test(existing.payload.doc_submission_id || '')) throw invoiceSubmissionError_('前回の請求書発行情報を確認できません。運営に連絡してください。');
     return existing;
   }
-  if (!window.crypto || typeof window.crypto.randomUUID !== 'function') throw new Error('このブラウザでは安全な送信情報を作成できません。ブラウザを更新してください。');
+  if (!window.crypto || typeof window.crypto.randomUUID !== 'function') throw invoiceSubmissionError_('このブラウザでは安全な送信情報を作成できません。ブラウザを更新してください。');
   payload.doc_submission_id = window.crypto.randomUUID();
   return invoiceSubmissionSave_({ version: 1, case_id: payload.case_id, saved_at_ms: Date.now(), payload: payload, phase2_sent: false });
 }
@@ -1029,23 +1090,23 @@ function invoiceSubmissionPrepare_(payload) {
 async function invoiceSubmissionCheck_(pending) {
   if (!pending.phase2_sent && Date.now() - pending.saved_at_ms <= 48 * 60 * 60 * 1000) return;
   var response = await gasCall({ form_type: 'report_attachment_status', route: pending.payload.write_uriage === true ? 'doc_invoice' : 'issue', case_id: pending.case_id, client_submission_id: pending.payload.doc_submission_id, doc_submission_id: pending.payload.doc_submission_id }, { mode: 'lookup', url: GAS_URL });
-  if (!response || response.ok !== true) throw new Error('前回の請求書発行結果を確認できませんでした。もう一度お試しください。');
+  if (!response || response.ok !== true) throw invoiceSubmissionError_('前回の請求書発行結果を確認できませんでした。もう一度お試しください。');
   if (response.found === true && response.state === 'done') {
     invoiceSubmissionComplete_(pending);
-    throw new Error('前回の請求書発行は受け付け済みです。売上・添付処理は完了しています。');
+    throw invoiceSubmissionError_('前回の請求書発行は受け付け済みです。売上・添付処理は完了しています。');
   }
   if (response.found === true && response.can_retry === true) return;
   if(response.can_start_new===true && (response.found===false || response.found===true && response.state==='failed')) {
     invoiceSubmissionRestart_(pending,response.restart_after_ms);
-    throw new Error('前回の受付は売上書込み前に終了しています。入力を残して新しい受付を用意しました。もう一度発行ボタンを押してください。');
+    throw invoiceSubmissionError_('前回の受付は売上書込み前に終了しています。入力を残して新しい受付を用意しました。もう一度発行ボタンを押してください。');
   }
-  throw new Error('前回の請求書は処理中または確認が必要です。運営に連絡してください。');
+  throw invoiceSubmissionError_('前回の請求書は処理中または確認が必要です。運営に連絡してください。');
 }
 
 function invoiceSubmissionRestart_(pending,restartAfter) {
   var raw=localStorage.getItem(invoiceSubmissionKey_(pending.case_id)),current=raw?JSON.parse(raw):null;
-  if(!current || !current.payload || current.payload.doc_submission_id!==pending.payload.doc_submission_id)throw new Error('送信情報が変更されました。画面を開き直してください。');
-  if(!window.crypto || typeof window.crypto.randomUUID!=='function')throw new Error('このブラウザでは再送情報を用意できません。');
+  if(!current || !current.payload || current.payload.doc_submission_id!==pending.payload.doc_submission_id)throw invoiceSubmissionError_('送信情報が変更されました。画面を開き直してください。');
+  if(!window.crypto || typeof window.crypto.randomUUID!=='function')throw invoiceSubmissionError_('このブラウザでは再送情報を用意できません。');
   var next=JSON.parse(JSON.stringify(pending));
   next.payload.doc_submission_id=window.crypto.randomUUID();
   next.payload.doc_submission_after_ms=Math.max(Date.now(),Number(restartAfter)||0);
@@ -1083,6 +1144,7 @@ async function issueInvoice() {
   var transferName = document.getElementById('inv_transfer_name').value.trim();
 
   var btn = document.getElementById('btn_issue');
+  if (btn.disabled) return;
   btn.disabled = true; btn.textContent = '発行中...';
 
   var customer = getInvoiceCustomerFields();

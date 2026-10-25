@@ -333,7 +333,140 @@ thead th.num,thead th.num .sort-btn{justify-content:flex-end}
   </div>
 </div>
 
+<script>/* 1728: 影比較はこのブラウザで ?company_shadow=1 を開いたときだけ参加（?company_shadow=0 で外す） */(function(){try{var q=new URLSearchParams(location.search).get("company_shadow"),k="ecopita_company_shadow";if(q==="1")localStorage.setItem(k,"1");if(q==="0")localStorage.removeItem(k);if(localStorage.getItem(k)==="1")window.ECOPITA_COMPANY_SHADOW_CONFIG={mode:"shadow"};}catch(e){}})();</script>
 <script>
+/* COMPANY_SHADOW_CLIENT_V1_BEGIN: comparison only; no Cloud business value enters UI. */
+(function(root) {
+  'use strict';
+  var sections = ['period','kpi','ranking','cross_table','loss_detail','groups','koukoku_rieki_by_group','company_group_profit_basis'];
+  var version = 0, sequence = 0, pending = null, timer = null, expiryTimer = null, controller = null, lastResult = null, resultExpiry = 0, listening = false, attempted = false;
+  function exact(value, keys) {
+    return value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).sort().join('|') === keys.slice().sort().join('|');
+  }
+  function active() {
+    try {
+      if (!root.ECOPITA_COMPANY_SHADOW_CONFIG || root.ECOPITA_COMPANY_SHADOW_CONFIG.mode !== 'shadow' || root.ECOPITA_SITE_BLOCKED ||
+          !root.ECOPITA_SITE || root.ECOPITA_SITE.group !== 'main' || root.document.visibilityState === 'hidden' || root.location.protocol !== 'https:') return null;
+      var session = root.ECOPITA_SESSION, saved = JSON.parse(root.localStorage.getItem('ecopita_session') || 'null');
+      if (!session || !saved || !session.token || saved.token !== session.token || saved.staffId !== session.staffId ||
+          !/^\d{4}$/.test(session.staffId) || !(session.isAdmin === true || session.role === 'admin') ||
+          !(saved.isAdmin === true || saved.role === 'admin') || session.groupId && session.groupId !== 'main' || saved.groupId && saved.groupId !== 'main') return null;
+      if (session.expiresAt && !(Number(session.expiresAt) > Date.now()) || saved.expiresAt && !(Number(saved.expiresAt) > Date.now())) return null;
+      return session;
+    } catch (ignored) { return null; }
+  }
+  function clear() {
+    sequence++;
+    if (pending) { pending.body = ''; pending.token = ''; }
+    pending = null; lastResult = null; resultExpiry = 0;
+    if (timer !== null) root.clearTimeout(timer);
+    if (expiryTimer !== null) root.clearTimeout(expiryTimer);
+    timer = expiryTimer = null;
+    if (controller) { try { controller.abort(); } catch (ignored) {} }
+    controller = null;
+  }
+  function listen() {
+    if (listening) return;
+    listening = true;
+    root.addEventListener('pagehide', clear);
+    root.addEventListener('storage', function(e) { if (!e || e.key === null || e.key === 'ecopita_session') clear(); });
+    root.document.addEventListener('visibilitychange', function() { if (root.document.visibilityState === 'hidden') clear(); });
+    // The existing inline logout removes localStorage. Clear RAM before that handler.
+    root.document.addEventListener('click', function(e) { if (e.target && e.target.closest && e.target.closest('#ecopita-user-bar button')) clear(); }, true);
+  }
+  function start(payload, requestVersion) {
+    clear(); version = requestVersion; attempted = false;
+    var session = active();
+    if (!session || !payload || payload.action !== 'company_dashboard' || payload.group !== 'all' || payload.siteGroup || payload.token !== session.token) return;
+    listen(); payload.company_shadow_v = 1; payload.company_shadow_origin = root.location.origin;
+  }
+  function current(item) {
+    var session = active();
+    return !!(session && sequence === item.sequence && version === item.version && session.token === item.token &&
+      root.location.href === item.href && Date.now() < item.exp);
+  }
+  function carrier(raw, payload, requestVersion) {
+    var session = active();
+    if (!session || requestVersion !== version || payload.company_shadow_v !== 1 || payload.token !== session.token ||
+        !exact(raw,['v','mode','endpoint','ticket','context']) || raw.v !== 1 || raw.mode !== 'shadow' ||
+        !exact(raw.ticket,['payload','signature']) || typeof raw.ticket.payload !== 'string' || !/^[a-f0-9]{64}$/.test(raw.ticket.signature)) return null;
+    var endpoint = new URL(raw.endpoint);
+    if (typeof raw.endpoint !== 'string' || endpoint.protocol !== 'https:' || endpoint.pathname !== '/v1/company-dashboard-shadow' ||
+        endpoint.username || endpoint.password || endpoint.search || endpoint.hash || endpoint.href !== raw.endpoint) return null;
+    if (new TextEncoder().encode(raw.ticket.payload).length > 8192) return null;
+    var p = JSON.parse(raw.ticket.payload), now = Date.now();
+    if (!exact(p,['v','aud','iss','mode','site','staff_id','role','group','scope','session_ref','auth_version','observed_at','iat','exp','jti','origin','request','source','context_sha256','expected']) ||
+        p.v !== 1 || p.aud !== 'system-company-shadow-v1' || p.iss !== 'system-gas' || p.mode !== 'shadow' || p.site !== 'main' ||
+        p.staff_id !== session.staffId || p.role !== 'global_admin' || p.group !== 'all' || p.scope !== 'company_dashboard' || p.origin !== root.location.origin ||
+        !Number.isSafeInteger(p.observed_at) || !Number.isSafeInteger(p.iat) || !Number.isSafeInteger(p.exp) || p.observed_at < 0 ||
+        p.observed_at > p.iat || p.iat > now || now >= p.exp || p.exp > p.observed_at + 300000 ||
+        session.expiresAt && p.exp > Number(session.expiresAt) ||
+        !exact(p.request,['type','from','to','royalty_deduction','kameikin_included']) || p.request.type !== payload.period_type ||
+        p.request.from !== payload.start_date || p.request.to !== payload.end_date || !exact(p.expected,sections) ||
+        sections.some(function(key) { return typeof p.expected[key] !== 'string' || !/^[a-f0-9]{64}$/.test(p.expected[key]); })) return null;
+    if (!exact(raw.context,['v','ready','groups','staff_groups','member_index_sha256']) || raw.context.v !== 1 || typeof raw.context.ready !== 'boolean' ||
+        !Array.isArray(raw.context.groups) || raw.context.groups.length > 100 || !Array.isArray(raw.context.staff_groups) || raw.context.staff_groups.length > 5000 ||
+        raw.context.groups.some(function(g) { return !exact(g,['id','display_name']) || typeof g.display_name !== 'string' || !/^[a-z][a-z0-9_-]{0,63}$/.test(g.id); }) ||
+        raw.context.staff_groups.some(function(g) { return !exact(g,['staff_id','group_id']) || !/^\d{4}$/.test(g.staff_id) || !/^[a-z][a-z0-9_-]{0,63}$/.test(g.group_id); }) ||
+        (raw.context.ready ? !/^[a-f0-9]{64}$/.test(raw.context.member_index_sha256) : raw.context.member_index_sha256 !== null || raw.context.groups.length || raw.context.staff_groups.length)) return null;
+    var body = JSON.stringify({ticket:raw.ticket,context:raw.context});
+    if (new TextEncoder().encode(body).length > 131072) return null;
+    return {body:body,endpoint:endpoint.href,exp:p.exp,token:session.token,href:root.location.href,version:requestVersion,sequence:sequence};
+  }
+  function result(value) {
+    if (exact(value,['ok','mode','error_code']) && value.ok === false && value.mode === 'shadow' &&
+        ['disabled','unauthorized','request_invalid','deadline','source_unavailable','internal_error'].indexOf(value.error_code) >= 0) return value;
+    if (!exact(value,['ok','mode','full_status','reason','observed_section_matches','observed_section_diffs','unobserved_sections','source_bound','elapsed_ms']) ||
+        value.ok !== true || value.mode !== 'shadow' || typeof value.source_bound !== 'boolean' || !Number.isSafeInteger(value.elapsed_ms) || value.elapsed_ms < 0) return null;
+    var all = [];
+    for (var i=0;i<3;i++) {
+      var a=value[['observed_section_matches','observed_section_diffs','unobserved_sections'][i]];
+      if (!Array.isArray(a) || a.some(function(x) { return sections.indexOf(x) < 0; })) return null;
+      all=all.concat(a);
+    }
+    if (all.length !== sections.length || new Set(all).size !== sections.length) return null;
+    if (value.full_status === 'match') {
+      if (!value.source_bound || value.reason !== 'match' || value.observed_section_matches.length !== sections.length) return null;
+    } else if (value.full_status === 'mismatch') {
+      if (!value.source_bound || value.reason !== 'section_mismatch' || !value.observed_section_diffs.length || value.unobserved_sections.length) return null;
+    } else if (value.full_status === 'unobserved') {
+      if (value.source_bound ? value.reason !== 'projection_incomplete' || !value.unobserved_sections.length : value.reason !== 'source_unbound') return null;
+    } else return null;
+    return value;
+  }
+  function observe(response, payload, requestVersion) {
+    try {
+      if (!response || response.ok !== true || response.mode === 'group' || !response._company_shadow || pending || attempted) return;
+      var item=carrier(response._company_shadow,payload,requestVersion);
+      if (!item) return;
+      pending=item; attempted=true;
+      // Separate task after the existing render. No business promise waits for this.
+      timer=root.setTimeout(function() {
+        timer=null;
+        if (!current(item)) { if (sequence === item.sequence) clear(); return; }
+        if (typeof root.AbortController === 'function') controller=new root.AbortController();
+        expiryTimer=root.setTimeout(clear,Math.min(30000,item.exp-Date.now()));
+        var promise;
+        try { promise=root.fetch(item.endpoint,{method:'POST',mode:'cors',credentials:'omit',cache:'no-store',redirect:'error',referrerPolicy:'no-referrer',headers:{'Content-Type':'application/json'},body:item.body,signal:controller?controller.signal:undefined}); }
+        catch (ignored) { clear(); return; }
+        Promise.resolve(promise).then(function(res) {
+          if (!current(item) || !res || !res.ok) return null;
+          return res.text();
+        }).then(function(text) {
+          if (!current(item)) { if (sequence === item.sequence) clear(); return; }
+          if (typeof text === 'string' && text.length <= 4096) {
+            try { var safe=result(JSON.parse(text)); if (safe) { lastResult=JSON.parse(JSON.stringify(safe)); resultExpiry=item.exp; } } catch (ignored) {}
+          }
+          pending=null; controller=null;
+          if (expiryTimer !== null) root.clearTimeout(expiryTimer);
+          expiryTimer=null;
+        }).catch(function() { if (sequence === item.sequence) clear(); });
+      },0);
+    } catch (ignored) { clear(); }
+  }
+  root.ECOPITA_COMPANY_SHADOW={start:start,observe:observe,clear:clear,status:function(){if(!active() || lastResult && Date.now() >= resultExpiry){clear();return null;}return lastResult?JSON.parse(JSON.stringify(lastResult)):null;}};
+})(window);
+/* COMPANY_SHADOW_CLIENT_V1_END */
 var GAS_API_URL = 'https://script.google.com/macros/s/AKfycbyvjri6i0fe11hzfoqfhSxWCsn1aP2WyT9ELZOzNMrVyEOx-ZsKqlhJQONzlaFLmPw/exec';
 var SESSION = window.ECOPITA_SESSION || null;
 
@@ -1093,6 +1226,7 @@ async function loadDashboard_(interactionStartedAt) {
     group: isAdminSession_() ? (siteGroup_() || STATE.groupSelection || 'all') : '',
     ua: navigator.userAgent || ''
   };
+  try { window.ECOPITA_COMPANY_SHADOW.start(payload, requestVersion); } catch (ignored) {}
   var previousClientTiming = takePreviousDashboardClientTiming_();
   if (siteGroup_()) payload.siteGroup = siteGroup_();
   if (previousClientTiming) payload.previous_client_timing = previousClientTiming;
@@ -1141,6 +1275,7 @@ async function loadDashboard_(interactionStartedAt) {
     showState_('app');
     if (window.DashboardAnalytics) window.DashboardAnalytics.refresh(res, STATE);
     scheduleDashboardClientTiming_(requestVersion, requestStartedAt, fetchStartedAt, responseReceivedAt);
+    try { window.ECOPITA_COMPANY_SHADOW.observe(res, payload, requestVersion); } catch (ignored) {}
   } catch (err) {
     if (requestVersion !== STATE.dashboardRequestVersion) return;
     showState_('error', '読み込みに失敗しました', err.message || String(err));
@@ -1253,6 +1388,7 @@ function bindEvents_() {
 bindEvents_();
 loadDashboard_();
 </script>
+<script>/* 1728 試行: 参加中のブラウザだけ、影比較の前提の確認結果を右下に出す（金額・番号・鍵は出さない） */(function(){try{if(localStorage.getItem("ecopita_company_shadow")!=="1")return;}catch(e){return;}function ok(b){return b?"OK":"NG";}function check(){var r=[],s=window.ECOPITA_SESSION||null,v=null;try{v=JSON.parse(localStorage.getItem("ecopita_session")||"null");}catch(e){}var sel=document.getElementById("groupSelect");r.push("設定 "+ok(window.ECOPITA_COMPANY_SHADOW_CONFIG&&window.ECOPITA_COMPANY_SHADOW_CONFIG.mode==="shadow"));r.push("本体サイト "+ok(window.ECOPITA_SITE&&window.ECOPITA_SITE.group==="main"));r.push("ログイン "+ok(s&&v&&s.token&&v.token===s.token));r.push("管理者(画面) "+ok(s&&(s.isAdmin===true||s.role==="admin")));r.push("管理者(保存) "+ok(v&&(v.isAdmin===true||v.role==="admin")));r.push("所属 "+ok(!(s&&s.groupId&&s.groupId!=="main")&&!(v&&v.groupId&&v.groupId!=="main")));r.push("期限 "+ok(!(s&&s.expiresAt&&!(Number(s.expiresAt)>Date.now()))&&!(v&&v.expiresAt&&!(Number(v.expiresAt)>Date.now()))));r.push("全体を表示 "+ok(!sel||sel.style.display==="none"||sel.closest&&sel.closest("[style*='display: none']")||sel.value==="all"));var st=null;try{st=window.ECOPITA_COMPANY_SHADOW&&window.ECOPITA_COMPANY_SHADOW.status();}catch(e){}r.push("比較結果 "+(st?(st.full_status||"-")+" 一致"+(st.observed_section_matches||[]).length+" 差"+(st.observed_section_diffs||[]).length:"まだ"));var b=document.getElementById("ecoShadowBadge");if(!b){b=document.createElement("div");b.id="ecoShadowBadge";b.style.cssText="position:fixed;right:8px;bottom:8px;z-index:99999;background:#fff;border:1px solid #999;border-radius:6px;padding:6px 8px;font:12px/1.5 sans-serif;color:#333;max-width:90vw;box-shadow:0 1px 4px rgba(0,0,0,.2)";document.body.appendChild(b);}b.textContent="影比較の確認: "+r.join(" ／ ");}window.addEventListener("load",function(){check();setInterval(check,3000);});})();</script>
 <script src="./shared-nav.js"></script>
 </body>
 </html>

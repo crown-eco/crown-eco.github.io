@@ -219,6 +219,32 @@ function getRewardHidden_() {
 }
 
 var ALL_SCREENS = ['loadingScreen','mainScreen'];
+// Human fills the deployed facade URL here only. Empty means zero shadow sends.
+var PORTAL_SHADOW_URL = 'https://portal-shadow-mhfanijn6a-an.a.run.app/v1/shadow';
+var portalShadowSent_ = Object.create(null);
+function schedulePortalShadow_(ticket) {
+  try {
+    if (!PORTAL_SHADOW_URL || !/^https:\/\/[a-z0-9-]+(?:\.[a-z0-9-]+)*\.run\.app\/v1\/shadow$/.test(PORTAL_SHADOW_URL) ||
+        !ticket || typeof ticket.payload !== 'string' || typeof ticket.signature !== 'string' || !/^[0-9a-f]{64}$/.test(ticket.signature)) return;
+    var now = Date.now(), parsed = JSON.parse(ticket.payload);
+    if (!Number.isSafeInteger(parsed.exp) || parsed.exp <= now || parsed.exp - now > 120000) return;
+    Object.keys(portalShadowSent_).forEach(function(key) { if (portalShadowSent_[key] <= now) delete portalShadowSent_[key]; });
+    if (portalShadowSent_[ticket.signature] || Object.keys(portalShadowSent_).length >= 64) return;
+    portalShadowSent_[ticket.signature] = parsed.exp;
+    var body = JSON.stringify(ticket), endpoint = PORTAL_SHADOW_URL;
+    // Registered after ordinary finish(): its two frames finish before this task.
+    requestAnimationFrame(function() { requestAnimationFrame(function() { setTimeout(function() {
+      try {
+        if (document.hidden || Date.now() >= parsed.exp) return;
+        var controller = new AbortController(), timer = setTimeout(function() { controller.abort(); }, 25000);
+        Promise.resolve(fetch(endpoint, {method:'POST', headers:{'Content-Type':'application/json'},
+          body:body, credentials:'omit', cache:'no-store', redirect:'error', signal:controller.signal}))
+          .catch(function() {}).then(function() { clearTimeout(timer); });
+      } catch (ignored) {}
+    }, 0); }); });
+  } catch (ignored) {}
+}
+
 var F = { redirect: 'follow' }; // 全fetchに共通で渡すオプション
 
   
