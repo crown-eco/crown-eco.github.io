@@ -539,7 +539,7 @@ function renderGroupReward_(){
   if(!weeks.length){document.getElementById('summaryArea').innerHTML='';document.getElementById('weeksArea').innerHTML='<div class="empty-w">表示対象の下請けがありません</div>';return}
   function sum(key){var total=0;for(var i=0;i<weeks.length;i++){if(weeks[i][key]==null)return null;total+=weeks[i][key];}return total}
   var error=weeks.some(function(w){return w.rateError==='rate_total_exceeded'})?'rate_total_exceeded':weeks.some(function(w){return w.rateError==='masked_view'})?'masked_view':'rate_missing';
-  var split=[['本人の取り分','selfReward'],['吉田さん','yoshidaReward'],['Crown ロイヤリティ','crownReward'],[referrerLabel+'への配分','referralReward']];
+  var split=[['本人の取り分','selfReward'],[currentData.royaltyLabel||'ロイヤリティ','yoshidaReward'],[currentData.groupRoyaltyLabel||'グループロイヤリティ','crownReward'],[referrerLabel+'への配分','referralReward']];
   var summary=[['利益合計','profit']].concat(split,[[incomingLabel,'referralIncome'],['受取合計','transferAmount']]);
   document.getElementById('summaryArea').innerHTML=summary.map(function(x){return '<div class="scard"><div class="sl">'+esc(x[0])+'</div><div class="sv mono">'+groupRewardAmount_(sum(x[1]),error)+'</div></div>'}).join('');
   var html='<p style="margin-bottom:12px">'+esc(currentData.refName||viewStaffId)+'の報酬（閲覧のみ）</p>';

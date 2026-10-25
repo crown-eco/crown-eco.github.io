@@ -574,7 +574,7 @@ function renderGroupKpi_() {
     kpiCard_('売上金額', fmtMoney_(view.uriage_amount), '税込' + (Number(k.co_fee) ? ' / CO 差額' + suffix + ' ' + (Number(k.co_fee) > 0 ? '−' : '+') + fmtMoney_(Math.abs(Number(k.co_fee))) : ''), false, true),
     kpiCard_('広告費', fmtMoney_(view.ad_cost)),
     kpiCard_('経費' + suffix, fmtMoney_(k.keihi)),
-    kpiCard_('吉田さんロイヤリティ' + suffix, fmtMoney_(k.royalty_yoshida)),
+    kpiCard_((STATE.group&&STATE.group.royalty_label||'ロイヤリティ') + suffix, fmtMoney_(k.royalty_yoshida)),
     kpiCard_('手残り' + suffix, fmtMoney_(k.tenokori), '', true)
     // 失注件数のカードはグループの画面に出さない（麗香 2026-09-24「失注件数いらない」）。
   ].join('');
