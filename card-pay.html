@@ -37,7 +37,6 @@ input:focus{outline:2px solid var(--purple);outline-offset:2px}input:disabled{ba
       <div class="field"><label for="caseId">案件番号</label><input id="caseId" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="例：CP-12345"></div>
       <div id="paperField" class="field" hidden><label for="paperAmount">紙伝票の請求額（税込・円）</label><input id="paperAmount" type="text" inputmode="numeric" autocomplete="off" placeholder="例：10000" aria-describedby="paperHint"><p id="paperHint" class="hint">契約書がない案件（紙伝票）の金額を入力してください。</p></div>
       <div id="emailField" class="field" hidden><label for="manualEmail">送信先メールアドレス</label><input id="manualEmail" type="email" inputmode="email" autocomplete="email" placeholder="example@email.com" aria-describedby="emailHint"><p id="emailHint" class="hint">この案件に登録された宛先がないため、入力してください。</p></div>
-      <div id="selfTestField" class="field" hidden><label><input id="selfTest" type="checkbox" style="width:auto"> 自分宛てに試し送信</label><p class="hint">管理者用に設定された宛先へ送ります。金額はこの案件の請求額です。</p></div>
       <button class="btn secondary" id="reissueButton" type="button" hidden>送り直す</button>
       <button class="btn secondary" id="previewButton" type="submit">内容を確認</button>
     </form>
@@ -62,31 +61,28 @@ input:focus{outline:2px solid var(--purple);outline-offset:2px}input:disabled{ba
   'use strict';
   var endpoint = 'https://script.google.com/macros/s/AKfycbyvjri6i0fe11hzfoqfhSxWCsn1aP2WyT9ELZOzNMrVyEOx-ZsKqlhJQONzlaFLmPw/exec';
   var byId = function(id) { return document.getElementById(id); };
-  var caseInput = byId('caseId'), amountInput = byId('paperAmount'), emailInput = byId('manualEmail'), selfTest = byId('selfTest');
-  var busy = false, revision = 0, approved = null, entryState = 'allowed';
+  var caseInput = byId('caseId'), amountInput = byId('paperAmount'), emailInput = byId('manualEmail');
+  var busy = false, revision = 0, approved = null, entryState = 'allowed', autoEmail = '';
   var params = new URLSearchParams(location.search);
   var fromOrder = params.get('from') === 'order';
   caseInput.value = params.get('c') || params.get('case_id') || '';
 
 
   function sessionToken() { return window.ECOPITA_SESSION && window.ECOPITA_SESSION.token || ''; }
-  function values() { return { case_id: caseInput.value.trim(), paper_amount: amountInput.value.trim(), manual_email: emailInput.value.trim(), self_test: selfTest.checked === true }; }
-  function sameValues(left, right) { return left.case_id === right.case_id && left.paper_amount === right.paper_amount && left.manual_email === right.manual_email && left.self_test === right.self_test; }
+  function values() { return { case_id: caseInput.value.trim(), paper_amount: amountInput.value.trim(), manual_email: emailInput.value.trim() }; }
+  function sameValues(left, right) { return left.case_id === right.case_id && left.paper_amount === right.paper_amount && left.manual_email === right.manual_email; }
   function message(id, text, kind) {
     var el = byId(id);
     el.textContent = text || '';
     el.className = 'notice' + (kind ? ' ' + kind : '');
     el.hidden = !text;
   }
-  function selfTestAccess() {
-    var s=window.ECOPITA_SESSION;
-    var allowed=!!(s && (s.isAdmin === true || s.role === 'admin'));
-    byId('selfTestField').hidden=!allowed;
-    if(!allowed)selfTest.checked=false;
+  function emailHint() {
+    byId('emailHint').textContent = emailInput.value.trim() && emailInput.value.trim() !== autoEmail ? '書き換えた宛先に送ります。' :
+      autoEmail ? '案件の登録アドレスを入れています。違うときは書き換えてください。' : 'この案件に登録された宛先がないため、入力してください。';
   }
   function renderControls() {
-    caseInput.disabled = amountInput.disabled = emailInput.disabled = selfTest.disabled = busy;
-    selfTestAccess();
+    caseInput.disabled = amountInput.disabled = emailInput.disabled = busy;
     byId('previewButton').disabled = busy;
 
     byId('reissueButton').hidden = entryState !== 'existing';
@@ -102,7 +98,7 @@ input:focus{outline:2px solid var(--purple);outline-offset:2px}input:disabled{ba
     message('sendMessage', '');
     if (caseChanged) {
       entryState = 'allowed';
-      amountInput.value = emailInput.value = '';
+      amountInput.value = emailInput.value = autoEmail = '';
       byId('paperField').hidden = byId('emailField').hidden = true;
       message('formMessage', '');
 
@@ -118,7 +114,7 @@ input:focus{outline:2px solid var(--purple);outline-offset:2px}input:disabled{ba
     return input;
   }
   function call(formType, input, extra) {
-    var payload = { form_type: formType, case_id: input.case_id, sessionToken: sessionToken(), self_test: input.self_test };
+    var payload = { form_type: formType, case_id: input.case_id, sessionToken: sessionToken() };
     if (formType === 'card_pay_send') {
       payload.paper_amount = input.paper_amount;
       payload.manual_email = input.manual_email;
@@ -129,19 +125,18 @@ input:focus{outline:2px solid var(--purple);outline-offset:2px}input:disabled{ba
   function safeBusinessError(data) {
     if (data && data.reason === 'contract_not_card') return '契約書の支払い方法がクレジットカードではありません。契約書を出し直してください';
     if (data && data.reason === 'not_open') return 'この機能は準備中です';
-    if (data && data.reason === 'test_forbidden') return '試し送信は管理者だけ利用できます';
     if (data && data.reason === 'needs_reconfirm') return '送る内容が変わりました。もう一度「内容を確認」を押してください。';
     return data && typeof data.error === 'string' && data.error ? data.error : '確認できません。管理者に連絡してください。';
   }
   function validPreview(p, input) {
     return p && typeof p.case_id === 'string' && p.case_id === input.case_id &&
       (p.amount === null || typeof p.amount === 'number' && Number.isSafeInteger(p.amount) && p.amount > 0) &&
-      typeof p.email === 'string' && typeof p.invoice_no === 'string' &&
-      typeof p.paper === 'boolean' && typeof p.needs_email === 'boolean' && typeof p.ready === 'boolean' && p.self_test === input.self_test &&
+      typeof p.email === 'string' && typeof p.auto_email === 'string' && typeof p.invoice_no === 'string' &&
+      typeof p.paper === 'boolean' && typeof p.needs_email === 'boolean' && typeof p.ready === 'boolean' &&
       (!p.ready || p.amount !== null && !!p.email);
   }
   function validSentRecord(data) {
-    return data && data.sent_record && typeof data.sent_record.sent==='boolean' && typeof data.sent_record.sent_at_jst==='string' && (data.sent_record.sent || !data.sent_record.sent_at_jst);
+    return data && data.sent_record && typeof data.sent_record.sent==='boolean' && typeof data.sent_record.sent_at_jst==='string' && typeof data.sent_record.can_resend==='boolean' && ['not_sent','unpaid','expired','canceled','blocked'].indexOf(data.sent_record.resend_status)>=0 && (data.sent_record.sent || !data.sent_record.sent_at_jst && data.sent_record.resend_status==='not_sent' && !data.sent_record.can_resend) && (data.sent_record.can_resend === (data.sent_record.sent && ['unpaid','expired','canceled'].indexOf(data.sent_record.resend_status)>=0));
   }
   async function orderPreview(input, capturedRevision, capturedSession) {
     var deadline=Date.now()+60000, waiting='契約書の登録を待っています。少し待ってからもう一度開いてください';
@@ -171,12 +166,12 @@ input:focus{outline:2px solid var(--purple);outline-offset:2px}input:disabled{ba
     try {
       input = checkedInput();
       if (!byId('paperField').hidden && (!/^[1-9][0-9]*$/.test(input.paper_amount) || !Number.isSafeInteger(Number(input.paper_amount)) || Number(input.paper_amount) <= 0)) throw new Error('紙伝票の請求額を、1円以上の整数で入力してください。');
-      if (!input.self_test && !byId('emailField').hidden && (!input.manual_email || !emailInput.checkValidity())) throw new Error('送信先メールアドレスを入力してください。');
+      if (!byId('emailField').hidden && (!input.manual_email || !emailInput.checkValidity())) throw new Error('送信先メールアドレスを入力してください。');
     } catch (error) { message('formMessage', error.message, 'error'); renderControls(); return; }
     var capturedRevision = revision, capturedSession = sessionToken();
     busy = true;
     renderControls();
-    message('formMessage', '内容を確認しています…');
+    message('formMessage', '内容と支払い状況を確認しています…');
     try {
       var data = await (fromOrder ? orderPreview(input,capturedRevision,capturedSession) : call('card_pay_send', input, { action: 'preview' }));
       if (capturedRevision !== revision || capturedSession !== sessionToken() || !sameValues(input, values())) return;
@@ -186,15 +181,21 @@ input:focus{outline:2px solid var(--purple);outline-offset:2px}input:disabled{ba
       var p = data.preview;
       entryState = data.sent_record.sent ? 'existing' : 'allowed';
       byId('paperField').hidden = !p.paper;
-      byId('emailField').hidden = !p.needs_email;
+      byId('emailField').hidden = false;
+      autoEmail = p.auto_email;
+      emailInput.value = p.email;
+      input.manual_email = p.email;
+      emailHint();
       byId('previewCase').textContent = p.case_id;
       byId('previewAmount').textContent = p.amount === null ? '入力してください' : '¥' + p.amount.toLocaleString('ja-JP');
       byId('previewEmail').textContent = p.email || '入力してください';
       byId('previewInvoice').textContent = p.paper ? '紙伝票' : p.invoice_no;
       byId('previewCard').hidden = false;
-      if (p.ready && typeof data.preview_token === 'string' && data.preview_token) {
-        approved = { input: input, token: data.preview_token, session: capturedSession };
-        message('formMessage', data.sent_record.sent ? 'この案件はすでにカード払いのメールを送っています（' + (data.sent_record.sent_at_jst || '送信日時不明') + '）' : '送る内容を確認しました。');
+      if (data.sent_record.sent && !data.sent_record.can_resend) {
+        message('formMessage', '送り直せません。お支払い済みか確かめられませんでした。管理者に連絡してください。', 'error');
+      } else if (p.ready && typeof data.preview_token === 'string' && data.preview_token) {
+        approved = { input: input, token: data.preview_token, session: capturedSession, email: p.email };
+        message('formMessage', data.sent_record.sent ? (data.sent_record.resend_status==='unpaid'?'支払い前です。金額と宛先を確かめて送り直せます。':'前のリンクは使えなくなっています。送り直せます。') : '送る内容を確認しました。');
       } else if (p.ready) {
         message('formMessage', '内容を確認できません。管理者に連絡してください。', 'error');
       } else {
@@ -215,7 +216,7 @@ input:focus{outline:2px solid var(--purple);outline-offset:2px}input:disabled{ba
       var data = await call('card_pay_send', sending.input, { action: 'send', preview_token: sending.token });
       if (capturedRevision !== revision || sending.session !== sessionToken()) return;
       if (data && data.ok === true && data.status === 'sent' && typeof data.request_id === 'string' && data.request_id) {
-        message('sendMessage', sending.input.self_test ? '試し送信しました。管理者用に設定された宛先のメールをご確認ください。' : '送信しました。お客様のメールに支払い用のリンクが届きます。', 'success');
+        message('sendMessage', '送信しました。送信先: ' + sending.email + '。お客様のメールに支払い用のリンクが届きます。', 'success');
       } else {
         message('sendMessage', safeBusinessError(data), 'error');
       }
@@ -224,8 +225,7 @@ input:focus{outline:2px solid var(--purple);outline-offset:2px}input:disabled{ba
   }
   caseInput.addEventListener('input', function() { invalidate(true); });
   amountInput.addEventListener('input', function() { invalidate(false); });
-  emailInput.addEventListener('input', function() { invalidate(false); });
-  selfTest.addEventListener('change', function() { invalidate(false); });
+  emailInput.addEventListener('input', function() { emailHint(); invalidate(false); });
   byId('previewForm').addEventListener('submit', preview);
   byId('sendButton').addEventListener('click', send);
   byId('reissueButton').addEventListener('click', function() { if (busy || entryState !== 'existing') return;send(); });
