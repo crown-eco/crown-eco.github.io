@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
+<script src="form-direct-read.js"></script>
 <script src="./shared-site-config.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -417,7 +418,7 @@ async function loadData(caseId) {
   var screenTiming_ = window.ECOPITA_SCREEN_LATENCY ? window.ECOPITA_SCREEN_LATENCY.begin() : null;
   try {
   try {
-    var r = await gasCall(
+    var r = await formDirectGasRead(gasCall,
       { form_type: 'quote_lookup', case_id: caseId, report_id: paramReportId, p1_sf: 'p1_sf_v1' },
       {
         mode: 'lookup',

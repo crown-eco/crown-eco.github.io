@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
+<script src="form-direct-read.js"></script>
 <script src="./shared-site-config.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -197,7 +198,7 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
   <div id="step4" class="hidden">
     <div class="card">
       <div class="result-box">
-        <h2>✅ メール送信完了しました</h2>
+        <h2 id="receipt_done_title">✅ メール送信完了しました</h2>
         <p id="receipt_done_detail"></p>
       </div>
     </div>
@@ -539,7 +540,7 @@ async function searchReceipt() {
   btn.textContent = '検索中...';
 
   try {
-    var data = await gasCall(
+    var data = await formDirectGasRead(gasCall,
       { form_type: 'receipt_lookup', case_id: caseId, p1_sf: 'p1_sf_v1' },
       {
         mode: 'lookup',
@@ -800,7 +801,8 @@ async function issueReceipt() {
     document.getElementById('step2').classList.add('hidden');
     document.getElementById('step_preview').classList.add('hidden');
     document.getElementById('step4').classList.remove('hidden');
-    document.getElementById('receipt_done_detail').textContent = payload.email + ' に領収書を送信しました。';
+    document.getElementById('receipt_done_title').textContent = data.command ? '✅ 領収書を受け付けました' : '✅ メール送信完了しました';
+    document.getElementById('receipt_done_detail').textContent = data.command ? '領収書を受け付けました。PDFとメールの送信処理中です。' : payload.email + ' に領収書を送信しました。';
     window.scrollTo(0, 0);
 
     var asyncPayload = Object.assign({}, data, payload, { form_type: 'receipt_async' });

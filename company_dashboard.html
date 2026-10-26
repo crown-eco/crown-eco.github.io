@@ -257,6 +257,7 @@ thead th.num,thead th.num .sort-btn{justify-content:flex-end}
       </div>
 
       <div class="meta" id="periodMeta"></div>
+      <div class="meta" id="snapshotAsOf" hidden></div>
 
       <div class="kpi-grid" id="kpiGrid"></div>
 
@@ -338,8 +339,9 @@ thead th.num,thead th.num .sort-btn{justify-content:flex-end}
 /* COMPANY_SHADOW_CLIENT_V1_BEGIN: comparison only; no Cloud business value enters UI. */
 (function(root) {
   'use strict';
+  var revokeProof=null,revokeOutcome='none',revokeAttempt=0;
   var sections = ['period','kpi','ranking','cross_table','loss_detail','groups','koukoku_rieki_by_group','company_group_profit_basis'];
-  var version = 0, sequence = 0, pending = null, timer = null, expiryTimer = null, controller = null, lastResult = null, resultExpiry = 0, listening = false, attempted = false;
+  var version = 0, sequence = 0, pending = null, timer = null, expiryTimer = null, controller = null, lastResult = null, resultExpiry = 0, listening = false, attempted = false, refreshTimer = null, renewal = null;
   function exact(value, keys) {
     return value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).sort().join('|') === keys.slice().sort().join('|');
   }
@@ -356,8 +358,13 @@ thead th.num,thead th.num .sort-btn{justify-content:flex-end}
     } catch (ignored) { return null; }
   }
   function clear() {
+    revokeProof=null;
     sequence++;
     if (pending) { pending.body = ''; pending.token = ''; }
+    if (renewal) { renewal.item.body = ''; renewal.item.token = ''; renewal.payload.token = ''; }
+    renewal = null;
+    if (refreshTimer !== null) root.clearTimeout(refreshTimer);
+    refreshTimer = null;
     pending = null; lastResult = null; resultExpiry = 0;
     if (timer !== null) root.clearTimeout(timer);
     if (expiryTimer !== null) root.clearTimeout(expiryTimer);
@@ -372,7 +379,7 @@ thead th.num,thead th.num .sort-btn{justify-content:flex-end}
     root.addEventListener('storage', function(e) { if (!e || e.key === null || e.key === 'ecopita_session') clear(); });
     root.document.addEventListener('visibilitychange', function() { if (root.document.visibilityState === 'hidden') clear(); });
     // The existing inline logout removes localStorage. Clear RAM before that handler.
-    root.document.addEventListener('click', function(e) { if (e.target && e.target.closest && e.target.closest('#ecopita-user-bar button')) clear(); }, true);
+    root.document.addEventListener('click', function(e) { if (e.target && e.target.closest && e.target.closest('#ecopita-user-bar button')) { var proof=revokeProof;clear();dispatchRevoke(proof); } }, true);
   }
   function start(payload, requestVersion) {
     clear(); version = requestVersion; attempted = false;
@@ -388,7 +395,7 @@ thead th.num,thead th.num .sort-btn{justify-content:flex-end}
   function carrier(raw, payload, requestVersion) {
     var session = active();
     if (!session || requestVersion !== version || payload.company_shadow_v !== 1 || payload.token !== session.token ||
-        !exact(raw,['v','mode','endpoint','ticket','context']) || raw.v !== 1 || raw.mode !== 'shadow' ||
+        !(exact(raw,['v','mode','endpoint','ticket','context']) || exact(raw,['v','mode','endpoint','ticket','context','revoke'])) || raw.v !== 1 || raw.mode !== 'shadow' ||
         !exact(raw.ticket,['payload','signature']) || typeof raw.ticket.payload !== 'string' || !/^[a-f0-9]{64}$/.test(raw.ticket.signature)) return null;
     var endpoint = new URL(raw.endpoint);
     if (typeof raw.endpoint !== 'string' || endpoint.protocol !== 'https:' || endpoint.pathname !== '/v1/company-dashboard-shadow' ||
@@ -411,12 +418,52 @@ thead th.num,thead th.num .sort-btn{justify-content:flex-end}
         (raw.context.ready ? !/^[a-f0-9]{64}$/.test(raw.context.member_index_sha256) : raw.context.member_index_sha256 !== null || raw.context.groups.length || raw.context.staff_groups.length)) return null;
     var body = JSON.stringify({ticket:raw.ticket,context:raw.context});
     if (new TextEncoder().encode(body).length > 131072) return null;
-    return {body:body,endpoint:endpoint.href,exp:p.exp,token:session.token,href:root.location.href,version:requestVersion,sequence:sequence};
+    if(raw.revoke)acceptRevoke(raw.revoke,p,endpoint,session);
+    return {body:body,endpoint:endpoint.href,exp:p.exp,observedAt:p.observed_at,token:session.token,href:root.location.href,version:requestVersion,sequence:sequence};
   }
+  function acceptRevoke(cap,p,endpoint,session) {
+    revokeProof=null;
+    try {
+      if(!exact(cap,['payload','signature'])||typeof cap.payload!=='string'||new TextEncoder().encode(cap.payload).length>2048||!/^[0-9a-f]{64}$/.test(cap.signature))return;
+      var r=JSON.parse(cap.payload);
+      if(!exact(r,['v','aud','iss','site','role','staff_id','session_ref','observed_at','iat','exp','origin','jti'])||r.v!==1||r.aud!=='system-company-revoke-v1'||
+         ['iss','site','role','staff_id','session_ref','observed_at','iat','exp','origin','jti'].some(function(k){return r[k]!==p[k];}))return;
+      revokeProof={capability:cap,endpoint:endpoint.origin+'/v1/company-session-revoke',exp:r.exp,requestId:r.jti,token:session.token,staff:session.staffId};
+    } catch(ignored) {}
+  }
+  // Independent from the display request. Never await this in the existing logout handler.
+  function dispatchRevoke(proof) {
+    var attempt=++revokeAttempt;
+    revokeOutcome='unknown';
+    try {
+      var saved=JSON.parse(root.localStorage.getItem('ecopita_session')||'null');
+      if(!proof||!saved||saved.token!==proof.token||saved.staffId!==proof.staff||Date.now()>=proof.exp||typeof root.fetch!=='function')return;
+      proof.token='';
+      function send(action) {
+        if(attempt!==revokeAttempt)return Promise.reject(new Error('superseded'));
+        if(Date.now()>=proof.exp)return Promise.reject(new Error('expired'));
+        var body=JSON.stringify({v:1,action:action,capability:proof.capability});
+        if(new TextEncoder().encode(body).length>4096)return Promise.reject(new Error('size'));
+        return root.fetch(proof.endpoint,{method:'POST',mode:'cors',credentials:'omit',cache:'no-store',redirect:'error',referrerPolicy:'no-referrer',keepalive:true,headers:{'Content-Type':'application/json'},body:body}).then(function(response){
+          if(!response||!response.ok)throw new Error('unknown');
+          return response.text();
+        }).then(function(text){
+          if(typeof text!=='string'||text.length>2048||Date.now()>=proof.exp)throw new Error('unknown');
+          var ack=JSON.parse(text);
+          if(!exact(ack,['ok','mode','state','request_id','accepted_at','deny_until'])||ack.ok!==true||ack.mode!=='revoke'||ack.state!=='committed'||ack.request_id!==proof.requestId||
+             !Number.isSafeInteger(ack.accepted_at)||!Number.isSafeInteger(ack.deny_until)||ack.accepted_at<=0||ack.accepted_at>Date.now()||ack.deny_until!==ack.accepted_at+300000||Date.now()>=ack.deny_until)throw new Error('unknown');
+          if(attempt===revokeAttempt)revokeOutcome='committed';
+        });
+      }
+      // At most one readback; never infer success from sendBeacon/keepalive acceptance.
+      send('revoke').catch(function(){if(attempt===revokeAttempt)return send('readback');}).catch(function(){if(attempt===revokeAttempt)revokeOutcome='unknown';});
+    } catch(ignored) {if(attempt===revokeAttempt)revokeOutcome='unknown';}
+  }
+
   function result(value) {
     if (exact(value,['ok','mode','error_code']) && value.ok === false && value.mode === 'shadow' &&
         ['disabled','unauthorized','request_invalid','deadline','source_unavailable','internal_error'].indexOf(value.error_code) >= 0) return value;
-    if (!exact(value,['ok','mode','full_status','reason','observed_section_matches','observed_section_diffs','unobserved_sections','source_bound','elapsed_ms']) ||
+    if (!(exact(value,['ok','mode','full_status','reason','observed_section_matches','observed_section_diffs','unobserved_sections','source_bound','elapsed_ms']) || exact(value,['ok','mode','full_status','reason','observed_section_matches','observed_section_diffs','unobserved_sections','source_bound','elapsed_ms','direct_contract_hash']) && /^[a-f0-9]{64}$/.test(value.direct_contract_hash)) ||
         value.ok !== true || value.mode !== 'shadow' || typeof value.source_bound !== 'boolean' || !Number.isSafeInteger(value.elapsed_ms) || value.elapsed_ms < 0) return null;
     var all = [];
     for (var i=0;i<3;i++) {
@@ -434,6 +481,48 @@ thead th.num,thead th.num .sort-btn{justify-content:flex-end}
     } else return null;
     return value;
   }
+  function scheduleRefresh(item,payload) {
+    if (!current(item) || refreshTimer !== null || renewal) return;
+    var delay=item.exp-Date.now()-90000;
+    // A short or replayed carrier cannot cause a tight renewal loop.
+    if (delay < 30000) return;
+    var next={action:'company_dashboard_shadow_refresh',token:item.token,group:'all',period_type:payload.period_type,
+      start_date:payload.start_date,end_date:payload.end_date,company_shadow_v:1,company_shadow_origin:root.location.origin};
+    renewal={item:item,payload:next};
+    refreshTimer=root.setTimeout(function() {
+      refreshTimer=null;
+      if (!current(item) || !renewal || renewal.item!==item) { if(sequence===item.sequence)clear();return; }
+      try {
+        var endpoint=new URL(root.GAS_API_URL);
+        if(endpoint.protocol!=='https:' || endpoint.hostname!=='script.google.com' || !/^\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(endpoint.pathname) ||
+            endpoint.username || endpoint.password || endpoint.search || endpoint.hash || typeof root.AbortController!=='function') {clear();return;}
+        controller=new root.AbortController();
+        expiryTimer=root.setTimeout(clear,Math.min(30000,item.exp-Date.now()));
+        var encoded=root.btoa(unescape(encodeURIComponent(JSON.stringify(next))));
+        // Existing first-party GAS authentication contract, one attempt and no UI status/retry hooks.
+        var promise=root.fetch(endpoint.href+'?_portal_data='+encodeURIComponent(encoded),{method:'GET',redirect:'follow',credentials:'omit',cache:'no-store',referrerPolicy:'no-referrer',signal:controller.signal});
+        Promise.resolve(promise).then(function(res) {
+          if (!current(item) || !res || !res.ok) return null;
+          return res.text();
+        }).then(function(text) {
+          if (!current(item) || !renewal || renewal.item!==item) {if(sequence===item.sequence)clear();return;}
+          var response,updated;
+          try {
+            if(typeof text!=='string'||text.length>140000)throw Error('invalid');
+            response=JSON.parse(text);
+            if(!exact(response,['ok','_company_shadow'])||response.ok!==true)throw Error('invalid');
+            updated=carrier(response._company_shadow,next,item.version);
+            if(!updated||updated.exp<=item.exp||updated.observedAt<=item.observedAt)throw Error('invalid');
+          } catch(ignored) {clear();return;}
+          if(expiryTimer!==null)root.clearTimeout(expiryTimer);
+          expiryTimer=null;controller=null;renewal=null;lastResult=null;resultExpiry=0;attempted=false;
+          item.body='';item.token='';
+          observe(response,next,item.version);
+        }).catch(function(){if(sequence===item.sequence)clear();});
+      } catch(ignored) {if(sequence===item.sequence)clear();}
+    },delay);
+  }
+
   function observe(response, payload, requestVersion) {
     try {
       if (!response || response.ok !== true || response.mode === 'group' || !response._company_shadow || pending || attempted) return;
@@ -460,13 +549,52 @@ thead th.num,thead th.num .sort-btn{justify-content:flex-end}
           pending=null; controller=null;
           if (expiryTimer !== null) root.clearTimeout(expiryTimer);
           expiryTimer=null;
+          if (lastResult && lastResult.ok === true) scheduleRefresh(item,payload);
         }).catch(function() { if (sequence === item.sequence) clear(); });
       },0);
     } catch (ignored) { clear(); }
   }
-  root.ECOPITA_COMPANY_SHADOW={start:start,observe:observe,clear:clear,status:function(){if(!active() || lastResult && Date.now() >= resultExpiry){clear();return null;}return lastResult?JSON.parse(JSON.stringify(lastResult)):null;}};
+  root.ECOPITA_COMPANY_SHADOW={start:start,observe:observe,clear:clear,directRevoke:function(cap,p,url,session){listen();acceptRevoke(cap,p,url,session);},revokeStatus:function(){return revokeOutcome;},status:function(){if(!active() || lastResult && Date.now() >= resultExpiry){clear();return null;}return lastResult?JSON.parse(JSON.stringify(lastResult)):null;}};
 })(window);
 /* COMPANY_SHADOW_CLIENT_V1_END */
+/* COMPANY_DIRECT_CLIENT_V1_BEGIN */
+(function(root){
+  'use strict';
+  var keys=['period','kpi','ranking','cross_table','loss_detail','groups','koukoku_rieki_by_group','company_group_profit_basis'];
+  function exact(v,k){return v&&typeof v==='object'&&!Array.isArray(v)&&Object.keys(v).sort().join('|')===k.slice().sort().join('|');}
+  function session(){try{var s=root.ECOPITA_SESSION,t=JSON.parse(root.localStorage.getItem('ecopita_session')||'null');return s&&t&&s.token&&s.token===t.token&&s.staffId===t.staffId&&(s.isAdmin===true||s.role==='admin')&&(t.isAdmin===true||t.role==='admin')&&(!s.groupId||s.groupId==='main')&&(!t.groupId||t.groupId==='main')&&(!s.expiresAt||Number(s.expiresAt)>Date.now())&&(!t.expiresAt||Number(t.expiresAt)>Date.now())?s:null;}catch(_){return null;}}
+  async function load(payload,request,isCurrent){
+    var s=session(),token=s&&s.token,href=root.location.href;
+    var eligible=!!s&&root.ECOPITA_SITE&&root.ECOPITA_SITE.group==='main'&&!root.ECOPITA_SITE_BLOCKED&&root.location.protocol==='https:'&&root.document.visibilityState!=='hidden'&&payload.group==='all'&&!payload.siteGroup&&payload.token===token;
+    var input=Object.assign({},payload);if(eligible){input.company_direct_v=1;input.company_direct_origin=root.location.origin;}
+    var response=await request(input);if(!response||!response._company_direct)return response;
+    function current(exp){var fresh=session();return eligible&&isCurrent()&&fresh&&fresh.token===token&&root.location.href===href&&root.document.visibilityState!=='hidden'&&Date.now()<exp;}
+    var exp=Infinity;
+    try{
+      var c=response._company_direct;
+      if(!exact(c,['v','mode','endpoint','ticket','context','revoke'])||c.v!==1||c.mode!=='direct'||!exact(c.ticket,['payload','signature'])||typeof c.ticket.payload!=='string'||c.ticket.payload.length>8192||!/^[a-f0-9]{64}$/.test(c.ticket.signature))throw Error('direct_unavailable');
+      var url=new URL(c.endpoint),p=JSON.parse(c.ticket.payload);exp=p.exp;
+      if(url.protocol!=='https:'||url.pathname!=='/v1/company-dashboard-shadow'||url.username||url.password||url.search||url.hash||url.href!==c.endpoint||!exact(p,['v','aud','iss','mode','site','staff_id','role','group','scope','session_ref','auth_version','observed_at','iat','exp','jti','origin','request','context_sha256','purpose','reader','contract','contract_hash'])||p.v!==1||p.aud!=='system-company-direct-v1'||p.mode!=='direct'||p.iss!=='system-gas'||p.site!=='main'||p.role!=='global_admin'||p.group!=='all'||p.scope!=='company_dashboard'||p.staff_id!==s.staffId||p.purpose!=='display'||p.contract!=='company-eight-v1'||p.origin!==root.location.origin||!Number.isSafeInteger(exp)||!Number.isSafeInteger(p.iat)||!Number.isSafeInteger(p.observed_at)||p.observed_at>p.iat||p.iat>Date.now()||exp>p.observed_at+300000||exp-Date.now()<120000||!exact(p.request,['type','from','to','royalty_deduction','kameikin_included'])||p.request.type!==payload.period_type||p.request.from!==payload.start_date||p.request.to!==payload.end_date||!current(exp))throw Error('direct_unavailable');
+      var body=JSON.stringify({mode:'direct',ticket:c.ticket,context:c.context});if(new TextEncoder().encode(body).length>131072)throw Error('direct_unavailable');
+      // Existing logout delivery and ACK tracking are shared; raw token remains browser RAM only.
+      root.ECOPITA_COMPANY_SHADOW.directRevoke(c.revoke,p,url,s);
+      var controller=new root.AbortController(),timer=root.setTimeout(function(){controller.abort();},Math.min(15000,exp-Date.now()));
+      var text;
+      try{var result=await root.fetch(url.href,{method:'POST',mode:'cors',credentials:'omit',cache:'no-store',redirect:'error',referrerPolicy:'no-referrer',headers:{'Content-Type':'application/json'},body:body,signal:controller.signal});if(!result||!result.ok)throw Error('direct_unavailable');text=await result.text();}finally{root.clearTimeout(timer);}
+      if(!current(exp)||typeof text!=='string'||text.length>4000000)throw Error('direct_unavailable');var value=JSON.parse(text);
+      if(!exact(value,['ok','source_bound','durable_revoke','contract','elapsed_ms','mode','request_ref','context_sha256','dto'])||value.ok!==true||value.mode!=='direct'||value.source_bound!==true||value.durable_revoke!==true||value.contract!==p.contract||value.request_ref!==p.jti||value.context_sha256!==p.context_sha256||!value.dto||value.dto.ok!==true||!exact(value.dto,keys.concat(['ok','built_at'],p.request.kameikin_included?['kameikin_included']:[]))||value.dto.period.type!==p.request.type||value.dto.period.start!==p.request.from||value.dto.period.end!==p.request.to)throw Error('direct_unavailable');
+      return value.dto;
+    }catch(_){
+      // Once only. Superseded, hidden, logged-out or replaced sessions never launch another request.
+      if(!current(Infinity))throw Error('表示の認証が更新されました。再読み込みしてください。');
+      var fallback=Object.assign({},payload,{company_direct_v:1,company_direct_origin:root.location.origin,company_direct_fallback:true});
+      return request(fallback);
+    }
+  }
+  root.ECOPITA_COMPANY_DIRECT={load:load};
+})(window);
+/* COMPANY_DIRECT_CLIENT_V1_END */
+
 var GAS_API_URL = 'https://script.google.com/macros/s/AKfycbyvjri6i0fe11hzfoqfhSxWCsn1aP2WyT9ELZOzNMrVyEOx-ZsKqlhJQONzlaFLmPw/exec';
 var SESSION = window.ECOPITA_SESSION || null;
 
@@ -718,7 +846,28 @@ function scheduleDashboardClientTiming_(requestVersion, interactionStartedAt, fe
   });
 }
 
+// Snapshot time belongs only to the adopted current_db response.
+function renderSnapshotAsOf_(data) {
+  var el = document.getElementById('snapshotAsOf');
+  if (!el) return;
+  el.textContent = ''; el.hidden = true;
+  if (!data || data.read_source !== 'current_db' || data.mode === 'group' || data.groupReward) return;
+  var value = data.snapshot_as_of;
+  if (typeof value !== 'string') return;
+  var m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,3})?(Z|[+-]\d{2}:\d{2})$/.exec(value);
+  if (!m) return;
+  var year = +m[1], month = +m[2], day = +m[3];
+  var days = [31, year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0) ? 29 : 28, 31,30,31,30,31,31,30,31,30,31];
+  if (month < 1 || month > 12 || day < 1 || day > days[month - 1] || +m[4] > 23 || +m[5] > 59 || +m[6] > 59) return;
+  if (m[7] !== 'Z' && (+m[7].slice(1,3) > 23 || +m[7].slice(4,6) > 59)) return;
+  var date = new Date(value);
+  if (!isFinite(date.getTime())) return;
+  el.textContent = new Intl.DateTimeFormat('en-GB', {timeZone:'Asia/Tokyo', hour:'2-digit', minute:'2-digit', hourCycle:'h23'}).format(date) + '時点の数字';
+  el.hidden = false;
+}
+
 function showState_(mode, title, text) {
+  if (mode !== 'app') renderSnapshotAsOf_(null);
   document.getElementById('loadingState').style.display = mode === 'loading' ? '' : 'none';
   document.getElementById('errorState').style.display = mode === 'error' ? '' : 'none';
   document.getElementById('app').style.display = mode === 'app' ? '' : 'none';
@@ -1206,6 +1355,7 @@ function reloadDashboard_(interactionStartedAt) {
 }
 
 async function loadDashboard_(interactionStartedAt) {
+  renderSnapshotAsOf_(null);
   if (window.ECOPITA_SITE_BLOCKED) return;
   if (SESSION && !canUseDashboard_()) {
     location.replace(window.ECOPITA_SITE.baseUrl + '/portal.html');
@@ -1232,7 +1382,7 @@ async function loadDashboard_(interactionStartedAt) {
   if (previousClientTiming) payload.previous_client_timing = previousClientTiming;
   var fetchStartedAt = dashboardPerformanceNow_();
   try {
-    var res = await callApi_(payload);
+    var res = await window.ECOPITA_COMPANY_DIRECT.load(payload,callApi_,function(){return requestVersion===STATE.dashboardRequestVersion;});
     var responseReceivedAt = dashboardPerformanceNow_();
     if (requestVersion !== STATE.dashboardRequestVersion) return;
     if (!res || !res.ok) {
@@ -1273,6 +1423,7 @@ async function loadDashboard_(interactionStartedAt) {
     if (!isGroupDashboard_()) renderCrossTable_();
     showTabView_(STATE.viewTab);
     showState_('app');
+    renderSnapshotAsOf_(res);
     if (window.DashboardAnalytics) window.DashboardAnalytics.refresh(res, STATE);
     scheduleDashboardClientTiming_(requestVersion, requestStartedAt, fetchStartedAt, responseReceivedAt);
     try { window.ECOPITA_COMPANY_SHADOW.observe(res, payload, requestVersion); } catch (ignored) {}
@@ -1306,6 +1457,7 @@ function bindEvents_() {
   baseInput.value = STATE.baseDate;
   updateBaseDateDow_();
   baseInput.addEventListener('change', function() {
+    renderSnapshotAsOf_(null);
     STATE.baseDate = this.value || todayKey_();
     updateBaseDateDow_();
   });
@@ -1321,6 +1473,7 @@ function bindEvents_() {
 
   document.querySelectorAll('[data-period]').forEach(function(btn) {
     btn.addEventListener('click', function() {
+      renderSnapshotAsOf_(null);
       STATE.periodType = this.getAttribute('data-period');
       document.querySelectorAll('[data-period]').forEach(function(other) {
         other.classList.toggle('active', other === btn);

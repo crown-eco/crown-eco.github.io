@@ -140,6 +140,7 @@ table{width:100%;border-collapse:collapse;font-size:.88rem;table-layout:fixed}th
   </div>
   <div class="tabs" id="tabBar"></div>
   <div id="groupRateWarning" role="alert" style="display:none;background:#b71c1c;color:#fff;padding:12px;margin-bottom:12px;border-radius:10px;white-space:pre-line"></div>
+  <div id="snapshotAsOf" hidden style="font-size:12px;color:var(--muted);margin:8px 0"></div>
   <div class="summary" id="summaryArea"></div>
   <div id="weeksArea"></div>
   <p class="app-err" id="appErr"></p>
@@ -170,7 +171,28 @@ var _totpPassToken='', _totpStaffId='', _totpMode='', _totpDisplayName='', _coun
 // ================================================================
 // 画面切り替え
 // ================================================================
+// Snapshot time belongs only to the adopted current_db response.
+function renderSnapshotAsOf_(data) {
+  var el = document.getElementById('snapshotAsOf');
+  if (!el) return;
+  el.textContent = ''; el.hidden = true;
+  if (!data || data.read_source !== 'current_db' || data.mode === 'group' || data.groupReward) return;
+  var value = data.snapshot_as_of;
+  if (typeof value !== 'string') return;
+  var m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,3})?(Z|[+-]\d{2}:\d{2})$/.exec(value);
+  if (!m) return;
+  var year = +m[1], month = +m[2], day = +m[3];
+  var days = [31, year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0) ? 29 : 28, 31,30,31,30,31,31,30,31,30,31];
+  if (month < 1 || month > 12 || day < 1 || day > days[month - 1] || +m[4] > 23 || +m[5] > 59 || +m[6] > 59) return;
+  if (m[7] !== 'Z' && (+m[7].slice(1,3) > 23 || +m[7].slice(4,6) > 59)) return;
+  var date = new Date(value);
+  if (!isFinite(date.getTime())) return;
+  el.textContent = new Intl.DateTimeFormat('en-GB', {timeZone:'Asia/Tokyo', hour:'2-digit', minute:'2-digit', hourCycle:'h23'}).format(date) + '時点の数字';
+  el.hidden = false;
+}
+
 function showScreen_(id) {
+  if(id!=='appView')renderSnapshotAsOf_(null);
   ['loginView','screen-lw-otc','screen-qr','screen-totp','appView'].forEach(function(s){
     var el=document.getElementById(s);
     if(!el)return;
@@ -404,6 +426,7 @@ async function reload(){
     if(s!==latest)return;document.getElementById('loading').classList.remove('on');setBusy(false);
     if(!r||!r.ok){handleErr(r&&r.error);return}
     currentData.weeks=r.weeks;currentData.referrees=r.referrees;currentData.referralReward=r.referralReward;currentData.careerReward=r.careerReward||null;
+    currentData.read_source=r.read_source;currentData.snapshot_as_of=r.snapshot_as_of;
     if(r.groupReward)currentData=r;
     if(r.viewStaffId)viewStaffId=r.viewStaffId;
     updatePreviewControls(r);
@@ -428,11 +451,13 @@ async function loadReferreeDetail(refId){
     updatePreviewControls(r);
     document.getElementById('summaryArea').innerHTML='<div class="scard" style="grid-column:1/-1"><div class="sl">被紹介者</div><div class="sv">'+esc(r.refName)+'の明細</div></div>';
     document.getElementById('weeksArea').innerHTML=r.weeks?renderWeeksHTML(r.weeks,true,null):'<div class="empty-w">データなし</div>';
+    renderSnapshotAsOf_(window.ECOPITA_SITE.group==='main' && activeTab==='detail_'+refId ? r : null);
   }catch(e){if(s!==latest)return;document.getElementById('loading').classList.remove('on');setBusy(false);handleErr(e.message)}
 }
 
 async function doLogout(){
   if(busy)return;
+  renderSnapshotAsOf_(null);
   try{await callApi({action:'logout',sessionToken:token,ua:ua})}catch(e){}
   localStorage.removeItem('ecopita_session');
   location.href=window.ECOPITA_SITE.baseUrl + '/login.html';
@@ -447,7 +472,7 @@ function colorVal(n){if(n<0)return'<span class="neg mono">'+yen(n)+'</span>';if(
 function colorCls(n){return n<0?'neg':n>0?'pos':''}
 function paymentChipClass(method){if(method==='振込')return'transfer';if(method==='クレカ')return'card';if(method==='現金')return'cash';return'other'}
 function renderPaymentBreakdown(payments){var items=(payments||[]).filter(function(p){return Number(p&&p.amount||0)!==0});if(!items.length)return'';var html='<div class="payment-breakdown"><div class="payment-title">支払い内訳</div><div class="payment-chips">';items.forEach(function(p){html+='<span class="payment-chip '+paymentChipClass(p.method)+'"><span>'+esc(p.method||'その他')+'</span><span class="mono">'+yen(p.amount)+'</span></span>'});return html+'</div></div>'}
-function setBusy(f){busy=!!f;['loginBtn','dateBtn'].forEach(function(id){var e=document.getElementById(id);if(e)e.disabled=!!f})}
+function setBusy(f){busy=!!f;if(f)renderSnapshotAsOf_(null);['loginBtn','dateBtn'].forEach(function(id){var e=document.getElementById(id);if(e)e.disabled=!!f})}
 function updatePreviewControls(r){
   var box=document.getElementById('previewSelect'),sel=document.getElementById('previewAsSelect'),badge=document.getElementById('previewBadge');
   if(!box||!sel)return;
@@ -471,10 +496,11 @@ function buildTabs(){var bar=document.getElementById('tabBar');bar.innerHTML='';
   activateTab('own')}
 
 function mkTab(id,label){var b=document.createElement('button');b.className='tab';b.textContent=label;b.dataset.tab=id;b.onclick=function(){activateTab(id)};return b}
-function activateTab(id){activeTab=id;document.querySelectorAll('.tab').forEach(function(t){t.classList.toggle('active',t.dataset.tab===id)});
+function activateTab(id){renderSnapshotAsOf_(null);activeTab=id;document.querySelectorAll('.tab').forEach(function(t){t.classList.toggle('active',t.dataset.tab===id)});
   if(id==='own')renderOwn();else if(id.indexOf('detail_')===0)loadReferreeDetail(id.replace('detail_',''))}
 
 function renderOwn(){
+  renderSnapshotAsOf_(!busy && window.ECOPITA_SITE.group==='main' && currentData && currentData.weeks ? currentData : null);
   if(currentData&&currentData.groupReward){renderGroupReward_();return}
   if(!currentData||!currentData.weeks){document.getElementById('weeksArea').innerHTML='<div class="empty-w">データがありません</div>';document.getElementById('summaryArea').innerHTML='';return}
   var weeks=currentData.weeks,tT=0,tS=0,tA=0,tR=0;
@@ -590,6 +616,8 @@ function renderWeeksHTML(weeks,full,refByWeek){var html='';
 
 function savedRewardGroupId_(value){var id=String(value||'').trim().toLowerCase();return /^[a-z0-9_]+$/.test(id)?id:'main'}
 function handleErr(msg){msg=msg||'エラー';
+  renderSnapshotAsOf_(null);
+  if(currentData){delete currentData.read_source;delete currentData.snapshot_as_of;}
   if(window.ECOPITA_SITE.group!=='main'){
     currentData=null;
     ['summaryArea','weeksArea','tabBar'].forEach(function(id){document.getElementById(id).innerHTML=''});
@@ -611,6 +639,7 @@ function handleErr(msg){msg=msg||'エラー';
   document.getElementById('appErr').textContent=msg}
 
 function resetLogin(){
+  renderSnapshotAsOf_(null);
   localStorage.removeItem('ecopita_session');
   token='';currentData=null;isAdmin=false;myStaffId='';viewStaffId='';previewAs='';activeTab='own';
   stopCountdown();

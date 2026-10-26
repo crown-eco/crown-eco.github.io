@@ -52,6 +52,15 @@ input:focus{outline:2px solid var(--purple);outline-offset:2px}input:disabled{ba
       <div class="row"><dt>有効期限</dt><dd>本日中</dd></div>
     </dl>
     <p class="send-note">金額と宛先を確認してから送信してください。</p>
+    <section id="previousLinkCard" hidden aria-label="前のリンクの扱い">
+      <h2>前のリンク</h2>
+      <p id="previousLinkSummary"></p>
+      <p id="previousLinkHint" class="hint"></p>
+      <button class="btn secondary" id="cancelPreviousButton" type="button" disabled>前のリンクを取り消して、この内容で送り直す</button>
+      <p class="hint" id="cancelPreviousHint">書き直した契約のとき</p>
+      <button class="btn" id="keepPreviousButton" type="button" disabled>前のリンクは残して、この契約も送る</button>
+      <p class="hint">別の工事の契約のとき</p>
+    </section>
     <button class="btn" id="sendButton" type="button" disabled>お客様にカード払いのメールを送る</button>
     <p id="sendMessage" class="notice" role="status" aria-live="polite" hidden></p>
   </section>
@@ -86,14 +95,21 @@ input:focus{outline:2px solid var(--purple);outline-offset:2px}input:disabled{ba
     byId('previewButton').disabled = busy;
 
     byId('reissueButton').hidden = entryState !== 'existing';
+    var choose=entryState==='choice',valid=!!approved && sameValues(approved.input,values()) && approved.session===sessionToken();
+    byId('previousLinkCard').hidden=!choose;
+    byId('keepPreviousButton').disabled=busy||!valid;
+    byId('cancelPreviousButton').hidden=!choose||!approved||!approved.canCancel;
+    byId('cancelPreviousHint').hidden=byId('cancelPreviousButton').hidden;
+    byId('cancelPreviousButton').disabled=busy||!valid;
     byId('reissueButton').disabled = busy || !approved;
-    byId('sendButton').hidden = entryState === 'existing';
+    byId('sendButton').hidden = entryState === 'existing'||choose;
     byId('sendButton').disabled = busy || !approved || !sameValues(approved.input, values()) || approved.session !== sessionToken();
     byId('cardPayMain').setAttribute('aria-busy', busy ? 'true' : 'false');
   }
   function invalidate(caseChanged) {
     revision++;
     approved = null;
+    entryState='allowed';
     byId('previewCard').hidden = true;
     message('sendMessage', '');
     if (caseChanged) {
@@ -136,7 +152,8 @@ input:focus{outline:2px solid var(--purple);outline-offset:2px}input:disabled{ba
       (!p.ready || p.amount !== null && !!p.email);
   }
   function validSentRecord(data) {
-    return data && data.sent_record && typeof data.sent_record.sent==='boolean' && typeof data.sent_record.sent_at_jst==='string' && typeof data.sent_record.can_resend==='boolean' && ['not_sent','unpaid','expired','canceled','blocked'].indexOf(data.sent_record.resend_status)>=0 && (data.sent_record.sent || !data.sent_record.sent_at_jst && data.sent_record.resend_status==='not_sent' && !data.sent_record.can_resend) && (data.sent_record.can_resend === (data.sent_record.sent && ['unpaid','expired','canceled'].indexOf(data.sent_record.resend_status)>=0));
+    var r=data&&data.sent_record;
+    return r && typeof r.sent==='boolean' && typeof r.sent_at_jst==='string' && typeof r.can_resend==='boolean' && ['not_sent','unpaid','expired','canceled','blocked'].indexOf(r.resend_status)>=0 && typeof r.choice_required==='boolean' && typeof r.can_keep==='boolean' && typeof r.can_cancel==='boolean' && typeof r.invoice_no==='string' && (r.sent?Number.isSafeInteger(r.amount)&&r.amount>0:r.amount===null&&!r.sent_at_jst&&r.resend_status==='not_sent'&&!r.choice_required) && r.can_resend===(r.sent&&['unpaid','expired','canceled'].indexOf(r.resend_status)>=0) && r.can_keep===r.choice_required && r.can_cancel===(r.choice_required&&r.can_resend);
   }
   async function orderPreview(input, capturedRevision, capturedSession) {
     var deadline=Date.now()+60000, waiting='契約書の登録を待っています。少し待ってからもう一度開いてください';
@@ -179,7 +196,11 @@ input:focus{outline:2px solid var(--purple);outline-offset:2px}input:disabled{ba
       if (!validPreview(data.preview, input)) { message('formMessage', '内容を確認できません。管理者に連絡してください。', 'error'); return; }
       if (!validSentRecord(data)) { message('formMessage', '送信記録を確認できません。管理者に連絡してください。', 'error'); return; }
       var p = data.preview;
-      entryState = data.sent_record.sent ? 'existing' : 'allowed';
+      entryState = data.sent_record.choice_required ? 'choice' : data.sent_record.sent ? 'existing' : 'allowed';
+      var previous=data.sent_record;
+      var stateLabel={unpaid:'支払い前',expired:'期限切れ',canceled:'取り消し済み',blocked:'状態を確認できません'};
+      byId('previousLinkSummary').textContent=previous.sent?[(previous.sent_at_jst||'送信日時の記録なし'),'¥'+previous.amount.toLocaleString('ja-JP'),previous.invoice_no||'紙伝票',stateLabel[previous.resend_status]].join(' ／ '):'';
+      byId('previousLinkHint').textContent=previous.can_cancel?'前のリンクの扱いを選んでください。':'前のリンクの状態が確かめられないため、取り消す方は選べません。';
       byId('paperField').hidden = !p.paper;
       byId('emailField').hidden = false;
       autoEmail = p.auto_email;
@@ -191,11 +212,11 @@ input:focus{outline:2px solid var(--purple);outline-offset:2px}input:disabled{ba
       byId('previewEmail').textContent = p.email || '入力してください';
       byId('previewInvoice').textContent = p.paper ? '紙伝票' : p.invoice_no;
       byId('previewCard').hidden = false;
-      if (data.sent_record.sent && !data.sent_record.can_resend) {
+      if (data.sent_record.sent && !data.sent_record.can_resend && !data.sent_record.can_keep) {
         message('formMessage', '送り直せません。お支払い済みか確かめられませんでした。管理者に連絡してください。', 'error');
       } else if (p.ready && typeof data.preview_token === 'string' && data.preview_token) {
-        approved = { input: input, token: data.preview_token, session: capturedSession, email: p.email };
-        message('formMessage', data.sent_record.sent ? (data.sent_record.resend_status==='unpaid'?'支払い前です。金額と宛先を確かめて送り直せます。':'前のリンクは使えなくなっています。送り直せます。') : '送る内容を確認しました。');
+        approved = { input: input, token: data.preview_token, session: capturedSession, email: p.email, choiceRequired:previous.choice_required, canCancel:previous.can_cancel };
+        message('formMessage', previous.choice_required ? '金額と宛先を確かめて、前のリンクの扱いを選んでください。' : data.sent_record.sent ? (data.sent_record.resend_status==='unpaid'?'支払い前です。金額と宛先を確かめて送り直せます。':'前のリンクは使えなくなっています。送り直せます。') : '送る内容を確認しました。');
       } else if (p.ready) {
         message('formMessage', '内容を確認できません。管理者に連絡してください。', 'error');
       } else {
@@ -204,16 +225,19 @@ input:focus{outline:2px solid var(--purple);outline-offset:2px}input:disabled{ba
     } catch (error) { message('formMessage', '内容を確認できませんでした。通信状況を確認して、もう一度「内容を確認」を押してください。', 'error'); }
     finally { busy = false; renderControls(); }
   }
-  async function send() {
+  async function send(choice) {
     if (busy || !approved) return;
     if (!sameValues(approved.input, values()) || approved.session !== sessionToken()) { invalidate(false); return; }
+    if(approved.choiceRequired?(choice!=='keep'&&choice!=='cancel'||choice==='cancel'&&!approved.canCancel):choice!==undefined)return;
     var sending = approved, capturedRevision = revision;
     approved = null;
     busy = true;
     renderControls();
     message('sendMessage', '送信しています（30 秒ほどかかることがあります）。画面を閉じずにお待ちください。');
     try {
-      var data = await call('card_pay_send', sending.input, { action: 'send', preview_token: sending.token });
+      var extra={action:'send',preview_token:sending.token};
+      if(sending.choiceRequired)extra.previous_link=choice;
+      var data = await call('card_pay_send', sending.input, extra);
       if (capturedRevision !== revision || sending.session !== sessionToken()) return;
       if (data && data.ok === true && data.status === 'sent' && typeof data.request_id === 'string' && data.request_id) {
         message('sendMessage', '送信しました。送信先: ' + sending.email + '。お客様のメールに支払い用のリンクが届きます。', 'success');
@@ -227,7 +251,9 @@ input:focus{outline:2px solid var(--purple);outline-offset:2px}input:disabled{ba
   amountInput.addEventListener('input', function() { invalidate(false); });
   emailInput.addEventListener('input', function() { emailHint(); invalidate(false); });
   byId('previewForm').addEventListener('submit', preview);
-  byId('sendButton').addEventListener('click', send);
+  byId('sendButton').addEventListener('click', function(){send();});
+  byId('keepPreviousButton').addEventListener('click',function(){send('keep');});
+  byId('cancelPreviousButton').addEventListener('click',function(){send('cancel');});
   byId('reissueButton').addEventListener('click', function() { if (busy || entryState !== 'existing') return;send(); });
   renderControls();
   // Fire once per page. No case/customer data and no UI dependency on the reply.
