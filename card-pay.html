@@ -17,6 +17,7 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
 .card{background:#fff;border:1px solid var(--border);border-radius:18px;padding:20px;margin-bottom:16px;box-shadow:0 8px 24px rgba(40,20,70,.05)}
 h2{font-size:1rem;font-weight:800;margin-bottom:14px;color:var(--purple)}
 label{display:block;font-weight:700;font-size:.9rem;margin-bottom:6px}.field{margin-bottom:14px}
+select{width:100%;font:inherit;padding:11px 12px;border:2px solid var(--border);border-radius:10px;max-width:100%} .contract-list{font-size:.83rem;overflow-wrap:anywhere;padding-left:20px;margin:10px 0}.contract-list li{margin-bottom:8px}
 input{width:100%;font:inherit;font-size:1rem;padding:11px 12px;border:2px solid var(--border);border-radius:10px;background:#fff;color:var(--text)}
 input:focus{outline:2px solid var(--purple);outline-offset:2px}input:disabled{background:#f4f4f7;color:var(--sub)}
 .hint{font-size:.83rem;color:var(--sub);margin-top:6px}.btn{display:block;width:100%;border:0;border-radius:11px;padding:13px 14px;font:inherit;font-size:1rem;font-weight:800;background:var(--purple);color:#fff;cursor:pointer}
@@ -35,7 +36,8 @@ input:focus{outline:2px solid var(--purple);outline-offset:2px}input:disabled{ba
     <h2 id="caseTitle">1. 送る内容を確認</h2>
     <form id="previewForm" novalidate>
       <div class="field"><label for="caseId">案件番号</label><input id="caseId" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="例：CP-12345"></div>
-      <div id="paperField" class="field" hidden><label for="paperAmount">紙伝票の請求額（税込・円）</label><input id="paperAmount" type="text" inputmode="numeric" autocomplete="off" placeholder="例：10000" aria-describedby="paperHint"><p id="paperHint" class="hint">契約書がない案件（紙伝票）の金額を入力してください。</p></div>
+      <div id="contractField" class="field" hidden><label for="contractChoice">送る契約・送信方法</label><select id="contractChoice"><option value="">契約を選んでください</option></select><ul id="contractList" class="contract-list"></ul><button class="btn secondary" id="chooseResendButton" type="button" hidden>最新の送信と同じ契約を送り直す</button><p class="hint">契約や送信方法を変えたら、金額と宛先をもう一度確認してください。</p></div>
+      <div id="paperField" class="field" hidden><label for="paperAmount">手入力の請求額（税込・円）</label><input id="paperAmount" type="text" inputmode="numeric" autocomplete="off" placeholder="例：10000" aria-describedby="paperHint"><p id="paperHint" class="hint">未発行のカード払い契約がないため、請求額を入力してください。</p></div>
       <div id="emailField" class="field" hidden><label for="manualEmail">送信先メールアドレス</label><input id="manualEmail" type="email" inputmode="email" autocomplete="email" placeholder="example@email.com" aria-describedby="emailHint"><p id="emailHint" class="hint">この案件に登録された宛先がないため、入力してください。</p></div>
       <button class="btn secondary" id="reissueButton" type="button" hidden>送り直す</button>
       <button class="btn secondary" id="previewButton" type="submit">内容を確認</button>
@@ -73,13 +75,15 @@ input:focus{outline:2px solid var(--purple);outline-offset:2px}input:disabled{ba
   var caseInput = byId('caseId'), amountInput = byId('paperAmount'), emailInput = byId('manualEmail');
   var busy = false, revision = 0, approved = null, entryState = 'allowed', autoEmail = '';
   var params = new URLSearchParams(location.search);
-  var fromOrder = params.get('from') === 'order';
+  var fromOrder = params.get('from') === 'order' && !!(params.get('contract_id') || '').trim();
+  var sendMode = fromOrder ? 'contract' : '', contractId = fromOrder ? params.get('contract_id').trim() : '', resendInvoice = '';
+  var contractChoice = byId('contractChoice');
   caseInput.value = params.get('c') || params.get('case_id') || '';
 
 
   function sessionToken() { return window.ECOPITA_SESSION && window.ECOPITA_SESSION.token || ''; }
-  function values() { return { case_id: caseInput.value.trim(), paper_amount: amountInput.value.trim(), manual_email: emailInput.value.trim() }; }
-  function sameValues(left, right) { return left.case_id === right.case_id && left.paper_amount === right.paper_amount && left.manual_email === right.manual_email; }
+  function values() { return { case_id: caseInput.value.trim(), paper_amount: amountInput.value.trim(), manual_email: emailInput.value.trim(), send_mode: sendMode, contract_id: contractId }; }
+  function sameValues(left, right) { return left.case_id === right.case_id && left.paper_amount === right.paper_amount && left.manual_email === right.manual_email && left.send_mode === right.send_mode && left.contract_id === right.contract_id; }
   function message(id, text, kind) {
     var el = byId(id);
     el.textContent = text || '';
@@ -93,6 +97,7 @@ input:focus{outline:2px solid var(--purple);outline-offset:2px}input:disabled{ba
   function renderControls() {
     caseInput.disabled = amountInput.disabled = emailInput.disabled = busy;
     byId('previewButton').disabled = busy;
+    contractChoice.disabled = byId('chooseResendButton').disabled = busy;
 
     byId('reissueButton').hidden = entryState !== 'existing';
     var choose=entryState==='choice',valid=!!approved && sameValues(approved.input,values()) && approved.session===sessionToken();
@@ -115,6 +120,8 @@ input:focus{outline:2px solid var(--purple);outline-offset:2px}input:disabled{ba
     if (caseChanged) {
       entryState = 'allowed';
       amountInput.value = emailInput.value = autoEmail = '';
+      sendMode = contractId = resendInvoice = ''; fromOrder = false;
+      byId('contractField').hidden = true;
       byId('paperField').hidden = byId('emailField').hidden = true;
       message('formMessage', '');
 
@@ -134,6 +141,8 @@ input:focus{outline:2px solid var(--purple);outline-offset:2px}input:disabled{ba
     if (formType === 'card_pay_send') {
       payload.paper_amount = input.paper_amount;
       payload.manual_email = input.manual_email;
+      payload.send_mode = input.send_mode;
+      payload.contract_id = input.contract_id;
     }
     Object.keys(extra || {}).forEach(function(key) { payload[key] = extra[key]; });
     return gasCall(payload, { url: endpoint, mode: 'submit' });
@@ -149,26 +158,55 @@ input:focus{outline:2px solid var(--purple);outline-offset:2px}input:disabled{ba
       (p.amount === null || typeof p.amount === 'number' && Number.isSafeInteger(p.amount) && p.amount > 0) &&
       typeof p.email === 'string' && typeof p.auto_email === 'string' && typeof p.invoice_no === 'string' &&
       typeof p.paper === 'boolean' && typeof p.needs_email === 'boolean' && typeof p.ready === 'boolean' &&
+      Array.isArray(p.contracts) && p.contracts.every(function(c){return c && typeof c.invoice_no==='string' && typeof c.created_at_jst==='string' && typeof c.item_name==='string' && (c.amount===null || typeof c.amount==='number'&&Number.isFinite(c.amount)) && typeof c.issued==='boolean' && typeof c.selectable==='boolean' && typeof c.reason==='string';}) &&
+      typeof p.manual_allowed==='boolean' && typeof p.resend_invoice_no==='string' && ['', 'contract', 'manual', 'resend'].indexOf(p.selection_mode)>=0 && typeof p.selected_contract_id==='string' && typeof p.order_pending==='boolean' && typeof p.selection_error==='string' &&
+      (!p.ready || !!p.selection_mode && !p.order_pending && !p.selection_error) &&
       (!p.ready || p.amount !== null && !!p.email);
   }
   function validSentRecord(data) {
     var r=data&&data.sent_record;
     return r && typeof r.sent==='boolean' && typeof r.sent_at_jst==='string' && typeof r.can_resend==='boolean' && ['not_sent','unpaid','expired','canceled','blocked'].indexOf(r.resend_status)>=0 && typeof r.choice_required==='boolean' && typeof r.can_keep==='boolean' && typeof r.can_cancel==='boolean' && typeof r.invoice_no==='string' && (r.sent?Number.isSafeInteger(r.amount)&&r.amount>0:r.amount===null&&!r.sent_at_jst&&r.resend_status==='not_sent'&&!r.choice_required) && r.can_resend===(r.sent&&['unpaid','expired','canceled'].indexOf(r.resend_status)>=0) && r.can_keep===r.choice_required && r.can_cancel===(r.choice_required&&r.can_resend);
   }
+  function renderSelections(p, input) {
+    var reasons={source_unavailable:'契約の内容を読み取れません',split_unproven:'カードで払う金額を確認できません',contract_not_card:'カード払いの契約ではありません'};
+    contractChoice.replaceChildren(); byId('contractList').replaceChildren();
+    var blank=document.createElement('option'); blank.value=''; blank.textContent='契約を選んでください'; contractChoice.appendChild(blank);
+    p.contracts.forEach(function(c){
+      var label=[c.invoice_no||'契約番号なし',c.created_at_jst,c.item_name,c.amount===null?'金額未確認':'¥'+c.amount.toLocaleString('ja-JP')].filter(Boolean).join(' ／ ');
+      var reason=c.issued?'リンク発行済み':c.reason?(reasons[c.reason]||'この契約は送れません'):!c.selectable?'この契約は送れません':'';
+      var opt=document.createElement('option'); opt.value='contract:'+c.invoice_no; opt.textContent=label+(reason?' ／ '+reason:'');opt.disabled=!c.selectable||c.issued;contractChoice.appendChild(opt);
+      var item=document.createElement('li');item.textContent=label+(reason?' ／ '+reason:'');byId('contractList').appendChild(item);
+    });
+    if(p.manual_allowed){var manual=document.createElement('option');manual.value='manual';manual.textContent='金額を手入力して送る';contractChoice.appendChild(manual);}
+    resendInvoice=p.resend_invoice_no;
+    byId('chooseResendButton').hidden=!resendInvoice;
+    if(!input.send_mode && p.selection_mode==='manual' && p.manual_allowed){sendMode='manual';contractId='';input.send_mode='manual';input.contract_id='';}
+    if(sendMode==='resend' && resendInvoice){var resend=document.createElement('option');resend.value='resend:'+contractId;resend.textContent='最新の送信と同じ契約を送り直す ／ '+contractId;contractChoice.appendChild(resend);}
+    contractChoice.value=sendMode==='manual'?'manual':sendMode?sendMode+':'+contractId:'';
+    byId('contractField').hidden=false;
+  }
+  function changeSelection(mode,id) {
+    if(busy)return;
+    sendMode=mode;contractId=id||'';fromOrder=false;amountInput.value='';
+    byId('paperField').hidden=mode!=='manual';
+    invalidate(false);
+  }
   async function orderPreview(input, capturedRevision, capturedSession) {
-    var deadline=Date.now()+60000, waiting='契約書の登録を待っています。少し待ってからもう一度開いてください';
+    var deadline=Date.now()+60000, waiting='注文時の契約を確認できませんでした。注文フォームから開き直すか、一覧から送る契約を選んでください。', lastData=null;
+    function timedOut(){if(lastData){lastData.preview.selection_error=waiting;return lastData;}return {ok:false,error:waiting};}
     while(true){
       if(capturedRevision!==revision || capturedSession!==sessionToken() || !sameValues(input,values()))return null;
-      var remaining=deadline-Date.now();if(remaining<=0)return {ok:false,error:waiting};
+      var remaining=deadline-Date.now();if(remaining<=0)return timedOut();
       var timer, data;
-      try {data=await Promise.race([call('card_pay_send',input,{action:'preview'}),new Promise(function(resolve){timer=setTimeout(function(){resolve({ok:false,error:waiting});},remaining);})]);}
+      try {data=await Promise.race([call('card_pay_send',input,{action:'preview'}),new Promise(function(resolve){timer=setTimeout(function(){resolve(timedOut());},remaining);})]);}
       finally {clearTimeout(timer);}
       if(capturedRevision!==revision || capturedSession!==sessionToken() || !sameValues(input,values()))return null;
-      if(!data || data.ok!==true || !validPreview(data.preview,input) || !validSentRecord(data) || data.preview.paper!==true)return data;
-      // A missing contract from the order entry never authorizes paper/manual-amount UI.
+      if(!data || data.ok!==true || !validPreview(data.preview,input) || !validSentRecord(data) || data.preview.order_pending!==true)return data;
+      lastData=data;
+      // Wait only for the explicitly requested order contract; never choose a replacement.
       byId('paperField').hidden=byId('emailField').hidden=true;
       message('formMessage','契約書の登録を待っています…');
-      remaining=deadline-Date.now();if(remaining<=0)return {ok:false,error:waiting};
+      remaining=deadline-Date.now();if(remaining<=0)return timedOut();
       await new Promise(function(resolve){setTimeout(resolve,Math.min(3000,remaining));});
     }
   }
@@ -182,7 +220,7 @@ input:focus{outline:2px solid var(--purple);outline-offset:2px}input:disabled{ba
     var input;
     try {
       input = checkedInput();
-      if (!byId('paperField').hidden && (!/^[1-9][0-9]*$/.test(input.paper_amount) || !Number.isSafeInteger(Number(input.paper_amount)) || Number(input.paper_amount) <= 0)) throw new Error('紙伝票の請求額を、1円以上の整数で入力してください。');
+      if (!byId('paperField').hidden && (!/^[1-9][0-9]*$/.test(input.paper_amount) || !Number.isSafeInteger(Number(input.paper_amount)) || Number(input.paper_amount) <= 0)) throw new Error('請求額を、1円以上の整数で入力してください。');
       if (!byId('emailField').hidden && (!input.manual_email || !emailInput.checkValidity())) throw new Error('送信先メールアドレスを入力してください。');
     } catch (error) { message('formMessage', error.message, 'error'); renderControls(); return; }
     var capturedRevision = revision, capturedSession = sessionToken();
@@ -196,12 +234,13 @@ input:focus{outline:2px solid var(--purple);outline-offset:2px}input:disabled{ba
       if (!validPreview(data.preview, input)) { message('formMessage', '内容を確認できません。管理者に連絡してください。', 'error'); return; }
       if (!validSentRecord(data)) { message('formMessage', '送信記録を確認できません。管理者に連絡してください。', 'error'); return; }
       var p = data.preview;
+      renderSelections(p,input);
       entryState = data.sent_record.choice_required ? 'choice' : data.sent_record.sent ? 'existing' : 'allowed';
       var previous=data.sent_record;
       var stateLabel={unpaid:'支払い前',expired:'期限切れ',canceled:'取り消し済み',blocked:'状態を確認できません'};
       byId('previousLinkSummary').textContent=previous.sent?[(previous.sent_at_jst||'送信日時の記録なし'),'¥'+previous.amount.toLocaleString('ja-JP'),previous.invoice_no||'紙伝票',stateLabel[previous.resend_status]].join(' ／ '):'';
       byId('previousLinkHint').textContent=previous.can_cancel?'前のリンクの扱いを選んでください。':'前のリンクの状態が確かめられないため、取り消す方は選べません。';
-      byId('paperField').hidden = !p.paper;
+      byId('paperField').hidden = !p.paper || !!p.order_pending;
       byId('emailField').hidden = false;
       autoEmail = p.auto_email;
       emailInput.value = p.email;
@@ -210,9 +249,12 @@ input:focus{outline:2px solid var(--purple);outline-offset:2px}input:disabled{ba
       byId('previewCase').textContent = p.case_id;
       byId('previewAmount').textContent = p.amount === null ? '入力してください' : '¥' + p.amount.toLocaleString('ja-JP');
       byId('previewEmail').textContent = p.email || '入力してください';
-      byId('previewInvoice').textContent = p.paper ? '紙伝票' : p.invoice_no;
+      byId('previewInvoice').textContent = p.paper ? '手入力' : p.invoice_no || '選択してください';
       byId('previewCard').hidden = false;
-      if (data.sent_record.sent && !data.sent_record.can_resend && !data.sent_record.can_keep) {
+      if (!p.ready && p.selection_error) {
+        var selectionErrors={source_unavailable:'契約の内容を読み取れません。管理者に確認してください。',split_unproven:'カードで払う金額を確認できません。管理者に確認してください。',contract_not_card:'カード払いの契約ではありません。一覧から選ぶか、手入力できる場合は金額を入力してください。',invoice_unavailable:'指定の契約を確認できません。注文フォームから開き直すか、一覧から選んでください。',needs_reconfirm:'この契約の内容またはリンクの発行状況が変わりました。もう一度確認してください。'};
+        message('formMessage',selectionErrors[p.selection_error]||(/^[a-z_]+$/.test(p.selection_error)?'この契約は送れません。管理者に確認してください。':p.selection_error),'error');
+      } else if (data.sent_record.sent && !data.sent_record.can_resend && !data.sent_record.can_keep) {
         message('formMessage', '送り直せません。お支払い済みか確かめられませんでした。管理者に連絡してください。', 'error');
       } else if (p.ready && typeof data.preview_token === 'string' && data.preview_token) {
         approved = { input: input, token: data.preview_token, session: capturedSession, email: p.email, choiceRequired:previous.choice_required, canCancel:previous.can_cancel };
@@ -220,7 +262,7 @@ input:focus{outline:2px solid var(--purple);outline-offset:2px}input:disabled{ba
       } else if (p.ready) {
         message('formMessage', '内容を確認できません。管理者に連絡してください。', 'error');
       } else {
-        message('formMessage', '必要な項目を入力して、もう一度「内容を確認」を押してください。');
+        message('formMessage', '送る契約を選ぶか必要な項目を入力して、もう一度「内容を確認」を押してください。');
       }
     } catch (error) { message('formMessage', '内容を確認できませんでした。通信状況を確認して、もう一度「内容を確認」を押してください。', 'error'); }
     finally { busy = false; renderControls(); }
@@ -247,6 +289,8 @@ input:focus{outline:2px solid var(--purple);outline-offset:2px}input:disabled{ba
     } catch (error) { message('sendMessage', '送信結果を確認できません。続けて送信せず、管理者に連絡してください。', 'error'); }
     finally { busy = false; renderControls(); }
   }
+  contractChoice.addEventListener('change',function(){var value=contractChoice.value;if(value==='manual')changeSelection('manual','');else if(value.indexOf('contract:')===0)changeSelection('contract',value.slice(9));else if(value.indexOf('resend:')===0)changeSelection('resend',value.slice(7));else changeSelection('','');});
+  byId('chooseResendButton').addEventListener('click',function(){if(resendInvoice){changeSelection('resend',resendInvoice);preview();}});
   caseInput.addEventListener('input', function() { invalidate(true); });
   amountInput.addEventListener('input', function() { invalidate(false); });
   emailInput.addEventListener('input', function() { emailHint(); invalidate(false); });

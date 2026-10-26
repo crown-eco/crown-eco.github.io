@@ -2104,12 +2104,12 @@ function orderCardPayJump_(payload) {
   var card=payload.payment_method==='クレジットカード' || payload.payment_method==='ご相談' && Array.isArray(payload.payment_splits) && payload.payment_splits.some(function(p){return p && p.method==='クレジットカード' && Number.isSafeInteger(p.amount_inc) && p.amount_inc>0;});
   var session=window.ECOPITA_SESSION, target=orderCardPayNavUrl_();
   if(!card || !target || !session || session.token!==payload.sessionToken || String(session.staffId||'').padStart(4,'0')!==String(payload.emp_id||'').padStart(4,'0'))return;
-  var token=session.token, caseId=payload.case_id;
+  var token=session.token, caseId=payload.case_id, contractId=String(payload.contract_id||'').trim();
   if(orderCardPayJumpTimer_!==null)clearTimeout(orderCardPayJumpTimer_);
   orderCardPayJumpTimer_=setTimeout(function(){
     orderCardPayJumpTimer_=null;var current=window.ECOPITA_SESSION,url=orderCardPayNavUrl_();
     if(!current || current.token!==token || !url)return;
-    url.searchParams.set('c',caseId);url.searchParams.set('from','order');location.assign(url.href);
+    url.searchParams.set('c',caseId);url.searchParams.set('from','order');if(contractId)url.searchParams.set('contract_id',contractId);location.assign(url.href);
   },1000);
 }
 // END CARD_PAY_ORDER_JUMP
