@@ -332,8 +332,9 @@ function renderReceiptProviso(base, category) {
 
 function defaultReceiptProvisoBase(data, caseId) {
   data = data || {};
-  // ハウクリ（HC-）は「…のハウスクリーニング代として」（10/28 麗香）。GAS の既定はエアコン工事のままなので画面で差し替える
-  if (/^HC-/i.test(String(caseId || ''))) return data.default_receipt_site ? data.default_receipt_site + 'のハウスクリーニング' : 'ハウスクリーニング';
+  // ハウクリ（HC-）は「…のハウスクリーニング代として」、給湯器（EC-）は「…の給湯器工事代として」（10/28 麗香）。GAS の既定はエアコン工事のままなので画面で差し替える
+  var work = /^HC-/i.test(String(caseId || '')) ? 'ハウスクリーニング' : (/^EC-/i.test(String(caseId || '')) ? '給湯器工事' : '');
+  if (work) return data.default_receipt_site ? data.default_receipt_site + 'の' + work : work;
   if (data.default_receipt_proviso_base) return data.default_receipt_proviso_base;
   if (data.default_receipt_site) return data.default_receipt_site + 'のエアコン工事';
   return '';

@@ -1150,10 +1150,12 @@ function getQSubject() {
   var value = document.getElementById('q_subject_sel').value;
   return (value === '__other__' ? document.getElementById('q_subject_other').value : value).trim();
 }
-// 件名の選択肢。ハウクリ（HC-）は清掃の件名だけで空調機器の件名は出さない（10/28 麗香）
+// 件名の選択肢。ハウクリ（HC-）は清掃、給湯器（EC-）は給湯器の件名だけで空調機器の件名は出さない（10/28 麗香）
 function qSubjectOptions_() {
-  var isHC = (Q.prefix === 'HC') || /^HC-/i.test(String(Q.case_id || ''));
-  return isHC ? ['ハウスクリーニング作業'] : ['空調機器修理作業', '空調機器入れ替え作業'];
+  var id = String(Q.case_id || '');
+  if (Q.prefix === 'HC' || /^HC-/i.test(id)) return ['ハウスクリーニング作業'];
+  if (Q.prefix === 'EC' || /^EC-/i.test(id)) return ['給湯器修理作業', '給湯器交換作業'];
+  return ['空調機器修理作業', '空調機器入れ替え作業'];
 }
 function resetQSubject_() {
   var sel = document.getElementById('q_subject_sel'), opts = qSubjectOptions_();

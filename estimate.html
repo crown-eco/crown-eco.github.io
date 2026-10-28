@@ -1948,7 +1948,7 @@ function applyPrefixUI(prefix) {
   const isHC = (prefix === 'HC');
   currentIsHC = isHC;
   currentIsEC = isEC;
-  setEstSubjectOptions_(isHC);
+  setEstSubjectOptions_(isHC, isEC);
 
   const _workType = document.querySelector('input[name="manual_work_type"]:checked');
   const _isDiag = !_workType || _workType.value !== '修理';
@@ -4326,10 +4326,10 @@ function getEstSubject(prefix) {
   var value = document.getElementById(prefix + '_subject_sel').value;
   return (value === '__other__' ? document.getElementById(prefix + '_subject_other').value : value).trim();
 }
-// 件名の選択肢。ハウクリ（HC-）は清掃の件名だけで空調機器の件名は出さない（10/28 麗香）。HC とそれ以外が入れ替わったときだけ入れ直す
-function setEstSubjectOptions_(isHC) {
-  var mode = isHC ? 'hc' : 'aircon';
-  var opts = isHC ? ['ハウスクリーニング作業'] : ['空調機器修理作業', '空調機器入れ替え作業'];
+// 件名の選択肢。ハウクリ（HC-）は清掃、給湯器（EC-）は給湯器の件名だけで空調機器の件名は出さない（10/28 麗香）。種類が入れ替わったときだけ入れ直す
+function setEstSubjectOptions_(isHC, isEC) {
+  var mode = isHC ? 'hc' : (isEC ? 'ec' : 'aircon');
+  var opts = isHC ? ['ハウスクリーニング作業'] : (isEC ? ['給湯器修理作業', '給湯器交換作業'] : ['空調機器修理作業', '空調機器入れ替え作業']);
   ['est', 'res_est'].forEach(function(prefix) {
     var sel = document.getElementById(prefix + '_subject_sel'), other = document.getElementById(prefix + '_subject_other');
     if (!sel || (sel.getAttribute('data-subject-mode') || 'aircon') === mode) return;
