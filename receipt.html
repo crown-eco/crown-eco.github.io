@@ -330,8 +330,10 @@ function renderReceiptProviso(base, category) {
   return '但し、' + base + '代として';
 }
 
-function defaultReceiptProvisoBase(data) {
+function defaultReceiptProvisoBase(data, caseId) {
   data = data || {};
+  // ハウクリ（HC-）は「…のハウスクリーニング代として」（10/28 麗香）。GAS の既定はエアコン工事のままなので画面で差し替える
+  if (/^HC-/i.test(String(caseId || ''))) return data.default_receipt_site ? data.default_receipt_site + 'のハウスクリーニング' : 'ハウスクリーニング';
   if (data.default_receipt_proviso_base) return data.default_receipt_proviso_base;
   if (data.default_receipt_site) return data.default_receipt_site + 'のエアコン工事';
   return '';
@@ -644,7 +646,7 @@ async function searchReceipt() {
     var serviceText = data.service_date_jp || data.service_date || '';
     document.getElementById('service_date_display').textContent = serviceText;
     document.getElementById('service_date_area').classList.toggle('hidden', !serviceText);
-    document.getElementById('receipt_proviso_base').value = defaultReceiptProvisoBase(data);
+    document.getElementById('receipt_proviso_base').value = defaultReceiptProvisoBase(data, caseId);
     updateReceiptCategoryControl();
     document.getElementById('customer_memo').value = '';
     document.getElementById('step2').scrollIntoView({ behavior: 'smooth' });

@@ -537,6 +537,7 @@ function renderMain() {
     var _rl = document.querySelector('input[name="q_doc_type"][value="見積書"]');
     if (_rl && _rl.nextSibling) _rl.nextSibling.textContent = '🧹 清掃作業見積書';
   }
+  resetQSubject_();
 
   buildQRepairMenu();
   buildVerSelect();
@@ -642,9 +643,7 @@ function onVersionChange() {
 }
 
 function resetInputs() {
-  document.getElementById('q_subject_sel').value = '空調機器修理作業';
-  document.getElementById('q_subject_other').value = '';
-  onQSubjectChange();
+  resetQSubject_();
   REPAIR_MENU.forEach(function(_, i) {
     var s = document.getElementById('qr_qty_' + i); if (s) s.textContent = '0';
     var r = document.getElementById('qr_row_' + i); if (r) r.classList.remove('active');
@@ -1150,6 +1149,18 @@ function onQSubjectChange() {
 function getQSubject() {
   var value = document.getElementById('q_subject_sel').value;
   return (value === '__other__' ? document.getElementById('q_subject_other').value : value).trim();
+}
+// 件名の選択肢。ハウクリ（HC-）は清掃の件名だけで空調機器の件名は出さない（10/28 麗香）
+function qSubjectOptions_() {
+  var isHC = (Q.prefix === 'HC') || /^HC-/i.test(String(Q.case_id || ''));
+  return isHC ? ['ハウスクリーニング作業'] : ['空調機器修理作業', '空調機器入れ替え作業'];
+}
+function resetQSubject_() {
+  var sel = document.getElementById('q_subject_sel'), opts = qSubjectOptions_();
+  sel.innerHTML = opts.map(function(v) { return '<option>' + escHtml_(v) + '</option>'; }).join('') + '<option value="__other__">その他</option>';
+  sel.value = opts[0];
+  document.getElementById('q_subject_other').value = '';
+  onQSubjectChange();
 }
 </script>
 </body>
