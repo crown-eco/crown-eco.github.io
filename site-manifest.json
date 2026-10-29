@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "site": "crown",
-  "source_commit": "116a3965c42ff10838659093303e2f6d4aa89a5a",
+  "source_commit": "0554cf12551ee49a0ca8a3121882b2065d505d1e",
   "excluded": [
     ".git",
     "woff-test",
@@ -84,8 +84,8 @@
     },
     {
       "path": "invoice.html",
-      "size": 70139,
-      "sha256": "b13f9daed1222e56f3d1af13644b6652cf0cd8948e514cc5ec9ba2549adc5aa8"
+      "size": 72427,
+      "sha256": "1f6b743bec4592657a32799259139fec790690618081185e0a935cb267144ec3"
     },
     {
       "path": "login.html",

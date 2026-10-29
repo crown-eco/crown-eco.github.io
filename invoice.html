@@ -157,6 +157,11 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
 
   <!-- STEP3: 請求書詳細入力 -->
   <div id="step3" class="hidden">
+      <div id="invoice_issuer_control" class="card" style="display:none">
+        <label for="issue_as_staff_id">この案件の担当者の名前で発行する（管理者のみ）</label>
+        <div style="margin-top:8px">担当者番号 <input id="issue_as_staff_id" type="text" inputmode="numeric" maxlength="4" placeholder="例：0028" autocomplete="off" style="width:100px"></div>
+        <div style="margin-top:6px;font-size:.85rem">空欄の場合は自分の名前で発行します。</div>
+      </div>
       <div class="card">
         <div class="card-title" id="step3_title">請求書の発行</div>
         <div id="selected_info" style="background:#f4eefe;border-radius:8px;padding:12px;margin-bottom:14px;font-size:.9rem"></div>
@@ -618,7 +623,8 @@ async function goToUriage() {
     writeUriage = false;
     document.getElementById('visit_date_area').classList.add('hidden');
     document.getElementById('step_uriage').classList.add('hidden');
-    document.getElementById('step3').classList.remove('hidden');
+    invoiceSyncIssuerControl_();
+  document.getElementById('step3').classList.remove('hidden');
     document.getElementById('step3').scrollIntoView({ behavior: 'smooth' });
   } else {
     // 見積書を含む → 売上報告選択を表示
@@ -646,6 +652,7 @@ function selectUriage(flag) {
   } else {
     document.getElementById('visit_date_area').classList.add('hidden');
   }
+  invoiceSyncIssuerControl_();
   document.getElementById('step3').classList.remove('hidden');
   document.getElementById('step3').scrollIntoView({ behavior: 'smooth' });
 }
@@ -727,6 +734,7 @@ async function goToFromScratch() {
 
   document.getElementById('step2').classList.add('hidden');
   document.getElementById('step_uriage').classList.add('hidden');
+  invoiceSyncIssuerControl_();
   document.getElementById('step3').classList.remove('hidden');
   document.getElementById('step3').scrollIntoView({ behavior: 'smooth' });
 }
@@ -899,6 +907,7 @@ function hideInvoicePreview() {
   // 元々表示されていた入力画面を全て復活
   document.getElementById('step1').classList.remove('hidden');
   document.getElementById('step2').classList.remove('hidden');
+  invoiceSyncIssuerControl_();
   document.getElementById('step3').classList.remove('hidden');
   if (selections.length > 0 && hasVersionSelected && hasVersionSelected()) {
     document.getElementById('step_uriage').classList.remove('hidden');
@@ -906,7 +915,23 @@ function hideInvoicePreview() {
   window.scrollTo(0, 0);
 }
 
+function invoiceIssuerIsAdmin_() {
+  var session = window.ECOPITA_SESSION;
+  return !!(session && (session.isAdmin === true || session.role === 'admin'));
+}
+function invoiceSyncIssuerControl_() {
+  var admin = invoiceIssuerIsAdmin_();
+  document.getElementById('invoice_issuer_control').style.display = admin ? '' : 'none';
+  if (!admin) document.getElementById('issue_as_staff_id').value = '';
+}
+function invoiceIssueAsStaff_() {
+  return invoiceIssuerIsAdmin_() ? document.getElementById('issue_as_staff_id').value.trim() : '';
+}
+
 function showPreview() {
+  invoiceSyncIssuerControl_();
+  var issueAsStaffId = invoiceIssueAsStaff_();
+  if (issueAsStaffId && !/^\d{4}$/.test(issueAsStaffId)) { showError('issue_error','担当者番号が正しくありません'); return; }
   if (invoiceP1SfBlocked_('issue_error')) return;
   var email = document.getElementById('inv_email').value.trim();
   var deadline = document.getElementById('inv_deadline').value;
@@ -954,6 +979,7 @@ function showPreview() {
   var rowStyle = 'padding:8px 0;border-bottom:1px solid #eee';
   var h = '';
   h += '<div style="' + rowStyle + '"><b>案件番号:</b> ' + escapeHtml(searchCaseId) + '</div>';
+  if (invoiceIssuerIsAdmin_()) h += '<div style="' + rowStyle + '"><b>担当（PDF の表示）:</b> ' + escapeHtml(issueAsStaffId || window.ECOPITA_SESSION.staffId || '') + '</div>';
   h += '<div style="' + rowStyle + '"><b>お客様:</b> ' + custDisplay + '</div>';
   h += '<div style="' + rowStyle + '"><b>送信先メール:</b> ' + (email ? escapeHtml(email) : '<span style="color:#c62828">未入力</span>') + '</div>';
   var ccList = getCcEmails();
@@ -1089,7 +1115,13 @@ function invoiceSubmissionPrepare_(payload) {
 
 async function invoiceSubmissionCheck_(pending) {
   if (!pending.phase2_sent && Date.now() - pending.saved_at_ms <= 48 * 60 * 60 * 1000) return;
-  var response = await gasCall({ form_type: 'report_attachment_status', route: pending.payload.write_uriage === true ? 'doc_invoice' : 'issue', case_id: pending.case_id, client_submission_id: pending.payload.doc_submission_id, doc_submission_id: pending.payload.doc_submission_id }, { mode: 'lookup', url: GAS_URL });
+  var statusPayload = { form_type: 'report_attachment_status', route: pending.payload.write_uriage === true ? 'doc_invoice' : 'issue', case_id: pending.case_id, client_submission_id: pending.payload.doc_submission_id, doc_submission_id: pending.payload.doc_submission_id };
+  if (pending.payload.issue_as_staff_id) {
+    statusPayload.issue_as_staff_id = pending.payload.issue_as_staff_id;
+    statusPayload.contract_ids = pending.payload.contract_ids || [];
+    statusPayload.equipment = pending.payload.equipment || '';
+  }
+  var response = await gasCall(statusPayload, { mode: 'lookup', url: GAS_URL });
   if (!response || response.ok !== true) throw invoiceSubmissionError_('前回の請求書発行結果を確認できませんでした。もう一度お試しください。');
   if (response.found === true && response.state === 'done') {
     invoiceSubmissionComplete_(pending);
@@ -1130,6 +1162,7 @@ function invoiceSubmissionSameInput_(left, right) {
 function invoiceShowPendingPreview_(pending) {
   var p = pending.payload;
   var lines = ['前回の発行結果が未確認です。再送する内容を確認してください。', '今回入力し直した内容はまだ送信しません。', '', '送信先: ' + (p.email || ''), '金額（税込）: ¥' + Number(p.total || 0).toLocaleString(), '売上報告: ' + (p.write_uriage ? 'する' : 'しない')];
+  if (invoiceIssuerIsAdmin_()) lines.push('担当（PDF の表示）: ' + (p.issue_as_staff_id || p.staff_id || window.ECOPITA_SESSION.staffId || ''));
   (p.items || []).forEach(function(item) { lines.push(String(item.name || '') + ' × ' + Number(item.qty || 0) + ' ／ ¥' + Number(item.subtotal || 0).toLocaleString()); });
   var preview = document.getElementById('preview_content'); preview.textContent = lines.join('\n'); preview.style.whiteSpace = 'pre-wrap';
   window._invoicePendingReviewed = p.doc_submission_id;
@@ -1256,6 +1289,11 @@ async function issueInvoice() {
     };
   }
 
+  var issueAsStaffId = invoiceIssueAsStaff_();
+  if (issueAsStaffId) {
+    if (!/^\d{4}$/.test(issueAsStaffId)) { showError('preview_error','担当者番号が正しくありません'); btn.disabled = false; return; }
+    payload.issue_as_staff_id = issueAsStaffId;
+  }
   try {
     var pendingInvoice = invoiceSubmissionPrepare_(payload);
     if (!invoiceSubmissionSameInput_(payload, pendingInvoice.payload) && window._invoicePendingReviewed !== pendingInvoice.payload.doc_submission_id) {
