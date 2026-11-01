@@ -213,8 +213,12 @@ window.ECOPITA_IS_AUTH_ERROR=function(msg){return typeof msg==='string'&&(/セ�
     modal.style.cssText = 'background:#fff;border-radius:16px;padding:24px;width:90%;max-width:380px;text-align:center;font-family:-apple-system,BlinkMacSystemFont,"Noto Sans JP",sans-serif;';
     modal.innerHTML = '<h3 style="margin-bottom:16px;color:#c62828">セッションが切れました</h3>'
       + '<p style="font-size:14px;color:#555;margin-bottom:16px">もう一度ログインしてください</p>'
-      + '<button onclick="localStorage.removeItem(\'ecopita_session\');location.href=\'' + LOGIN_URL + '?redirect=' + encodeURIComponent(location.href) + '\'" '
+      + '<button '
       + 'style="background:#0055a4;color:#fff;border:none;border-radius:10px;padding:12px 32px;font-size:15px;font-weight:700;cursor:pointer">ログイン画面へ</button>';
+    modal.querySelector('button').addEventListener('click', function() {
+      localStorage.removeItem('ecopita_session');
+      location.href = LOGIN_URL + '?redirect=' + encodeURIComponent(location.href);
+    });
     overlay.appendChild(modal);
     document.body.appendChild(overlay);
   };

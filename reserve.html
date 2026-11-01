@@ -215,14 +215,16 @@ async function doSearch() {
   btn.disabled = false; btn.textContent = '検索';
 }
 
+function escHtml_(value) { return String(value == null ? "" : value).replace(/[&<>"']/g, function(c) { return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
+
 function renderCaseInfo(r) {
   caseData = r;
   var html = '';
-  html += '<div class="info-row"><span class="info-label">案件番号</span><span class="info-value">' + r.case_id + '</span></div>';
-  html += '<div class="info-row"><span class="info-label">お客様名</span><span class="info-value">' + (r.name || '-') + '</span></div>';
-  html += '<div class="info-row"><span class="info-label">ステータス</span><span class="info-value">' + (r.status || '-') + '</span></div>';
-  html += '<div class="info-row"><span class="info-label">現在の予約日</span><span class="info-value" style="color:' + (r.reserve_date === '未定' ? 'var(--orange)' : 'var(--green)') + '">' + (r.reserve_date || 'なし') + '</span></div>';
-  if (r.reserve_time) html += '<div class="info-row"><span class="info-label">予約時間</span><span class="info-value">' + r.reserve_time + '</span></div>';
+  html += '<div class="info-row"><span class="info-label">案件番号</span><span class="info-value">' + escHtml_(r.case_id) + '</span></div>';
+  html += '<div class="info-row"><span class="info-label">お客様名</span><span class="info-value">' + escHtml_((r.name || '-')) + '</span></div>';
+  html += '<div class="info-row"><span class="info-label">ステータス</span><span class="info-value">' + escHtml_((r.status || '-')) + '</span></div>';
+  html += '<div class="info-row"><span class="info-label">現在の予約日</span><span class="info-value" style="color:' + (r.reserve_date === '未定' ? 'var(--orange)' : 'var(--green)') + '">' + escHtml_((r.reserve_date || 'なし')) + '</span></div>';
+  if (r.reserve_time) html += '<div class="info-row"><span class="info-label">予約時間</span><span class="info-value">' + escHtml_(r.reserve_time) + '</span></div>';
   document.getElementById('case_info').innerHTML = html;
   document.getElementById('step2').classList.remove('hidden');
   document.getElementById('step2').scrollIntoView({ behavior: 'smooth' });

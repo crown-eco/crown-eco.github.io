@@ -618,6 +618,8 @@ function searchCase() {
     });
 }
 
+function escHtml_(value) { return String(value == null ? "" : value).replace(/[&<>"']/g, function(c) { return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
+
 function renderContracts(contracts) {
   var list = document.getElementById('contract-list');
   list.innerHTML = '';
@@ -626,8 +628,8 @@ function renderContracts(contracts) {
     item.className = 'contract-item';
     var expenseNote = c.expense_w ? '（経費申請済: ' + fmt(Math.abs(c.expense_w)) + '）' : '';
     item.innerHTML =
-      '<div class="cid">' + c.datetime + '　' + fmt(c.amount) + '</div>' +
-      '<div class="meta">' + c.name + ' ／ ' + c.payment + expenseNote + '</div>';
+      '<div class="cid">' + escHtml_(c.datetime) + '　' + fmt(c.amount) + '</div>' +
+      '<div class="meta">' + escHtml_(c.name) + ' ／ ' + escHtml_(c.payment) + expenseNote + '</div>';
     item.onclick = function() { selectContract(c, item); };
     list.appendChild(item);
   });

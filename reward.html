@@ -406,7 +406,7 @@ async function bootstrap(){
     if(vm.length>1){document.getElementById('adminSelect').style.display='';var sel=document.getElementById('memberSelect');sel.innerHTML='';
       vm.forEach(function(m){var o=document.createElement('option');o.value=m.staffId;o.textContent=m.staffId+' '+m.name;sel.appendChild(o)});sel.value=r.groupReward?r.viewStaffId:myStaffId;}
     if(r.groupReward)viewStaffId=r.viewStaffId||'';
-    if(isAdmin&&!r.groupReward){document.getElementById('lblUser').innerHTML=r.displayName+'（'+r.staffId+'）<span class="admin-badge">管理者</span>';}
+    if(isAdmin&&!r.groupReward){document.getElementById('lblUser').innerHTML=esc(r.displayName)+'（'+esc(r.staffId)+'）<span class="admin-badge">管理者</span>';}
     else{document.getElementById('lblUser').textContent=r.displayName+'（'+r.staffId+'）';}
     updatePreviewControls(r);
     buildTabs();renderOwn();
@@ -465,7 +465,7 @@ async function doLogout(){
 
 function $(id){return document.getElementById(id)}
 function yen(n){var v=Number(n||0);return v<0?'-¥'+Math.abs(v).toLocaleString('ja-JP'):'¥'+v.toLocaleString('ja-JP')}
-function esc(s){var d=document.createElement('div');d.textContent=s==null?'':s;return d.innerHTML}
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 function toast(m){var t=document.getElementById('toast');t.textContent=m;t.classList.add('on');setTimeout(function(){t.classList.remove('on')},2500)}
 function fmtMD(s){if(!s)return'-';var p=s.split('-');return parseInt(p[1])+'/'+parseInt(p[2])}
 function colorVal(n){if(n<0)return'<span class="neg mono">'+yen(n)+'</span>';if(n>0)return'<span class="pos mono">'+yen(n)+'</span>';return'<span class="mono">¥0</span>'}
@@ -586,7 +586,7 @@ function renderGroupReward_(){
 function renderWeeksHTML(weeks,full,refByWeek){var html='';
   weeks.forEach(function(w,i){var ws=fmtMD(w.weekStart),we=fmtMD(w.weekEnd);var d0=w.days[0],d6=w.days[6];
     var refAmt=(refByWeek&&refByWeek[i])?refByWeek[i]:0;
-    html+='<div class="week" style="animation-delay:'+(i*0.04)+'s"><div class="week-hdr"><h3>第'+(i+1)+'週　'+ws+'（'+(d0?d0.dow:'')+'）〜'+we+'（'+(d6?d6.dow:'')+'）</h3><div class="week-tf">';
+    html+='<div class="week" style="animation-delay:'+(i*0.04)+'s"><div class="week-hdr"><h3>第'+(i+1)+'週　'+ws+'（'+esc((d0?d0.dow:''))+'）〜'+we+'（'+esc((d6?d6.dow:''))+'）</h3><div class="week-tf">';
     if(refAmt){html+='<span class="lb">報酬</span><span class="mono">'+yen(w.transferAmount)+'</span>'+'<span class="op">+</span><span class="lb">紹介</span><span class="mono" style="color:var(--green)">'+yen(refAmt)+'</span>'+'<span class="op">=</span><span class="lb">合計</span><span class="mono">'+yen(w.transferAmount+refAmt)+'</span>';}
     else{html+='<span class="lb">振込</span><span class="mono">'+yen(w.transferAmount)+'</span>';}
     html+='</div></div>';
@@ -594,22 +594,22 @@ function renderWeeksHTML(weeks,full,refByWeek){var html='';
     html+='<div class="tbl-w"><table><thead><tr><th class="c">日付</th><th class="c">件数</th><th class="r">売上</th><th class="r">広告費</th>';
     if(full)html+='<th class="r">手数料</th><th class="r">CO費用</th><th class="r">本体代</th><th class="r">伝票代</th>';
     html+='<th class="r">報酬</th></tr></thead><tbody>';
-    w.days.forEach(function(d){html+='<tr><td class="c">'+fmtMD(d.date)+'（'+esc(d.dow)+'）</td><td class="c">'+d.count+'</td><td class="r mono">'+yen(d.sales)+'</td><td class="r mono">'+yen(d.adCost)+'</td>';
+    w.days.forEach(function(d){html+='<tr><td class="c">'+fmtMD(d.date)+'（'+esc(d.dow)+'）</td><td class="c">'+esc(d.count)+'</td><td class="r mono">'+yen(d.sales)+'</td><td class="r mono">'+yen(d.adCost)+'</td>';
       if(full)html+='<td class="r mono">'+yen(d.cardFee)+'</td><td class="r mono">'+yen(d.coFee||0)+'</td><td class="r mono">'+yen(d.honntai)+'</td><td class="r mono">'+yen(d.slipCost)+'</td>';
       html+='<td class="r">'+colorVal(d.reward)+'</td></tr>'});
-    var t=w.totals;html+='<tr class="total-row"><td class="c">合計</td><td class="c">'+t.count+'</td><td class="r mono">'+yen(t.sales)+'</td><td class="r mono">'+yen(t.adCost)+'</td>';
+    var t=w.totals;html+='<tr class="total-row"><td class="c">合計</td><td class="c">'+esc(t.count)+'</td><td class="r mono">'+yen(t.sales)+'</td><td class="r mono">'+yen(t.adCost)+'</td>';
     if(full)html+='<td class="r mono">'+yen(t.cardFee)+'</td><td class="r mono">'+yen(t.coFee||0)+'</td><td class="r mono">'+yen(t.honntai)+'</td><td class="r mono">'+yen(t.slipCost)+'</td>';
     html+='<td class="r">'+colorVal(t.reward)+'</td></tr></tbody></table></div>';
     html+='<div class="day-cards">';
     w.days.forEach(function(d){
       var hasD=d.count>0||d.sales!==0||d.adCost!==0||d.reward!==0;
-      html+='<div class="day-card'+(hasD?' has-data':'')+'"><div class="day-top"><div><span class="day-date">'+fmtMD(d.date)+'（'+esc(d.dow)+'）</span><span class="day-count">'+d.count+'件</span></div><div class="day-reward '+colorCls(d.reward)+' mono">'+yen(d.reward)+'</div></div>';
+      html+='<div class="day-card'+(hasD?' has-data':'')+'"><div class="day-top"><div><span class="day-date">'+fmtMD(d.date)+'（'+esc(d.dow)+'）</span><span class="day-count">'+esc(d.count)+'件</span></div><div class="day-reward '+colorCls(d.reward)+' mono">'+yen(d.reward)+'</div></div>';
       if(hasD&&full){html+='<div class="day-details"><div class="day-item"><span class="dl">売上</span><span class="dv mono">'+yen(d.sales)+'</span></div><div class="day-item"><span class="dl">広告費</span><span class="dv mono">'+yen(d.adCost)+'</span></div><div class="day-item"><span class="dl">手数料</span><span class="dv mono">'+yen(d.cardFee)+'</span></div><div class="day-item"><span class="dl">CO費用</span><span class="dv mono">'+yen(d.coFee||0)+'</span></div><div class="day-item"><span class="dl">本体代</span><span class="dv mono">'+yen(d.honntai)+'</span></div><div class="day-item"><span class="dl">伝票代</span><span class="dv mono">'+yen(d.slipCost)+'</span></div></div>';html+=renderPaymentBreakdown(d.payments);}
       else if(!hasD){html+='<div class="day-empty">データなし</div>';}
       html+='</div>';
     });
     var t2=w.totals;
-    html+='<div class="day-card total"><div class="day-top"><div><span class="day-date">合計</span><span class="day-count">'+t2.count+'件</span></div><div class="day-reward '+(t2.reward>=0?'pos':'neg')+' mono">'+yen(t2.reward)+'</div></div>';
+    html+='<div class="day-card total"><div class="day-top"><div><span class="day-date">合計</span><span class="day-count">'+esc(t2.count)+'件</span></div><div class="day-reward '+(t2.reward>=0?'pos':'neg')+' mono">'+yen(t2.reward)+'</div></div>';
     if(full){html+='<div class="day-details"><div class="day-item"><span class="dl">売上</span><span class="dv mono">'+yen(t2.sales)+'</span></div><div class="day-item"><span class="dl">広告費</span><span class="dv mono">'+yen(t2.adCost)+'</span></div><div class="day-item"><span class="dl">手数料</span><span class="dv mono">'+yen(t2.cardFee)+'</span></div><div class="day-item"><span class="dl">CO費用</span><span class="dv mono">'+yen(t2.coFee||0)+'</span></div><div class="day-item"><span class="dl">本体代</span><span class="dv mono">'+yen(t2.honntai)+'</span></div><div class="day-item"><span class="dl">伝票代</span><span class="dv mono">'+yen(t2.slipCost)+'</span></div></div>';html+=renderPaymentBreakdown(t2.payments);}
     html+='</div></div>';
     html+='</div>';});return html}

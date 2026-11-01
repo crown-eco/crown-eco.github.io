@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "site": "crown",
-  "source_commit": "0554cf12551ee49a0ca8a3121882b2065d505d1e",
+  "source_commit": "c6216dc0335e65f00b9d5926c79e76865e08c2f8",
   "excluded": [
     ".git",
     "woff-test",
@@ -24,13 +24,13 @@
     },
     {
       "path": "cases.html",
-      "size": 28633,
-      "sha256": "95bbd70e73e4e4768fe9a8f766e961371a30ed5ea136cc19e29fd4e283704b9a"
+      "size": 28690,
+      "sha256": "b916ca4894eddd96968bd54acf3a5e93f60475ed3dd5705590f4ca563052e62c"
     },
     {
       "path": "company_dashboard.html",
-      "size": 90486,
-      "sha256": "6796372727f67464bce8357ee883b8142da50bf8d7b2502687c3b347c227163c"
+      "size": 90533,
+      "sha256": "24a2cae91e28ee5633b20f505391af512af7b54a49bce9e1176a59759f5f3e60"
     },
     {
       "path": "dashboard-analytics-core.js",
@@ -59,13 +59,13 @@
     },
     {
       "path": "estimate.html",
-      "size": 241231,
-      "sha256": "91d47ed33514c160cb6c2079c82f0a6644baf2d2bca9eb1adc6d06914afec1d5"
+      "size": 241636,
+      "sha256": "c6cf015911446d5e6abab9fa6c793005a3bc6f01a88da1f33cce6efe7d538d02"
     },
     {
       "path": "expense.html",
-      "size": 61949,
-      "sha256": "80fd1abf6eb59a312a7bf4a5c6d9b4b70895bbacf653db4479126e3bc2832e63"
+      "size": 62161,
+      "sha256": "b7e412d77761297cc2a58f87074f1a9f45e1df359f119a12ef02cfb45fed0859"
     },
     {
       "path": "form-direct-read.js",
@@ -79,13 +79,13 @@
     },
     {
       "path": "index.html",
-      "size": 156991,
-      "sha256": "a97126513311acae189e103ff326f63f314c9b58c5eecd2280d319c2fa3e2af6"
+      "size": 157339,
+      "sha256": "f551ef62b3bb96d77661513a54318020e9e20a62062cacfcf25e6ac6b56d77e9"
     },
     {
       "path": "invoice.html",
-      "size": 72427,
-      "sha256": "1f6b743bec4592657a32799259139fec790690618081185e0a935cb267144ec3"
+      "size": 72638,
+      "sha256": "5c3d3eae8795c63d52d30a2ce04f0485fbcc07bbcfabed56294fbcef038226e2"
     },
     {
       "path": "login.html",
@@ -94,8 +94,8 @@
     },
     {
       "path": "portal.html",
-      "size": 51657,
-      "sha256": "f8e2bec4179a3b51ce410048f967b68d7d98d3462242ef3dc2b9bc4e1837e35a"
+      "size": 51730,
+      "sha256": "593fcc7258fa38e9d2b7e7c803381d07ab8407fa6661eb85d3866733f164f187"
     },
     {
       "path": "privacy.html",
@@ -104,13 +104,13 @@
     },
     {
       "path": "quote.html",
-      "size": 63921,
-      "sha256": "3cf4d95d20b76edc955413444c2df1741fac6d340592aaa2c6bc877748d80963"
+      "size": 64143,
+      "sha256": "fb436a51c39cd4fb0db34ce36153cb035fd8289bdc2db9b80072ea7c208fb948"
     },
     {
       "path": "receipt.html",
-      "size": 45494,
-      "sha256": "d0182ea4605a14da51a726c1016b0706c797e343db4a035cf800bd1b1d18ec4c"
+      "size": 45513,
+      "sha256": "8300dda6ed395cba94e3fa2f36ca4da7f732a55bc84a0c9a4d8c16b4d0b3a955"
     },
     {
       "path": "resend.html",
@@ -119,18 +119,18 @@
     },
     {
       "path": "reserve.html",
-      "size": 16624,
-      "sha256": "2b3e6a386591a56f76a8cb0e9c060ee6473fa100ac79750472dd49538bc309f3"
+      "size": 16856,
+      "sha256": "10b53111f2c38efbf07a132db54873625f316a87dc046aeeea42dff497251907"
     },
     {
       "path": "reward.html",
-      "size": 52776,
-      "sha256": "1776ccb9214148acffce660e97760d6f4eda7cb87a4013769a5522be4a2b44b3"
+      "size": 52872,
+      "sha256": "c179bfa7723581090b50656d1ec07fb55d7c1b40135d56fc48716e1539f466e2"
     },
     {
       "path": "shared-auth.js",
-      "size": 10607,
-      "sha256": "49c9cf778e2bbf25b4ad9d471f4df7a5a8820280b7d505f413ff96c3e5587a01"
+      "size": 10680,
+      "sha256": "2912c0bdf17778b6cf0f611bdd0425d885b5470871905066b5e83571384fa737"
     },
     {
       "path": "shared-consent-photo.js",

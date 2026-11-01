@@ -1472,7 +1472,7 @@ function _setupDraftAutoSave() {
 
 function _clearDraftAndReload() {
   _clearDraft();
-  location.href = location.pathname; // クエリパラメータも消して再読込
+  location.href = location.origin + location.pathname; // クエリパラメータも消して再読込
 }
 
 
@@ -1569,9 +1569,10 @@ function addCcEmail(val) {
   div.innerHTML =
     '<input type="email" class="cc-email-input" inputmode="email" placeholder="CCメールアドレス"' +
     ' style="flex:1;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:.95rem"' +
-    ' value="' + (val || '') + '">' +
+    '>' +
     '<button type="button" onclick="this.parentElement.remove()"' +
     ' style="background:#ff5252;color:#fff;border:none;border-radius:50%;width:30px;height:30px;cursor:pointer;font-size:1rem;flex-shrink:0">×</button>';
+  div.querySelector('.cc-email-input').value = val || '';
   area.appendChild(div);
 }
 
@@ -1657,7 +1658,7 @@ function renderCouponTags_(arr, elId, fn) {
   var html = '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">' +
     arr.map(function(c, i) {
       return '<span style="display:inline-flex;align-items:center;gap:4px;background:#e8f5e9;border:1px solid #4caf50;border-radius:8px;padding:5px 10px;font-size:.85rem;font-weight:600">' +
-        c.code + ' (-\u00a5' + c.discount.toLocaleString() + ')' +
+        escHtml_(c.code) + ' (-\u00a5' + c.discount.toLocaleString() + ')' +
         '<button type="button" onclick="' + fn + '(' + i + ')" style="background:none;border:none;color:#c62828;font-weight:700;cursor:pointer;font-size:1.1rem;padding:0 2px">\u00d7</button></span>';
     }).join('') + '</div>';
   html += '<div style="font-size:.82rem;color:#2e7d32;margin-top:4px">' +
@@ -1893,7 +1894,7 @@ function nextStep() {
       const allNames = [];
       if (names) allNames.push(names);
       if (invNames.length) allNames.push(invNames.join('、'));
-      if (allNames.length) extra = '<br><span style="font-size:.85rem;color:#666">└ ' + allNames.join('、') + '</span>';
+      if (allNames.length) extra = '<br><span style="font-size:.85rem;color:#666">└ ' + escHtml_(allNames.join('、')) + '</span>';
     }
     if (oType === '原因究明作業') {
       const inv = getInvOptions(), customs = getCustomItems();
@@ -1901,41 +1902,41 @@ function nextStep() {
         ...inv.map(v => v.name + (v.price ? '(¥' + v.price.toLocaleString() + '税抜)' : '')),
         ...customs.map(c => c.name + '(¥' + c.subtotal.toLocaleString() + ')')
       ];
-      if (allExtras.length) extra = '<br><span style="font-size:.85rem;color:#666">└ ' + allExtras.join('、') + '</span>';
+      if (allExtras.length) extra = '<br><span style="font-size:.85rem;color:#666">└ ' + escHtml_(allExtras.join('、')) + '</span>';
     }
     let disc = coupons.length > 0
       ? '<br><span style="color:#e65100;font-weight:bold">※クーポン：' +
-        coupons.map(function(c) { return c.code + '(-¥' + c.discount.toLocaleString() + ')'; }).join('・') + '</span>'
+        coupons.map(function(c) { return escHtml_(c.code) + '(-¥' + c.discount.toLocaleString() + ')'; }).join('・') + '</span>'
       : '';
-    let payDisplay = pay;
+    let payDisplay = escHtml_(pay);
     if (pay === 'ご相談') {
       const splits = getSplitPayments();
       payDisplay = 'ご相談（売掛金）<br>' + splits.map(function(sp, i) {
-        let s = '<span style="font-size:.85rem;color:#666">└ 売掛金' + (i+1) + ': ' + sp.method +
+        let s = '<span style="font-size:.85rem;color:#666">└ 売掛金' + (i+1) + ': ' + escHtml_(sp.method) +
           ' ¥' + sp.amount_inc.toLocaleString('ja-JP') + '（税込）';
-        if (sp.deadline) s += '<br><span style="font-size:.85rem;color:#666;padding-left:1em">期限:' + sp.deadline + '</span>';
+        if (sp.deadline) s += '<br><span style="font-size:.85rem;color:#666;padding-left:1em">期限:' + escHtml_(sp.deadline) + '</span>';
         return s + '</span>';
       }).join('<br>');
     } else if (pay === '銀行振り込み') {
-      payDisplay = pay + (document.getElementById('transfer_deadline').value
-        ? '<br><span style="font-size:.85rem;color:#666">振込期限: ' + document.getElementById('transfer_deadline').value + '</span>' +
-          '<br><span style="font-size:.85rem;color:#666">振込名義: ' + (document.getElementById('transfer_name').value || '未入力') + '</span>'
+      payDisplay = escHtml_(pay) + (document.getElementById('transfer_deadline').value
+        ? '<br><span style="font-size:.85rem;color:#666">振込期限: ' + escHtml_(document.getElementById('transfer_deadline').value) + '</span>' +
+          '<br><span style="font-size:.85rem;color:#666">振込名義: ' + escHtml_(document.getElementById('transfer_name').value || '未入力') + '</span>'
         : '');
     }
     const ccHtml = getCcEmails().length
-      ? '<br><span style="font-size:.85rem;color:#666">CC: ' + getCcEmails().join('<br>') + '</span>'
+      ? '<br><span style="font-size:.85rem;color:#666">CC: ' + getCcEmails().map(escHtml_).join('<br>') + '</span>'
       : '';
     document.getElementById('confirmContent').innerHTML =
-      '<div class="confirm-row"><span class="confirm-label">案件番号</span><span class="confirm-val">' + d.case_id + '</span></div>' +
-      '<div class="confirm-row"><span class="confirm-label">担当者</span><span class="confirm-val">' + d.emp_id + '</span></div>' +
-      '<div class="confirm-row"><span class="confirm-label">お名前</span><span class="confirm-val">' + d.name + '（' + d.kana + '）</span></div>' +
-      '<div class="confirm-row"><span class="confirm-label">電話番号</span><span class="confirm-val">' + d.tel + '</span></div>' +
-      '<div class="confirm-row"><span class="confirm-label">メール</span><span class="confirm-val">' + d.email + ccHtml + '</span></div>' +
-      '<div class="confirm-row"><span class="confirm-label">住所</span><span class="confirm-val">〒' + d.zip + '<br>' + d.address + ' ' + d.banchi + ' ' + d.building + '</span></div>' +
-      '<div class="confirm-row"><span class="confirm-label">機器</span><span class="confirm-val">' + (d.equipment || '未選択') + '</span></div>' +
+      '<div class="confirm-row"><span class="confirm-label">案件番号</span><span class="confirm-val">' + escHtml_(d.case_id) + '</span></div>' +
+      '<div class="confirm-row"><span class="confirm-label">担当者</span><span class="confirm-val">' + escHtml_(d.emp_id) + '</span></div>' +
+      '<div class="confirm-row"><span class="confirm-label">お名前</span><span class="confirm-val">' + escHtml_(d.name) + '（' + escHtml_(d.kana) + '）</span></div>' +
+      '<div class="confirm-row"><span class="confirm-label">電話番号</span><span class="confirm-val">' + escHtml_(d.tel) + '</span></div>' +
+      '<div class="confirm-row"><span class="confirm-label">メール</span><span class="confirm-val">' + escHtml_(d.email) + ccHtml + '</span></div>' +
+      '<div class="confirm-row"><span class="confirm-label">住所</span><span class="confirm-val">〒' + escHtml_(d.zip) + '<br>' + escHtml_(d.address) + ' ' + escHtml_(d.banchi) + ' ' + escHtml_(d.building) + '</span></div>' +
+      '<div class="confirm-row"><span class="confirm-label">機器</span><span class="confirm-val">' + escHtml_(d.equipment || '未選択') + '</span></div>' +
       equipmentInfoPreviewHtml_() +
-      '<div class="confirm-row"><span class="confirm-label">症状</span><span class="confirm-val">' + sym + '</span></div>' +
-      '<div class="confirm-row"><span class="confirm-label">作業</span><span class="confirm-val" style="color:var(--blue)">' + oType + extra + disc + '</span></div>' +
+      '<div class="confirm-row"><span class="confirm-label">症状</span><span class="confirm-val">' + escHtml_(sym) + '</span></div>' +
+      '<div class="confirm-row"><span class="confirm-label">作業</span><span class="confirm-val" style="color:var(--blue)">' + escHtml_(oType) + extra + disc + '</span></div>' +
       '<div class="confirm-row"><span class="confirm-label">支払い</span><span class="confirm-val">' + payDisplay + '</span></div>';
   }
 
@@ -1949,15 +1950,15 @@ function nextStep() {
     const itemRow = function(name, qty, price, subtotal, extraStyle) {
       const base = 'padding:8px 10px;border-bottom:1px solid #eee;' + (extraStyle || '');
       return '<div style="' + base + '">' +
-        '<div style="font-weight:600;margin-bottom:2px">' + name + '</div>' +
+        '<div style="font-weight:600;margin-bottom:2px">' + escHtml_(name) + '</div>' +
         '<div style="text-align:right;color:#555;font-size:.88rem">' +
           qty + ' × ' + fmtYen(price) + ' = <span style="font-weight:600;color:#222">' + fmtYen(subtotal) + '</span>' +
         '</div></div>';
     };
     const noteRow = function(name, note) {
       return '<div style="padding:8px 10px;border-bottom:1px solid #eee;color:#666;font-size:.85rem">' +
-        '<div>' + name + '</div>' +
-        '<div style="text-align:right">' + note + '</div></div>';
+        '<div>' + escHtml_(name) + '</div>' +
+        '<div style="text-align:right">' + escHtml_(note) + '</div></div>';
     };
 
     if (orderType === '原因究明作業') {
@@ -2023,10 +2024,10 @@ function nextStep() {
       const nums = ['①','②','③','④','⑤','⑥','⑦','⑧','⑨','⑩'];
       feeDisplayArea.innerHTML = splits.map(function(sp, i) {
         let s = '<div style="font-weight:700;color:var(--blue);font-size:.95rem">' +
-          (nums[i] || '(' + (i+1) + ')') + ' ' + sp.method +
+          (nums[i] || '(' + (i+1) + ')') + ' ' + escHtml_(sp.method) +
           '　¥' + sp.amount_inc.toLocaleString('ja-JP') + '（税込）</div>';
-        if (sp.deadline) s += '<div style="font-size:.8rem;color:var(--text-sub)">振込期限：' + sp.deadline + '</div>';
-        if (sp.transfer_name) s += '<div style="font-size:.8rem;color:var(--text-sub)">振込名義：' + sp.transfer_name + '</div>';
+        if (sp.deadline) s += '<div style="font-size:.8rem;color:var(--text-sub)">振込期限：' + escHtml_(sp.deadline) + '</div>';
+        if (sp.transfer_name) s += '<div style="font-size:.8rem;color:var(--text-sub)">振込名義：' + escHtml_(sp.transfer_name) + '</div>';
         return '<div style="margin-bottom:8px">' + s + '</div>';
       }).join('');
       feeDisplayArea.innerHTML += '<div style="margin-top:4px;padding-top:6px;border-top:1px solid #ddd;font-size:.9rem;font-weight:700">合計：¥' +

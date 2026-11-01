@@ -569,7 +569,7 @@ function render(json) {
   ];
   var allHtml = kpis.map(function(k) {
     return '<div class="ag-card"><div class="ag-label"><span class="kpi-dot" style="background:' + k.dot + '"></span>' + k.label + '</div>'
-      + '<div class="ag-val-lg" style="color:' + k.color + '">' + k.value + '<span class="ag-unit">' + k.unit + '</span></div></div>';
+      + '<div class="ag-val-lg" style="color:' + k.color + '">' + esc(k.value) + '<span class="ag-unit">' + k.unit + '</span></div></div>';
   }).join('');
 
   var revenueItems = [
@@ -638,9 +638,9 @@ function renderStaffTable_() {
   var json = { groupRewardHidden: STAFF_TABLE_.rewardHidden };
   document.getElementById('staffBody').innerHTML = sortedStaff.map(function(st) {
       return '<tr><td class="sticky-col" style="text-align:center"><strong>' + esc(st.staff_name) + '</strong><br><span style="color:var(--text2);font-size:11px">' + esc(st.staff_id) + '</span></td>'
-        + '<td class="mono" style="text-align:center">' + st.received + '</td><td class="mono" style="text-align:center;color:var(--green)">' + st.seiyaku + '</td>'
-        + '<td class="mono" style="text-align:center;color:var(--red)">' + st.shicchu + '</td><td class="mono" style="text-align:center;color:var(--orange)">' + st.denwa_shicchu + '</td>'
-        + '<td class="mono" style="text-align:center;color:var(--purple)">' + st.yoyaku + '</td><td class="mono" style="text-align:center">' + st.seiyaku_rate + '%</td>'
+        + '<td class="mono" style="text-align:center">' + esc(st.received) + '</td><td class="mono" style="text-align:center;color:var(--green)">' + esc(st.seiyaku) + '</td>'
+        + '<td class="mono" style="text-align:center;color:var(--red)">' + esc(st.shicchu) + '</td><td class="mono" style="text-align:center;color:var(--orange)">' + esc(st.denwa_shicchu) + '</td>'
+        + '<td class="mono" style="text-align:center;color:var(--purple)">' + esc(st.yoyaku) + '</td><td class="mono" style="text-align:center">' + esc(st.seiyaku_rate) + '%</td>'
         + '<td class="mono r">' + fmtYen(st.revenue) + '</td><td class="mono r">' + fmtYen(st.ad_cost) + '</td>'
         + '<td class="mono r" style="color:' + (st.gross_profit >= 0 ? 'var(--green)' : 'var(--red)') + '">' + fmtYen(st.gross_profit) + '</td>'
         + (json.groupRewardHidden ? '' : '<td class="mono r">' + fmtYen(st.reward) + '</td>') + '</tr>';
@@ -674,7 +674,7 @@ function renderCaseTable_(json, showStaffColumn) {
 
 function fmt(n) { if (n == null || isNaN(n)) return '0'; return Math.floor(n).toLocaleString('ja-JP'); }
 function fmtYen(n) { var v = Math.floor(Number(n) || 0); return v < 0 ? '-¥' + Math.abs(v).toLocaleString('ja-JP') : '¥' + v.toLocaleString('ja-JP'); }
-function esc(s) { if (!s) return ''; var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 function renderPreviewControls_(json, isAdmin) {
   var wrap = document.getElementById('previewWrap'), sel = document.getElementById('previewAsSelect'), badge = document.getElementById('previewBadge');
   if (!wrap || !sel) return;

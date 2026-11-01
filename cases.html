@@ -345,8 +345,8 @@ function renderRows(rows){
       +'<td style="color:var(--text2);">'+esc(r.content)+'</td>'
       +'<td class="mono" style="text-align:right;">¥'+fmt(r.sales)+'</td>'
       +'<td>'+esc(r.pay_method)+'</td>'
-      +'<td class="mono'+(isOverdue?'" style="color:var(--red);font-weight:500':'')+'">'+(r.transfer_deadline||'—')+'</td>'
-      +'<td class="mono">'+(r.arrival_date||'—')+'</td>'
+      +'<td class="mono'+(isOverdue?'" style="color:var(--red);font-weight:500':'')+'">'+esc(r.transfer_deadline||'—')+'</td>'
+      +'<td class="mono">'+esc(r.arrival_date||'—')+'</td>'
       +'<td>'+statusBadge(r.status)+'</td>'
       +'<td>'+payStatusBadge(r.pay_status)+'</td>'
       +'</tr>';
@@ -400,7 +400,7 @@ function initResize(){
 }
 
 function fmt(n){if(n==null||isNaN(n))return'0';return Math.floor(n).toLocaleString('ja-JP');}
-function esc(s){if(!s)return'';var d=document.createElement('div');d.textContent=s;return d.innerHTML;}
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 function statusBadge(st){
   if(!st)return'';
   var cls='badge ';

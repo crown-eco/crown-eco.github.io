@@ -1580,7 +1580,7 @@ function renderCouponTags_(arr, elId, removeFuncName, beforeEx) {
   var totalInc = ECOPITA_CUSTOMER_TAX.coupon(beforeEx === undefined ? recalc()[elId] : beforeEx, totalEx);
   var html = '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">' + arr.map(function(c, i) {
     return '<span style="display:inline-flex;align-items:center;gap:4px;background:#e8f5e9;border:1px solid #4caf50;border-radius:8px;padding:5px 10px;font-size:.85rem;font-weight:600">'
-      + c.code + ' (-\u00a5' + c.discount.toLocaleString() + ')'
+      + escHtml_(c.code) + ' (-\u00a5' + c.discount.toLocaleString() + ')'
       + '<button type="button" onclick="' + removeFuncName + '(' + i + ')" style="background:none;border:none;color:#c62828;font-weight:700;cursor:pointer;font-size:1.1rem;padding:0 2px;line-height:1">\u00d7</button></span>';
   }).join('') + '</div>';
   html += '<div style="font-size:.82rem;color:#2e7d32;margin-top:4px">\u5408\u8a08 -\u00a5' + totalEx.toLocaleString() + '\uff08\u7a0e\u629c\uff09/ -\u00a5' + totalInc.toLocaleString() + '\uff08\u7a0e\u8fbc\uff09</div>';
@@ -2494,10 +2494,11 @@ function addCcEmail(areaKey, val) {
     +   ' placeholder="CCメールアドレス"'
     +   ' style="flex:1;padding:10px;border:2px solid var(--border);'
     +          'border-radius:8px;font-size:.95rem"'
-    +   ' value="' + (val||'') + '">'
+    +   ' value="">'
     + '<button type="button" onclick="this.parentElement.remove()"'
     +   ' style="background:#ff5252;color:#fff;border:none;border-radius:50%;'
     +          'width:30px;height:30px;cursor:pointer;font-size:1rem;flex-shrink:0">×</button>';
+  div.querySelector('input').value = val || '';
   area.appendChild(div);
 }
 
@@ -2548,7 +2549,7 @@ function recalc() {
     let _tbHtml = '';
     if (!_isReserveEstNow && P.initial_fee > 0) {
       const _equip2 = document.getElementById('manual_equipment') ? document.getElementById('manual_equipment').value || P.equipment : P.equipment;
-      _tbHtml += '<div style="' + _rowStyle + '"><span>故障診断（' + (_equip2||'') + '）</span><span>¥' + P.initial_fee.toLocaleString('ja-JP') + '（税抜）</span></div>';
+      _tbHtml += '<div style="' + _rowStyle + '"><span>故障診断（' + escHtml_((_equip2||'')) + '）</span><span>¥' + P.initial_fee.toLocaleString('ja-JP') + '（税抜）</span></div>';
     }
     REPAIR_MENU.forEach(function(item, i) {
       const el = document.getElementById('today_qty_' + i);
@@ -2559,7 +2560,7 @@ function recalc() {
     if (_addCondVisible) {
       document.querySelectorAll('#inv_options_area .inv-est-row').forEach(function(row) {
         const p = parseInt(row.querySelector('.inv-est-price').value) || 0;
-        if (p > 0) _tbHtml += '<div style="' + _rowStyle + '"><span>' + row.dataset.invName + '</span><span>¥' + p.toLocaleString('ja-JP') + '（税抜）</span></div>';
+        if (p > 0) _tbHtml += '<div style="' + _rowStyle + '"><span>' + escHtml_(row.dataset.invName) + '</span><span>¥' + p.toLocaleString('ja-JP') + '（税抜）</span></div>';
       });
     }
     document.querySelectorAll('#custom_est_items_area .custom-est-row').forEach(function(row) {
@@ -2568,11 +2569,11 @@ function recalc() {
       var q = parseInt(row.querySelector('.custom-est-qty').textContent) || 1;
       if (n && p !== 0) {
         var _tc = p < 0 ? 'color:#c62828;' : '';
-        _tbHtml += '<div style="' + _rowStyle + _tc + '"><span>' + n + '</span><span>' + fmtBreakdownPrice(p, q) + '</span></div>';
+        _tbHtml += '<div style="' + _rowStyle + _tc + '"><span>' + escHtml_(n) + '</span><span>' + fmtBreakdownPrice(p, q) + '</span></div>';
       }
     });
     coupons.forEach(function(cp) {
-      _tbHtml += '<div style="' + _rowStyle + ';color:#e65100"><span>クーポン（' + cp.code + '）</span><span>-¥' + cp.discount.toLocaleString('ja-JP') + '（税抜）</span></div>';
+      _tbHtml += '<div style="' + _rowStyle + ';color:#e65100"><span>クーポン（' + escHtml_(cp.code) + '）</span><span>-¥' + cp.discount.toLocaleString('ja-JP') + '（税抜）</span></div>';
     });
     _todayBreakEl.innerHTML = _tbHtml;
     }
@@ -2619,7 +2620,7 @@ function recalc() {
     if (_estChkDocType === '診断見積書') {
       var _estDiagEquip2 = document.getElementById('est_chk_equipment') ? document.getElementById('est_chk_equipment').value || P.equipment : P.equipment;
       var _estDiagFee = getDiagFee(_estDiagEquip2);
-      _bHtml += '<div style="' + _rowStyle + ';font-weight:600"><span>故障診断（' + (_estDiagEquip2||'') + '）</span><span>¥' + _estDiagFee.toLocaleString('ja-JP') + '（税抜）</span></div>';
+      _bHtml += '<div style="' + _rowStyle + ';font-weight:600"><span>故障診断（' + escHtml_((_estDiagEquip2||'')) + '）</span><span>¥' + _estDiagFee.toLocaleString('ja-JP') + '（税抜）</span></div>';
     }
     REPAIR_MENU.forEach(function(item, i) {
       const el = document.getElementById('est_qty_' + i);
@@ -2629,14 +2630,14 @@ function recalc() {
     });
     document.querySelectorAll('#est_inv_options_area .est-inv-row').forEach(function(row) {
       const p = parseInt(row.querySelector('.est-inv-price').value) || 0;
-      if (p > 0) _bHtml += '<div style="' + _rowStyle + '"><span>' + row.dataset.invName + '</span><span>¥' + p.toLocaleString('ja-JP') + '（税抜）</span></div>';
+      if (p > 0) _bHtml += '<div style="' + _rowStyle + '"><span>' + escHtml_(row.dataset.invName) + '</span><span>¥' + p.toLocaleString('ja-JP') + '（税抜）</span></div>';
     });
     getEstCustomItems().forEach(function(it) {
     var _ec = it.price < 0 ? 'color:#c62828;' : '';
-      _bHtml += '<div style="' + _rowStyle + _ec + '"><span>' + it.name + '</span><span>' + fmtBreakdownPrice(it.price, it.qty) + '</span></div>';
+      _bHtml += '<div style="' + _rowStyle + _ec + '"><span>' + escHtml_(it.name) + '</span><span>' + fmtBreakdownPrice(it.price, it.qty) + '</span></div>';
     });
     estCoupons.forEach(function(cp) {
-      _bHtml += '<div style="' + _rowStyle + ';color:#e65100"><span>クーポン（' + cp.code + '）</span><span>-¥' + cp.discount.toLocaleString('ja-JP') + '（税抜）</span></div>';
+      _bHtml += '<div style="' + _rowStyle + ';color:#e65100"><span>クーポン（' + escHtml_(cp.code) + '）</span><span>-¥' + cp.discount.toLocaleString('ja-JP') + '（税抜）</span></div>';
     });
     _estBreakEl.innerHTML = _bHtml;
   }
@@ -2681,7 +2682,7 @@ function recalc() {
     if (_resEstDocType === '診断見積書') {
       var _resDiagEquip2 = document.getElementById('manual_equipment') ? document.getElementById('manual_equipment').value || P.equipment : P.equipment;
       var _resDiagFee = getDiagFee(_resDiagEquip2);
-      _html += '<div style="' + _rowStyle + ';font-weight:600"><span>故障診断（' + (_resDiagEquip2||'') + '）</span><span>¥' + _resDiagFee.toLocaleString('ja-JP') + '（税抜）</span></div>';
+      _html += '<div style="' + _rowStyle + ';font-weight:600"><span>故障診断（' + escHtml_((_resDiagEquip2||'')) + '）</span><span>¥' + _resDiagFee.toLocaleString('ja-JP') + '（税抜）</span></div>';
     }
     REPAIR_MENU.forEach(function(item, i) {
       const el = document.getElementById('resest_qty_' + i);
@@ -2693,16 +2694,16 @@ function recalc() {
     });
     getResCustomItems().forEach(function(it) {
       var _rc2 = it.price < 0 ? 'color:#c62828;' : '';
-      _html += '<div style="' + _rowStyle + _rc2 + '"><span>' + it.name + '</span><span>' + fmtBreakdownPrice(it.price, it.qty) + '</span></div>';
+      _html += '<div style="' + _rowStyle + _rc2 + '"><span>' + escHtml_(it.name) + '</span><span>' + fmtBreakdownPrice(it.price, it.qty) + '</span></div>';
     });
     if (_resAddCondVisible) {
       document.querySelectorAll('#res_inv_options_area .res-inv-row').forEach(function(row) {
         const p = parseInt(row.querySelector('.res-inv-price').value) || 0;
-        if (p > 0) _html += '<div style="' + _rowStyle + '"><span>' + row.dataset.invName + '</span><span>¥' + p.toLocaleString('ja-JP') + '（税抜）</span></div>';
+        if (p > 0) _html += '<div style="' + _rowStyle + '"><span>' + escHtml_(row.dataset.invName) + '</span><span>¥' + p.toLocaleString('ja-JP') + '（税抜）</span></div>';
       });
     }
     resCoupons.forEach(function(cp) {
-      _html += '<div style="' + _rowStyle + ';color:#e65100"><span>クーポン（' + cp.code + '）</span><span>-¥' + cp.discount.toLocaleString('ja-JP') + '（税抜）</span></div>';
+      _html += '<div style="' + _rowStyle + ';color:#e65100"><span>クーポン（' + escHtml_(cp.code) + '）</span><span>-¥' + cp.discount.toLocaleString('ja-JP') + '（税抜）</span></div>';
     });
     _resBreakEl.innerHTML = _html;
   }
@@ -3543,55 +3544,55 @@ function showSubmitPreview(p, status) {
   else if (status === '失注' || status === '電話失注') sColor = '#c62828';
   else if (status === 'キャンセル') sColor = '#666';
 
-  h += '<div style="text-align:center;padding:8px;background:' + sColor + '15;border-radius:8px;margin-bottom:12px"><span style="font-weight:700;color:' + sColor + ';font-size:1.1rem">' + sLabel + '</span></div>';
+  h += '<div style="text-align:center;padding:8px;background:' + sColor + '15;border-radius:8px;margin-bottom:12px"><span style="font-weight:700;color:' + sColor + ';font-size:1.1rem">' + escHtml_(sLabel) + '</span></div>';
 
-  h += '<div style="padding:8px 0;border-bottom:1px solid #eee"><b>案件番号:</b> ' + (p.case_id||'') + '</div>';
+  h += '<div style="padding:8px 0;border-bottom:1px solid #eee"><b>案件番号:</b> ' + escHtml_((p.case_id||'')) + '</div>';
   if (p.report_attachment) {
     h += '<div style="padding:8px 0">' + (p.report_attachment.mode === 'paper_slip' ? '紙伝票の写真1枚を添付します。' : p.report_attachment.mode === 'selected_invoice' ? '選んだ請求書を売上に反映します。新しい請求書は発行しません。' : '請求書を自動発行します。') + '</div>';
   }
   var isCorpEst = p.customer_type === '法人・団体' && p.company_name;
   var custLabelEst = isCorpEst
-    ? p.company_name + ' 御中<br><span style="margin-left:1em;color:#5f6368">担当 ' + (p.contact_name || p.name || '') + '</span>'
-    : (p.name || '');
+    ? escHtml_(p.company_name) + ' 御中<br><span style="margin-left:1em;color:#5f6368">担当 ' + escHtml_(p.contact_name || p.name || '') + '</span>'
+    : escHtml_(p.name || '');
   h += '<div style="padding:8px 0;border-bottom:1px solid #eee"><b>お客様名:</b> ' + custLabelEst + '</div>';
-  if (p.email) h += '<div style="padding:8px 0;border-bottom:1px solid #eee"><b>メール:</b> ' + p.email + '</div>';
-  if (p.equipment) h += '<div style="padding:8px 0;border-bottom:1px solid #eee"><b>機器:</b> ' + p.equipment + '</div>';
-  if (p.visit_date) h += '<div style="padding:8px 0;border-bottom:1px solid #eee"><b>案件取得日:</b> ' + p.visit_date + '</div>';
+  if (p.email) h += '<div style="padding:8px 0;border-bottom:1px solid #eee"><b>メール:</b> ' + escHtml_(p.email) + '</div>';
+  if (p.equipment) h += '<div style="padding:8px 0;border-bottom:1px solid #eee"><b>機器:</b> ' + escHtml_(p.equipment) + '</div>';
+  if (p.visit_date) h += '<div style="padding:8px 0;border-bottom:1px solid #eee"><b>案件取得日:</b> ' + escHtml_(p.visit_date) + '</div>';
 
   if (status === '完工') {
     h += '<div style="padding:8px 0;border-bottom:1px solid #eee"><b>売上（税込）:</b> <span style="color:#2e7d32;font-weight:700">' + fmtYen(p.today_total) + '</span></div>';
-    h += '<div style="padding:8px 0;border-bottom:1px solid #eee"><b>支払方法:</b> ' + (p.payment_method||'') + '</div>';
+    h += '<div style="padding:8px 0;border-bottom:1px solid #eee"><b>支払方法:</b> ' + escHtml_((p.payment_method||'')) + '</div>';
     if (p.payment_method === '銀行振り込み') {
-      h += '<div style="padding:8px 0;border-bottom:1px solid #eee"><b>振込期限:</b> ' + (p.transfer_deadline||'') + '</div>';
-      h += '<div style="padding:8px 0;border-bottom:1px solid #eee"><b>振込名義:</b> ' + (p.transfer_name||'') + '</div>';
+      h += '<div style="padding:8px 0;border-bottom:1px solid #eee"><b>振込期限:</b> ' + escHtml_((p.transfer_deadline||'')) + '</div>';
+      h += '<div style="padding:8px 0;border-bottom:1px solid #eee"><b>振込名義:</b> ' + escHtml_((p.transfer_name||'')) + '</div>';
     }
     if (p.today_repairs && p.today_repairs.length > 0) {
       h += '<div style="padding:8px 0"><b>当日修理:</b></div>';
-      p.today_repairs.forEach(function(r) { h += '<div style="padding:2px 12px;font-size:.85rem">・' + r.name + ' ×' + r.qty + ' ' + fmtYen(r.subtotal) + '</div>'; });
+      p.today_repairs.forEach(function(r) { h += '<div style="padding:2px 12px;font-size:.85rem">・' + escHtml_(r.name) + ' ×' + escHtml_(r.qty) + ' ' + fmtYen(r.subtotal) + '</div>'; });
     }
   }
 
   if (p.has_estimate && p.estimate_repairs && p.estimate_repairs.length > 0) {
-    h += '<div style="padding:8px 0"><b>' + (p.estimate_doc_type||'見積書') + ':</b></div>';
+    h += '<div style="padding:8px 0"><b>' + escHtml_((p.estimate_doc_type||'見積書')) + ':</b></div>';
     if (p.estimate_subject) h += '<div style="padding:4px 12px"><b>件名:</b> ' + escHtml_(p.estimate_subject) + '</div>';
-    p.estimate_repairs.forEach(function(r) { h += '<div style="padding:2px 12px;font-size:.85rem">・' + r.name + ' ×' + r.qty + ' ' + fmtYen(r.subtotal) + '</div>'; });
+    p.estimate_repairs.forEach(function(r) { h += '<div style="padding:2px 12px;font-size:.85rem">・' + escHtml_(r.name) + ' ×' + escHtml_(r.qty) + ' ' + fmtYen(r.subtotal) + '</div>'; });
     h += '<div style="padding:4px 12px;font-weight:700;color:#5c2d91">見積合計（税込）: ' + fmtYen(ECOPITA_CUSTOMER_TAX.amount(p.estimate_total).inc) + '</div>';
   }
 
   if ((status === '予約（請求書あり）' || status === '完工（請求書あり）') && p.estimate_repairs && p.estimate_repairs.length > 0) {
     h += '<div style="padding:8px 0"><b>📑 請求書の内容:</b></div>';
-    p.estimate_repairs.forEach(function(r) { h += '<div style="padding:2px 12px;font-size:.85rem">・' + r.name + ' ×' + r.qty + ' ' + fmtYen(r.subtotal) + '</div>'; });
+    p.estimate_repairs.forEach(function(r) { h += '<div style="padding:2px 12px;font-size:.85rem">・' + escHtml_(r.name) + ' ×' + escHtml_(r.qty) + ' ' + fmtYen(r.subtotal) + '</div>'; });
     var invTaxInc = p.report_attachment && p.report_attachment.mode === 'selected_invoice' ? p.today_total : ECOPITA_CUSTOMER_TAX.amount(p.estimate_total).inc;
     h += '<div style="padding:4px 12px;font-weight:700;color:#00796b">請求金額（税込）: ' + fmtYen(invTaxInc) + '</div>';
     if (status === '完工（請求書あり）') {
-      h += '<div style="padding:8px 0;border-top:1px solid #eee;margin-top:8px"><b>振込期限:</b> ' + (p.transfer_deadline || '') + '</div>';
-      h += '<div style="padding:8px 0"><b>振込名義:</b> ' + (p.transfer_name || '') + '</div>';
+      h += '<div style="padding:8px 0;border-top:1px solid #eee;margin-top:8px"><b>振込期限:</b> ' + escHtml_((p.transfer_deadline || '')) + '</div>';
+      h += '<div style="padding:8px 0"><b>振込名義:</b> ' + escHtml_((p.transfer_name || '')) + '</div>';
       if (!(pendingIntake && pendingIntake.intake_id) && (!p.report_attachment || p.report_attachment.mode !== 'selected_invoice')) h += '<div style="padding:8px 0;background:#e3f2fd;border-radius:4px;color:#1565c0;font-size:.85rem">※ 送信と同時に請求書を自動発行してお客様にメール送信します</div>';
     }
   }
 
-  if (p.reserve_date) h += '<div style="padding:8px 0;border-bottom:1px solid #eee"><b>予約日:</b> ' + p.reserve_date + (p.reserve_time_start ? ' ' + p.reserve_time_start + '～' + (p.reserve_time_end||'') : '') + '</div>';
-  if (p.staff_memo) h += '<div style="padding:8px 0"><b>メモ:</b> ' + p.staff_memo + '</div>';
+  if (p.reserve_date) h += '<div style="padding:8px 0;border-bottom:1px solid #eee"><b>予約日:</b> ' + escHtml_(p.reserve_date) + (p.reserve_time_start ? ' ' + escHtml_(p.reserve_time_start) + '～' + escHtml_(p.reserve_time_end||'') : '') + '</div>';
+  if (p.staff_memo) h += '<div style="padding:8px 0"><b>メモ:</b> ' + escHtml_(p.staff_memo) + '</div>';
 
   document.getElementById('preview_body').innerHTML = h;
   document.getElementById('main_view').classList.add('hidden');
@@ -3790,7 +3791,7 @@ async function confirmSend() {
       doneMsg.appendChild(sentEmailLine);
     }
     if (syncResult.uriage_error) {
-      doneMsg.innerHTML += '<br><span style="color:red;font-size:.85rem">⚠ 売上管理: ' + syncResult.uriage_error + '</span>';
+      doneMsg.innerHTML += '<br><span style="color:red;font-size:.85rem">⚠ 売上管理: ' + escHtml_(syncResult.uriage_error) + '</span>';
     }
   }
 

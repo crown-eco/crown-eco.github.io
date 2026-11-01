@@ -460,10 +460,10 @@ function renderSelection(caseId, contracts, versions) {
     var item = document.createElement('div');
     item.className = 'select-item';
     item.setAttribute('data-idx', idx);
-    item.innerHTML = '<div class="title">📋 契約書: ' + c.contract_id + '</div>'
-      + '<div class="meta">' + c.datetime + ' ／ ' + c.name + '</div>'
-      + '<div class="meta">' + fmtYen(c.amount) + '（税込）／ ' + c.payment + '</div>'
-      + '<div class="detail">' + c.items_text + '</div>';
+    item.innerHTML = '<div class="title">📋 契約書: ' + escapeHtml(c.contract_id) + '</div>'
+      + '<div class="meta">' + escapeHtml(c.datetime) + ' ／ ' + escapeHtml(c.name) + '</div>'
+      + '<div class="meta">' + fmtYen(c.amount) + '（税込）／ ' + escapeHtml(c.payment) + '</div>'
+      + '<div class="detail">' + escapeHtml(c.items_text) + '</div>';
     item.onclick = function() { toggleSelect(item, idx); };
     list.appendChild(item);
   });
@@ -486,9 +486,9 @@ function renderSelection(caseId, contracts, versions) {
     var item = document.createElement('div');
     item.className = 'select-item';
     item.setAttribute('data-idx', idx);
-    item.innerHTML = '<div class="title" style="color:#5c2d91">📄 ' + dtDisp + ' 第' + v.ver + '版</div>'
-      + '<div class="meta">' + v.created + (data.amount ? ' ／ ' + fmtYen(data.amount) + '（税込）' : '') + '</div>'
-      + (vItems.length > 0 ? '<div class="detail">' + vItems.filter(function(it){return it.price>0;}).map(function(it){return it.name+(it.qty>1?' ×'+it.qty:'');}).join('、') + '</div>' : '');
+    item.innerHTML = '<div class="title" style="color:#5c2d91">📄 ' + escapeHtml(dtDisp) + ' 第' + escapeHtml(v.ver) + '版</div>'
+      + '<div class="meta">' + escapeHtml(v.created) + (data.amount ? ' ／ ' + fmtYen(data.amount) + '（税込）' : '') + '</div>'
+      + (vItems.length > 0 ? '<div class="detail">' + vItems.filter(function(it){return it.price>0;}).map(function(it){return escapeHtml(it.name)+(it.qty>1?' ×'+escapeHtml(it.qty):'');}).join('、') + '</div>' : '');
     item.onclick = function() { toggleSelect(item, idx); };
     list.appendChild(item);
   });
@@ -813,8 +813,9 @@ function addCc(val) {
   var area = document.getElementById('cc_area');
   var div = document.createElement('div');
   div.style.cssText = 'display:flex;gap:6px;margin-top:6px;align-items:center';
-  div.innerHTML = '<input type="email" class="cc-input" placeholder="CCメールアドレス" value="' + (val||'') + '" style="flex:1;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:.95rem">'
+  div.innerHTML = '<input type="email" class="cc-input" placeholder="CCメールアドレス" value="" style="flex:1;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:.95rem">'
     + '<button type="button" onclick="this.parentElement.remove()" style="background:#ff5252;color:#fff;border:none;border-radius:50%;width:30px;height:30px;cursor:pointer;font-size:1rem">×</button>';
+  div.querySelector('input').value = val || '';
   area.appendChild(div);
 }
 
@@ -893,9 +894,9 @@ function renderPaymentBreakdownHtml(summary) {
   h += '<div class="payment-title">お支払い内訳</div>';
   summary.rows.forEach(function(row) {
     h += '<div class="payment-row' + (row.isTransfer ? ' payment-transfer' : '') + '">';
-    h += '<div class="payment-label">' + (row.label || '') + '</div>';
-    h += '<div class="payment-amount">¥' + (row.amountFormatted || fmtYen(row.amount_inc || 0).replace(/^¥/, '')) + '</div>';
-    h += '<div class="payment-status">' + (row.status || '') + '</div>';
+    h += '<div class="payment-label">' + escapeHtml((row.label || '')) + '</div>';
+    h += '<div class="payment-amount">¥' + escapeHtml((row.amountFormatted || fmtYen(row.amount_inc || 0).replace(/^¥/, ''))) + '</div>';
+    h += '<div class="payment-status">' + escapeHtml((row.status || '')) + '</div>';
     h += '</div>';
   });
   h += '</div>';
@@ -990,7 +991,7 @@ function showPreview() {
     h += '<div style="padding:8px 0"><b>内訳:</b></div>';
     allLineItems.forEach(function(it) {
       var sub = it.subtotal || it.price * (it.qty||1);
-      h += '<div style="padding:2px 12px;font-size:.85rem">・' + escapeHtml(it.name) + ' ×' + (it.qty||1) + ' ' + fmtYen(sub) + '</div>';
+      h += '<div style="padding:2px 12px;font-size:.85rem">・' + escapeHtml(it.name) + ' ×' + escapeHtml((it.qty||1)) + ' ' + fmtYen(sub) + '</div>';
     });
   } else {
     h += '<div style="padding:8px 0;color:#999;font-size:.85rem">（内訳取得失敗：実際のPDFには内訳が反映されます）</div>';
@@ -1007,7 +1008,7 @@ function showPreview() {
       var previewDeadline = paymentSummary.transferDeadline || deadline;
       var previewTransferName = paymentSummary.transferName || transferName;
       h += '<div style="background:#f9f9f9;border:1px solid #ddd;border-radius:6px;padding:10px 12px;margin:10px 0;font-size:.9rem">';
-      h += '<b>お振込み金額：<span class="transfer-amount">¥' + paymentSummary.transferTotalFormatted + '</span></b><br>';
+      h += '<b>お振込み金額：<span class="transfer-amount">¥' + escapeHtml(paymentSummary.transferTotalFormatted) + '</span></b><br>';
       h += 'こちらをお振込みください。<br>';
       h += '<div style="padding-top:6px"><b>振込期限:</b> ' + escapeHtml(previewDeadline) + '</div>';
       if (previewTransferName) h += '<div><b>振込名義:</b> ' + escapeHtml(previewTransferName) + '</div>';

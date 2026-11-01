@@ -411,7 +411,7 @@ async function doLookup() {
 }
 
 function showLkErr(m) {
-  document.getElementById('lk_error').innerHTML = '<div class="error-msg">' + m + '</div>';
+  document.getElementById('lk_error').innerHTML = '<div class="error-msg">' + escHtml_(m).replace(/\n/g, '<br>') + '</div>';
 }
 
 async function loadData(caseId) {
@@ -442,7 +442,7 @@ async function loadData(caseId) {
         document.getElementById('h_case_id').textContent = caseId;
         return;
       }
-      showLkErr('この案件番号は登録されていません。<br>注文フォーム または 業務報告フォーム から先に登録してください。');
+      showLkErr('この案件番号は登録されていません。\n注文フォーム または 業務報告フォーム から先に登録してください。');
       var g = document.getElementById('lk_guide');
       g.classList.remove('hidden');
       document.getElementById('lk_link_order').href  = BASE_URL + 'index.html?c=' + encodeURIComponent(caseId);
@@ -780,7 +780,7 @@ function renderQCouponTags(beforeEx) {
   var html = '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">'
     + qCoupons.map(function(c, i) {
       return '<span style="display:inline-flex;align-items:center;gap:4px;background:#e8f5e9;border:1px solid #4caf50;border-radius:8px;padding:5px 10px;font-size:.85rem;font-weight:600">'
-        + c.code + ' (-¥' + c.discount.toLocaleString() + ')'
+        + escHtml_(c.code) + ' (-¥' + c.discount.toLocaleString() + ')'
         + '<button type="button" onclick="removeQCoupon(' + i + ')" style="background:none;border:none;color:#c62828;font-weight:700;cursor:pointer;font-size:1.1rem;padding:0 2px;line-height:1">×</button>'
         + '</span>';
     }).join('') + '</div>';
@@ -841,8 +841,9 @@ function addCcEmail(areaKey, val) {
   if (!area) return;
   var div = document.createElement('div');
   div.style = 'display:flex;gap:6px;margin-top:6px;align-items:center';
-  div.innerHTML = '<input type="email" class="cc-email-input-' + areaKey + '" inputmode="email" placeholder="CCメールアドレス" style="flex:1;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:.95rem" value="' + (val||'') + '">'
+  div.innerHTML = '<input type="email" class="cc-email-input-' + areaKey + '" inputmode="email" placeholder="CCメールアドレス" style="flex:1;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:.95rem" value="">'
     + '<button type="button" onclick="this.parentElement.remove()" style="background:#ff5252;color:#fff;border:none;border-radius:50%;width:30px;height:30px;cursor:pointer;font-size:1rem;flex-shrink:0">×</button>';
+  div.querySelector('input').value = val || '';
   area.appendChild(div);
 }
 
@@ -880,7 +881,7 @@ function qRecalc() {
   var h  = '';
 
   if (isDiagEst && diagFee > 0) {
-    h += '<div style="' + rs + '"><span>故障診断（' + (Q.equipment || '') + '）</span><span>¥' + diagFee.toLocaleString() + '</span></div>';
+    h += '<div style="' + rs + '"><span>故障診断（' + escHtml_((Q.equipment || '')) + '）</span><span>¥' + diagFee.toLocaleString() + '</span></div>';
   }
   if (rv) REPAIR_MENU.forEach(function(item, i) {
     var q = parseInt(document.getElementById('qr_qty_' + i).textContent) || 0;
@@ -888,17 +889,17 @@ function qRecalc() {
   });
   if (cv) document.querySelectorAll('#q_add_cond_area .q-cond-row').forEach(function(row) {
     var p = parseInt(row.querySelector('.q-cond-price').value) || 0;
-    if (p > 0) h += '<div style="' + rs + '"><span>' + row.dataset.condName + '</span><span>¥' + p.toLocaleString() + '</span></div>';
+    if (p > 0) h += '<div style="' + rs + '"><span>' + escHtml_(row.dataset.condName) + '</span><span>¥' + p.toLocaleString() + '</span></div>';
   });
 
   // ★変更②：マイナスの場合は赤字
   getQCustomItems().forEach(function(it) {
     var _qc = it.price < 0 ? 'color:#c62828;' : '';
     var _qSubStr = it.subtotal < 0 ? '-¥' + Math.abs(it.subtotal).toLocaleString() : fmtYen(it.subtotal);
-    h += '<div style="' + rs + _qc + '"><span>' + it.name + (it.qty > 1 ? ' ×' + it.qty : '') + '</span><span>' + _qSubStr + '</span></div>';
+    h += '<div style="' + rs + _qc + '"><span>' + escHtml_(it.name) + (it.qty > 1 ? ' ×' + escHtml_(it.qty) : '') + '</span><span>' + _qSubStr + '</span></div>';
   });
   qCoupons.forEach(function(cp) {
-    h += '<div style="' + rs + ';color:#e65100"><span>クーポン（' + cp.code + '）</span><span>-¥' + cp.discount.toLocaleString() + '</span></div>';
+    h += '<div style="' + rs + ';color:#e65100"><span>クーポン（' + escHtml_(cp.code) + '）</span><span>-¥' + cp.discount.toLocaleString() + '</span></div>';
   });
   bk.innerHTML = h;
   if (qCoupons.length) renderQCouponTags(beforeCouponEx);
@@ -981,23 +982,23 @@ async function submitQuote() {
   var taxInc = ECOPITA_CUSTOMER_TAX.amount(subEx).inc;
 
   var h = '';
-  h += '<div style="padding:8px 0;border-bottom:1px solid #eee"><b>書類種別:</b> ' + docType + '</div>';
+  h += '<div style="padding:8px 0;border-bottom:1px solid #eee"><b>書類種別:</b> ' + escHtml_(docType) + '</div>';
   h += '<div style="padding:8px 0;border-bottom:1px solid #eee"><b>件名:</b> ' + escHtml_(subject) + '</div>';
-  h += '<div style="padding:8px 0;border-bottom:1px solid #eee"><b>案件番号:</b> ' + Q.case_id + '</div>';
-  h += '<div style="padding:8px 0;border-bottom:1px solid #eee"><b>お客様名:</b> ' + Q.name + '</div>';
-  h += '<div style="padding:8px 0;border-bottom:1px solid #eee"><b>送信先:</b> ' + (email || 'メール送信なし（PDF保存のみ）') + '</div>';
+  h += '<div style="padding:8px 0;border-bottom:1px solid #eee"><b>案件番号:</b> ' + escHtml_(Q.case_id) + '</div>';
+  h += '<div style="padding:8px 0;border-bottom:1px solid #eee"><b>お客様名:</b> ' + escHtml_(Q.name) + '</div>';
+  h += '<div style="padding:8px 0;border-bottom:1px solid #eee"><b>送信先:</b> ' + escHtml_((email || 'メール送信なし（PDF保存のみ）')) + '</div>';
   h += '<div style="padding:8px 0"><b>見積項目:</b></div>';
   h += '<div style="background:#f5f5f5;border-radius:8px;padding:10px;margin:4px 0">';
   items.forEach(function(it) {
     var color = it.subtotal < 0 ? '#c62828' : '#333';
-    h += '<div style="display:flex;justify-content:space-between;padding:3px 0;color:' + color + '"><span>' + it.name + (it.qty > 1 ? ' ×' + it.qty : '') + '</span><span>' + fmtYen(it.subtotal) + '</span></div>';
+    h += '<div style="display:flex;justify-content:space-between;padding:3px 0;color:' + color + '"><span>' + escHtml_(it.name) + (it.qty > 1 ? ' ×' + escHtml_(it.qty) : '') + '</span><span>' + fmtYen(it.subtotal) + '</span></div>';
   });
   h += '</div>';
   h += '<div style="text-align:right;font-weight:700;font-size:1.1rem;color:#5c2d91;padding-top:8px;border-top:2px solid #5c2d91">合計（税込）: ' + fmtYen(taxInc) + '</div>';
   var expVal = document.getElementById('q_expiry').value;
-  if (expVal) h += '<div style="padding:8px 0;border-top:1px solid #eee"><b>有効期限:</b> ' + expVal + '</div>';
+  if (expVal) h += '<div style="padding:8px 0;border-top:1px solid #eee"><b>有効期限:</b> ' + escHtml_(expVal) + '</div>';
   var noteVal = document.getElementById('q_note').value;
-  if (noteVal) h += '<div style="padding:8px 0"><b>備考:</b> ' + noteVal + '</div>';
+  if (noteVal) h += '<div style="padding:8px 0"><b>備考:</b> ' + escHtml_(noteVal) + '</div>';
 
   document.getElementById('quote_preview_body').innerHTML = h;
 
@@ -1051,7 +1052,7 @@ async function confirmQuoteSend() {
     document.getElementById('done_view').classList.remove('hidden');
     var vs = r.doc_type + ' 第' + r.version + '版';
     document.getElementById('done_title').textContent = '✅ ' + vs + 'を発行しました';
-    document.getElementById('done_detail').innerHTML = '案件番号: ' + Q.case_id + '<br>お客様: ' + Q.name;
+    document.getElementById('done_detail').innerHTML = '案件番号: ' + escHtml_(Q.case_id) + '<br>お客様: ' + escHtml_(Q.name);
     var lh = '<a class="link-invoice" href="' + BASE_URL + 'invoice.html?c=' + encodeURIComponent(Q.case_id) + '">📑 この見積書の請求書を発行する</a>';
     lh += '<a class="link-edit" href="' + BASE_URL + 'quote.html?c=' + encodeURIComponent(Q.case_id) + '">📄 見積書を再編集する</a>';
     document.getElementById('done_links').innerHTML = lh;
