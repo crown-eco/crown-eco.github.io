@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "site": "crown",
-  "source_commit": "b70f98837c6a7cc3c9179623c6978c05f5e502ac",
+  "source_commit": "1963fdb47f9226fb94dc2a00ec9b520481bb2797",
   "excluded": [
     ".git",
     "woff-test",
@@ -25,8 +25,8 @@
     },
     {
       "path": "cases.html",
-      "size": 28690,
-      "sha256": "b916ca4894eddd96968bd54acf3a5e93f60475ed3dd5705590f4ca563052e62c"
+      "size": 28849,
+      "sha256": "5dd7195423a58bea68e08477cfa13075c635ea4280d9c24b510943438f374408"
     },
     {
       "path": "company_dashboard.html",
@@ -65,8 +65,8 @@
     },
     {
       "path": "expense.html",
-      "size": 62161,
-      "sha256": "b7e412d77761297cc2a58f87074f1a9f45e1df359f119a12ef02cfb45fed0859"
+      "size": 61916,
+      "sha256": "05c268baf63386700e200d4df3fce9d99d6fecb911e5c06aa6d80de1ff25f61a"
     },
     {
       "path": "form-direct-read.js",
@@ -95,8 +95,8 @@
     },
     {
       "path": "portal.html",
-      "size": 52655,
-      "sha256": "e932b0101c4cdc8bd4a95aa62a160b3b1dda1798fff583b48be0ef08dbb49a21"
+      "size": 52797,
+      "sha256": "382a6902324d0eb35dbaa620cd0b92d2da7f80407a4b870628cd2fa5f69a135b"
     },
     {
       "path": "privacy.html",
@@ -125,13 +125,13 @@
     },
     {
       "path": "reward.html",
-      "size": 52872,
-      "sha256": "c179bfa7723581090b50656d1ec07fb55d7c1b40135d56fc48716e1539f466e2"
+      "size": 52898,
+      "sha256": "786842d7fd99d3aef1bc54af584ef0ecd454cfb52f01702a825f896d38819eb1"
     },
     {
       "path": "shared-auth.js",
-      "size": 10680,
-      "sha256": "2912c0bdf17778b6cf0f611bdd0425d885b5470871905066b5e83571384fa737"
+      "size": 11128,
+      "sha256": "baf6034f4716d042e3ff499da48ffb4548565bd0d0a79fab186833247b924c2a"
     },
     {
       "path": "shared-consent-photo.js",
@@ -165,8 +165,8 @@
     },
     {
       "path": "shared-site-config.js",
-      "size": 5772,
-      "sha256": "5bace3f8909593e8e5f5d272d90d5f4b039f4d539518ba5d93bfa99c59f4040e"
+      "size": 7151,
+      "sha256": "08e083eabb537048ffa8fbd936cbea7be594022b48a9b6ded2bc40388fbccd1d"
     },
     {
       "path": "write-async-status.js",

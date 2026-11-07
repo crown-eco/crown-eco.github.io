@@ -11,6 +11,33 @@ window.ECOPITA_SITE = {"group":"crown","baseUrl":"https://crown-eco.github.io"};
     if (root.ECOPITA_SITE_BLOCKED) return Promise.reject(new Error('このサイトは使えません。'));
     return siteFetch.call(this, url, options);
   };
+
+  // Explicit user logout only. Keep site-mismatch and auth-error guards unchanged.
+  var logoutToken = null, logoutPending = null;
+  root.ECOPITA_LOGOUT_SERVERS = function(token) {
+    if (!token) return Promise.resolve();
+    if (logoutPending && logoutToken === token) return logoutPending;
+    logoutToken = token;
+    var portalUrl = 'https://script.google.com/macros/s/AKfycbyWAsYrvJs4ihH046NL-tIzUBsPM7rOdm0MSdKjptR9KliR6Et0SvS_2z_egd4I7476FQ/exec';
+    // A timeout releases the browser wait; it cannot stop a running GAS handler.
+    function send(url) {
+      return new Promise(function(resolve) {
+        var settled = false;
+        var timer = setTimeout(done, 7500);
+        function done() { if (settled) return; settled = true; clearTimeout(timer); resolve(); }
+        try { Promise.resolve(siteFetch.call(root, url, {redirect:'follow', keepalive:true})).then(done, done); }
+        catch (e) { done(); }
+      });
+    }
+    try {
+      var payload = {action:'logout', sessionToken:token};
+      var encoded = root.btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+      logoutPending = send(AUTH_URL + '?_portal_data=' + encodeURIComponent(encoded)).then(function() {
+        return send(portalUrl + '?mode=logout&token=' + encodeURIComponent(token));
+      });
+    } catch (e) { logoutPending = Promise.resolve(); }
+    return logoutPending;
+  };
   root.ECOPITA_SITE_URL = function(value) {
     if (typeof value !== 'string' || /[\u0000-\u001f\u007f]/.test(value)) return '';
     value = value.trim().replace(/\/+$/, '');

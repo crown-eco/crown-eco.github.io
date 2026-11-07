@@ -118,6 +118,18 @@ window.ECOPITA_IS_AUTH_ERROR=function(msg){return typeof msg==='string'&&(/セ�
     applyCasePrefixes_();
   }
 
+  window.ECOPITA_LOGOUT_USER = function() {
+    if (window.ECOPITA_LOGOUT_USER.pending) return;
+    window.ECOPITA_LOGOUT_USER.pending = true;
+    var button = document.querySelector('#ecopita-user-bar button');
+    if (button) { button.disabled = true; button.textContent = 'ログアウト中…'; }
+    function leave() {
+      try { localStorage.removeItem('ecopita_session'); } catch (e) {}
+      location.href = LOGIN_URL + '?redirect=' + encodeURIComponent(location.href);
+    }
+    window.ECOPITA_LOGOUT_SERVERS(session.token).then(leave, leave);
+  };
+
   // ログアウトボタンとユーザー表示を挿入
   insertUserBar();
 
@@ -137,7 +149,7 @@ window.ECOPITA_IS_AUTH_ERROR=function(msg){return typeof msg==='string'&&(/セ�
       bar.id = 'ecopita-user-bar';
       bar.style.cssText = 'background:#f0f4f8;padding:8px 16px;display:flex;justify-content:space-between;align-items:center;font-size:13px;font-family:-apple-system,BlinkMacSystemFont,"Noto Sans JP",sans-serif;border-bottom:1px solid #dce1e8;';
       bar.innerHTML = '<span style="color:#333;font-weight:600">' + escHtml(session.displayName) + '（' + escHtml(session.staffId) + '）</span>'
-        + '<button onclick="(function(){localStorage.removeItem(\'ecopita_session\');location.href=\'' + LOGIN_URL + '?redirect=\'+encodeURIComponent(location.href);})()" '
+        + '<button onclick="window.ECOPITA_LOGOUT_USER()" '
         + 'style="background:#e0e0e0;border:none;border-radius:6px;padding:5px 14px;font-size:12px;font-weight:600;cursor:pointer;color:#555">ログアウト</button>';
 
       // hero要素の直後、またはbodyの先頭に挿入

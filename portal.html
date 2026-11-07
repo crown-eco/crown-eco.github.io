@@ -535,14 +535,15 @@ function doLogout() {
     if (left) return;
     left = true;
     clearTimeout(timer);
-    localStorage.removeItem('ecopita_session');
+    try { localStorage.removeItem('ecopita_session'); } catch (e) {}
     location.href = window.ECOPITA_SITE.baseUrl + '/login.html?redirect=' + encodeURIComponent(location.href);
   };
   // Cover cold preflight, revoke, and readback; keepalive continues transport if this bound wins.
   timer = setTimeout(leave, 15000);
   var pending = null;
   try { pending = PortalDirect.revoke({wait:true}); } catch (e) { pending = null; }
-  Promise.resolve(pending).then(leave, leave);
+  var servers = window.ECOPITA_LOGOUT_SERVERS(STATE.token);
+  Promise.all([Promise.resolve(pending), servers]).then(leave, function() { servers.then(leave, leave); });
 }
 
 function render(json) {

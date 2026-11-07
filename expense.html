@@ -1068,14 +1068,7 @@ function resetForm() {
   window.scrollTo(0, 0);
 }
 
-function doLogout() {
-  resetAirconCatalog();
-  localStorage.removeItem('ecopita_session');
-  sessionToken = ''; staffId = '';
-  selectedContract = null; bodyItemCount = 0; bodyItemData = {};
-  document.getElementById('body-items-container').innerHTML = '';
-  showScreen('screen-login');
-}
+// Logout is handled by the shared user bar.
   
 window.addEventListener('load', init);
 </script>

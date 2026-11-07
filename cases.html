@@ -383,7 +383,13 @@ function renderPreviewControls_(json){
 }
 function reload(){fetchData();}
 function resetDates(){document.getElementById('dateFrom').value='';document.getElementById('dateTo').value='';applyFilters();}
-function doLogout(){clearDisplayCache_();localStorage.removeItem('ecopita_session');window.location.href=window.ECOPITA_SITE.baseUrl + '/portal.html';}
+function doLogout(){
+  if(doLogout.pending)return;
+  doLogout.pending=true;
+  clearDisplayCache_();
+  function leave(){try{localStorage.removeItem('ecopita_session');}catch(e){}window.location.href=window.ECOPITA_SITE.baseUrl + '/portal.html';}
+  window.ECOPITA_LOGOUT_SERVERS(STATE.token).then(leave,leave);
+}
 
 function initResize(){
   var handle=document.getElementById('resizeHandle');

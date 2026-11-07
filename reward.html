@@ -458,7 +458,9 @@ async function loadReferreeDetail(refId){
 async function doLogout(){
   if(busy)return;
   renderSnapshotAsOf_(null);
-  try{await callApi({action:'logout',sessionToken:token,ua:ua})}catch(e){}
+  if(doLogout.pending)return;
+  doLogout.pending=true;
+  await window.ECOPITA_LOGOUT_SERVERS(token);
   localStorage.removeItem('ecopita_session');
   location.href=window.ECOPITA_SITE.baseUrl + '/login.html';
 }
