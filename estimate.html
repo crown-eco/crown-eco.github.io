@@ -1511,6 +1511,112 @@ function reportAttachmentAsyncPayload_(payload, syncResult) {
   return clean;
 }
 
+// Recovery only reads status: it never replaces an identity, restores a photo,
+// sends estimate_async, or starts a new report.
+var reportSendInFlight_ = false, reportAutoRecoveryQueued_ = false;
+var reportRecoveryPromise_ = null;
+
+function reportSamePendingIdentity_(payload) {
+  var current = reportReadPendingSubmission_(payload.case_id, Date.now());
+  return !!(current && current.payload.report_submission_token === payload.report_submission_token
+    && current.payload.report_submission_at === payload.report_submission_at);
+}
+
+function reportShowRecoveredDone_(payload) {
+  if (!reportSamePendingIdentity_(payload) || reportAttachmentCase_() !== payload.case_id) return false;
+  if (!reportClearPendingSubmission_(payload, Date.now())) return false;
+  var preview = document.getElementById('preview_view');
+  preview.classList.add('hidden'); preview.style.display = 'none';
+  var done = document.getElementById('done_view');
+  done.classList.remove('hidden'); done.style.display = 'flex';
+  document.getElementById('done_msg').textContent = '✅ 前回の報告は届いています';
+  window._submittedPayload = reportPendingSafePayload_(payload);
+  window.scrollTo(0, 0);
+  return true;
+}
+
+async function reportCheckPendingResult_(caseId, expectedPayload) {
+  var pending = reportReadPendingSubmission_(caseId, Date.now());
+  if (!pending || !pending.sent || !pending.payload.report_attachment) return false;
+  if (expectedPayload && (pending.payload.report_submission_token !== expectedPayload.report_submission_token
+      || pending.payload.report_submission_at !== expectedPayload.report_submission_at)) return false;
+  var response = await reportAttachmentCall_({form_type:'report_attachment_status', case_id:caseId,
+    route:'report', client_submission_id:pending.payload.report_submission_token,
+    report_submission_token:pending.payload.report_submission_token});
+  if (!response || response.ok !== true || !reportSamePendingIdentity_(pending.payload)
+      || reportAttachmentCase_() !== caseId) return false;
+  // Intake ACK/DONE retains its existing explicit next-report gate.
+  if (reportRememberIntake_(pending.payload, response)) return true;
+  if (pending.intake_id) { reportRenderIntake_(pending); return true; }
+  if (response.found === true && response.state === 'done') return reportShowRecoveredDone_(pending.payload);
+  return false;
+}
+
+function reportAutoRecoverPending_() {
+  if (document.visibilityState === 'hidden') return;
+  if (reportSendInFlight_) { reportAutoRecoveryQueued_ = true; return; }
+  if (reportRecoveryPromise_) return reportRecoveryPromise_;
+  var caseId = reportAttachmentCase_();
+  if (!caseId || !reportAttachmentSession_()) return;
+  var checkedPayload = null;
+  reportRecoveryPromise_ = Promise.resolve().then(function() {
+    var pending = reportReadPendingSubmission_(caseId, Date.now());
+    checkedPayload = pending && pending.payload;
+    return reportCheckPendingResult_(caseId, checkedPayload);
+  }).catch(function() {
+    if (reportAttachmentCase_() !== caseId) return false;
+    try { if (checkedPayload && !reportSamePendingIdentity_(checkedPayload)) return false; } catch (_) { return false; }
+    var notice = document.getElementById('report_pending_notice');
+    notice.classList.remove('hidden');
+    notice.textContent = '前回の送信結果を確認できませんでした。入力を残して、もう一度状況を確認してください。';
+    return false;
+  }).finally(function() { reportRecoveryPromise_ = null; });
+  return reportRecoveryPromise_;
+}
+
+function reportSendingWait_() {
+  var started = Date.now(), active = true, wakeLock = null, wakeRequest = false;
+  var notice = document.getElementById('report_sending_wait');
+  if (!notice) {
+    notice = document.createElement('p'); notice.id = 'report_sending_wait';
+    notice.setAttribute('role', 'status');
+    document.getElementById('btn_confirm_send').parentNode.appendChild(notice);
+  }
+  function tick() {
+    notice.textContent = '送信中…' + Math.floor((Date.now() - started) / 1000)
+      + ' 秒（約 1 分かかります）';
+  }
+  function release(lock) { try { Promise.resolve(lock.release()).catch(function() {}); } catch (_) {} }
+  function acquire() {
+    if (!active || document.visibilityState === 'hidden' || wakeLock || wakeRequest || !navigator.wakeLock) return;
+    try {
+      wakeRequest = true;
+      Promise.resolve(navigator.wakeLock.request('screen')).then(function(lock) {
+        if (!active) release(lock);
+        else { wakeLock = lock; lock.addEventListener('release', function() { if (wakeLock === lock) wakeLock = null; }); }
+      }).catch(function() {}).finally(function() { wakeRequest = false; });
+    } catch (_) { wakeRequest = false; }
+  }
+  notice.classList.remove('hidden'); tick();
+  var timer = setInterval(tick, 1000);
+  document.addEventListener('visibilitychange', acquire); acquire();
+  return function() {
+    active = false; clearInterval(timer); notice.classList.add('hidden');
+    document.removeEventListener('visibilitychange', acquire);
+    if (wakeLock) release(wakeLock);
+  };
+}
+
+var reportLastVisibility_ = typeof document === 'undefined' ? 'hidden' : document.visibilityState;
+if (typeof document !== 'undefined') {
+document.addEventListener('visibilitychange', function() {
+  var becameVisible = document.visibilityState === 'visible' && reportLastVisibility_ !== 'visible';
+  reportLastVisibility_ = document.visibilityState;
+  if (becameVisible) reportAutoRecoverPending_();
+});
+document.addEventListener('DOMContentLoaded', function() { reportAutoRecoverPending_(); }, {once:true});
+}
+
 async function reportRecoverPending_(caseId) {
   var pending = reportReadPendingSubmission_(caseId, Date.now());
   if (pending && !pending.sent && pending.replacement === true && Date.now() - pending.saved_at_ms <= REPORT_PENDING_MAX_AGE_MS_) {
@@ -1523,6 +1629,7 @@ async function reportRecoverPending_(caseId) {
   if (!pending.payload.report_attachment) return reportPendingSafePayload_(pending.payload);
   var response = await reportAttachmentCall_({ form_type: 'report_attachment_status', case_id: caseId, route: 'report', client_submission_id: pending.payload.report_submission_token, report_submission_token: pending.payload.report_submission_token });
   if (!response || response.ok !== true) throw new Error('前回の送信結果を確認できませんでした。もう一度送信ボタンを押してください。');
+  if (!reportSamePendingIdentity_(pending.payload) || typeof document !== 'undefined' && reportAttachmentCase_() !== caseId) throw new Error('送信情報が変更されました。前回の送信結果を確認してください。');
   if (reportRememberIntake_(pending.payload, response)) return reportPendingSafePayload_(pending.payload);
   var next = reportReplacePendingSubmission_(pending.payload, response, true);
   if (next) {
@@ -1534,8 +1641,8 @@ async function reportRecoverPending_(caseId) {
     throw new Error('受付状況を確認できません。再送せず、もう一度状況を確認してください。');
   }
   if (response.found === true && response.state === 'done') {
-    reportClearPendingSubmission_(pending.payload);
-    throw new Error('前回の売上・添付処理は完了しています。新しい報告は内容を確認して送信してください。');
+    if (reportShowRecoveredDone_(pending.payload)) return {report_recovered_done:true};
+    throw new Error('送信情報が変更されました。前回の送信結果を確認してください。');
   }
   if (response.found !== true || response.can_retry !== true) throw new Error(response.state === 'done' ? '前回の売上・添付処理は完了しています。画面を開き直してください。' : '前回の報告は処理中または確認が必要です。運営に連絡してください。');
   var payload = reportPendingSafePayload_(pending.payload);
@@ -3165,10 +3272,13 @@ function getSelectedItems(prefix) {
 }
 
 async function submitReport() {
+  if (reportSendInFlight_) return;
+  if (reportRecoveryPromise_ && await reportRecoveryPromise_) return;
   syncManualInputs();
 
   try {
     var recoveredPayload = await reportRecoverPending_(reportAttachmentCase_());
+    if (recoveredPayload && recoveredPayload.report_recovered_done) return;
     if (recoveredPayload) {
       reportShowPreparedPreview_(recoveredPayload);
       return;
@@ -3682,17 +3792,22 @@ function _showRecentReportChoice_(recent, windowMinutes) {
 
 
 async function confirmSend() {
+  if (reportSendInFlight_) return;
+  reportSendInFlight_ = true;
+  var stopWaiting_ = null, errorRecoveryAttempted_ = false;
   var screenTiming_ = window.ECOPITA_SCREEN_LATENCY ? window.ECOPITA_SCREEN_LATENCY.begin() : null;
   try {
+  if (reportRecoveryPromise_ && await reportRecoveryPromise_) return;
   var btnC = document.getElementById('btn_confirm_send');
   btnC.disabled = true; btnC.textContent = '送信中...';
+  stopWaiting_ = reportSendingWait_();
 
   var payload = window._pendingPayload;
   var existingPending = payload && reportReadPendingSubmission_(payload.case_id, Date.now());
   if (existingPending && existingPending.intake_id) {
     try {
       var recovered = await reportRecoverPending_(payload.case_id);
-      if (recovered) reportShowPreparedPreview_(recovered);
+      if (recovered && !recovered.report_recovered_done) reportShowPreparedPreview_(recovered);
     } catch (intakeError) { alert(intakeError.message); }
     var retained = reportReadPendingSubmission_(payload.case_id, Date.now());
     if (retained && retained.intake_id) reportRenderIntake_(retained);
@@ -3740,6 +3855,8 @@ async function confirmSend() {
     // サーバがsync成功をackした提出だけ消す。別タブの新しい未完了操作はtoken照合で消さない。
     reportClearPendingSubmission_(payload);
   } catch(e) {
+    errorRecoveryAttempted_ = true;
+    try { if (await reportCheckPendingResult_(payload.case_id, payload)) return; } catch (recoveryError) {}
     var knownIntake = reportReadPendingSubmission_(payload.case_id, Date.now());
     if (knownIntake && knownIntake.intake_id) {
       reportRenderIntake_(knownIntake);
@@ -3807,6 +3924,11 @@ async function confirmSend() {
     else if (btnC) { btnC.disabled = false; btnC.textContent = '送信する'; }
     alert('送信状況を確認できません。入力を残して、もう一度確認してください。');
   } finally {
+    if (stopWaiting_) stopWaiting_();
+    reportSendInFlight_ = false;
+    var checkOnReturn = reportAutoRecoveryQueued_ && !errorRecoveryAttempted_;
+    reportAutoRecoveryQueued_ = false;
+    if (checkOnReturn) reportAutoRecoverPending_();
     try { if (window.ECOPITA_SCREEN_LATENCY) window.ECOPITA_SCREEN_LATENCY.finish(screenTiming_, syncResult, { url: GAS_API_URL }); } catch (ignored) {}
   }
 }
