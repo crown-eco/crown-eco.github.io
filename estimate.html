@@ -4446,6 +4446,12 @@ function _updateEstCustomDiagFeeVisibility_() {
     var sel = document.getElementById('est_custom_diag_fee');
     if (sel && sel.value) {
       sel.value = '';
+      var workRadio = document.querySelector('input[name="manual_work_type"]:checked');
+      var isDiag = !workRadio || workRadio.value !== '修理';
+      if (isDiag && typeof getDiagFee === 'function') {
+        var equip = (document.getElementById('manual_equipment') && document.getElementById('manual_equipment').value) || (P && P.equipment) || '';
+        P.initial_fee = getDiagFee(equip);
+      }
       refreshRepairPrices_();
       if (typeof recalc === 'function') recalc();
     }
