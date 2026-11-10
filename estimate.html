@@ -4306,6 +4306,7 @@ function onResEstTypeChange() {
   if (typeof _updateEstCustomDiagFeeVisibility_ === 'function') _updateEstCustomDiagFeeVisibility_();
   var repMenu = document.getElementById('reserve_est_repairs');
   if (repMenu) repMenu.style.display = (isDiag || currentIsHC || currentIsEC) ? 'none' : '';
+  if (isDiag || currentIsHC || currentIsEC) resetRepairMenuQty('resest');
   var resAddCond = document.getElementById('res_add_conditions_section');
   if (resAddCond) resAddCond.style.display = currentIsHC ? 'none' : '';
   var info = document.getElementById('res_est_diag_fee_info');
@@ -4335,6 +4336,7 @@ function onEstChkTypeChange() {
   var isDiag = (dt === '診断見積書');
   var repMenu = document.getElementById('estimate_repairs');
   if (repMenu) repMenu.style.display = (isDiag || currentIsHC || currentIsEC) ? 'none' : '';
+  if (isDiag || currentIsHC || currentIsEC) resetRepairMenuQty('est');
   var estAddCond = document.getElementById('est_add_conditions_section');
   if (estAddCond) estAddCond.style.display = currentIsHC ? 'none' : '';
   var info = document.getElementById('est_chk_diag_fee_info');
