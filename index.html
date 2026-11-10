@@ -534,6 +534,14 @@ body { font-family:'Noto Sans JP',sans-serif; background:var(--bg); color:var(--
           </div>
         </div>
         <div id="repair_options_area">
+          <div class="repair-item-row" data-price="9000" data-name="故障箇所診断費" data-diag-row="9000">
+            <div class="repair-info">故障箇所診断費<span class="repair-price">¥9,000（税抜）</span></div>
+            <div class="counter-ui"><button class="btn-circle btn-minus" onclick="changeCount(this,-1)">-</button><span class="count-num">0</span><button class="btn-circle btn-plus" onclick="changeCount(this,1)">+</button></div>
+          </div>
+          <div class="repair-item-row" data-price="15000" data-name="故障箇所診断費（業務用）" data-diag-row="15000">
+            <div class="repair-info">故障箇所診断費（業務用）<span class="repair-price">¥15,000（税抜）</span></div>
+            <div class="counter-ui"><button class="btn-circle btn-minus" onclick="changeCount(this,-1)">-</button><span class="count-num">0</span><button class="btn-circle btn-plus" onclick="changeCount(this,1)">+</button></div>
+          </div>
           <div class="repair-item-row" data-price="27000" data-name="冷媒ガス注入">
             <div class="repair-info">冷媒ガス注入（500gまで）<span class="repair-price">¥27,000〜（税抜）</span></div>
             <div class="counter-ui"><button class="btn-circle btn-minus" onclick="changeCount(this,-1)">-</button><span class="count-num">0</span><button class="btn-circle btn-plus" onclick="changeCount(this,1)">+</button></div>
@@ -823,6 +831,16 @@ function getIndexDiagFee_(equip) {
   var custom = sel ? (parseInt(sel.value) || 0) : 0;
   if (custom > 0) return custom;
   return (equip || '').includes('業務用') ? 15000 : 9000;
+}
+function updateIndexRepairDiagPrices_() {
+  var select = document.getElementById('c_custom_diag_fee');
+  var custom = select ? (parseInt(select.value) || 0) : 0;
+  document.querySelectorAll('#repair_options_area [data-diag-row]').forEach(function(row) {
+    var price = custom > 0 ? custom : parseInt(row.dataset.diagRow);
+    row.dataset.price = String(price);
+    var label = row.querySelector('.repair-price');
+    if (label) label.textContent = '¥' + price.toLocaleString('ja-JP') + '（税抜）';
+  });
 }
 
 function generateContractId() {
@@ -2740,6 +2758,7 @@ function _updateCustomDiagFeeVisibility_() {
     var sel = document.getElementById('c_custom_diag_fee');
     if (sel) sel.value = '';
   }
+  updateIndexRepairDiagPrices_();
 }
 (async function loadStaffFlagsIndex_() {
   try {
@@ -2760,6 +2779,7 @@ function _updateCustomDiagFeeVisibility_() {
 var _cdf = document.getElementById('c_custom_diag_fee');
 if (_cdf) {
   _cdf.addEventListener('change', function() {
+    updateIndexRepairDiagPrices_();
     if (typeof toggleWorkMenus === 'function') toggleWorkMenus();
     if (typeof refreshStep3Total === 'function') refreshStep3Total();
   });

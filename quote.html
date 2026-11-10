@@ -340,6 +340,8 @@ function toLocalYMD(d) {
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
 const REPAIR_MENU = [
+  { name: '故障箇所診断費', price: 9000, diag: true },
+  { name: '故障箇所診断費（業務用）', price: 15000, diag: true },
   { name: '冷媒ガス注入（500gまで）', price: 27000 },
   { name: '冷媒ガス追加（100g）',      price: 3000  },
   { name: '真空引き',                  price: 16000 },
@@ -572,12 +574,34 @@ function syncQuoteCustomerFields() {
   document.getElementById('h_name').textContent = Q.name || '---';
 }
 
+function getQRepairPrice_(item) {
+  if (item.diag && window._ecopitaHasCustomDiagFee && Q.prefix !== 'HC') {
+    var sel = document.getElementById('q_custom_diag_fee');
+    var custom = sel ? (parseInt(sel.value) || 0) : 0;
+    if (custom > 0) return custom;
+  }
+  return item.price;
+}
+
+function updateQRepairPrices_() {
+  REPAIR_MENU.forEach(function(item, i) {
+    if (!item.diag) return;
+    var row = document.getElementById('qr_row_' + i);
+    if (!row) return;
+    var price = getQRepairPrice_(item);
+    row.dataset.price = String(price);
+    var tag = row.querySelector('.repair-price-tag');
+    if (tag) tag.textContent = '¥' + price.toLocaleString();
+  });
+}
+
 function buildQRepairMenu() {
   document.getElementById('q_repair_menu').innerHTML = REPAIR_MENU.map(function(item, i) {
-    return '<div class="repair-item" id="qr_row_' + i + '" data-price="' + item.price + '">'
+    var price = getQRepairPrice_(item);
+    return '<div class="repair-item" id="qr_row_' + i + '" data-price="' + price + '">'
       + '<div>'
       + '<div class="repair-name">' + item.name + '</div>'
-      + '<span class="repair-price-tag">¥' + item.price.toLocaleString() + '</span>'
+      + '<span class="repair-price-tag">¥' + price.toLocaleString() + '</span>'
       + '</div>'
       + '<div class="counter">'
       + '<button class="minus" onclick="qRQ(' + i + ',-1)">-</button>'
@@ -667,6 +691,8 @@ function restoreItems(items) {
   items.forEach(function(item) {
     // 修理メニューに該当するか確認
     var rmIdx = REPAIR_MENU.findIndex(function(m) {
+      if (m.diag) return document.getElementById('repair_menu_section').style.display !== 'none'
+        && m.name === item.name && Number(item.price) === getQRepairPrice_(m);
       return m.name === item.name || m.name.indexOf(item.name) > -1 || item.name.indexOf(m.name) > -1;
     });
     if (rmIdx >= 0) {
@@ -853,6 +879,7 @@ function getCcEmails(areaKey) {
 }
 
 function qRecalc() {
+  updateQRepairPrices_();
   var sub = 0;
   var rv  = document.getElementById('repair_menu_section').style.display !== 'none';
   var cv  = document.getElementById('add_cond_section').style.display   !== 'none';
@@ -862,7 +889,7 @@ function qRecalc() {
   if (isDiagEst) { diagFee = getDiagFee_(); sub += diagFee; }
   if (rv) REPAIR_MENU.forEach(function(item, i) {
     var e = document.getElementById('qr_qty_' + i);
-    if (e) sub += item.price * (parseInt(e.textContent) || 0);
+    if (e) sub += getQRepairPrice_(item) * (parseInt(e.textContent) || 0);
   });
   if (cv) document.querySelectorAll('#q_add_cond_area .q-cond-price').forEach(function(inp) {
     sub += parseInt(inp.value) || 0;
@@ -885,7 +912,7 @@ function qRecalc() {
   }
   if (rv) REPAIR_MENU.forEach(function(item, i) {
     var q = parseInt(document.getElementById('qr_qty_' + i).textContent) || 0;
-    if (q > 0) h += '<div style="' + rs + '"><span>' + item.name + (q > 1 ? ' ×' + q : '') + '</span><span>¥' + (item.price * q).toLocaleString() + '</span></div>';
+    if (q > 0) h += '<div style="' + rs + '"><span>' + item.name + (q > 1 ? ' ×' + q : '') + '</span><span>¥' + (getQRepairPrice_(item) * q).toLocaleString() + '</span></div>';
   });
   if (cv) document.querySelectorAll('#q_add_cond_area .q-cond-row').forEach(function(row) {
     var p = parseInt(row.querySelector('.q-cond-price').value) || 0;
@@ -956,7 +983,8 @@ async function submitQuote() {
   if (document.getElementById('repair_menu_section').style.display !== 'none') {
     REPAIR_MENU.forEach(function(item, i) {
       var q = parseInt(document.getElementById('qr_qty_' + i).textContent) || 0;
-      if (q > 0) items.push({ name: item.name, price: item.price, qty: q, subtotal: item.price * q });
+      var price = getQRepairPrice_(item);
+      if (q > 0) items.push({ name: item.name, price: price, qty: q, subtotal: price * q });
     });
   }
   if (document.getElementById('add_cond_section').style.display !== 'none') {
@@ -1120,8 +1148,10 @@ function _updateQuoteCustomDiagFeeVisibility_() {
   var docTypeEl = document.querySelector('input[name="q_doc_type"]:checked');
   var docType = docTypeEl ? docTypeEl.value : '見積書';
   var isDiagEst = (docType === '診断見積書');
-  // 診断見積書 のみ表示。HC, 修理見積書では非表示
-  var canShow = window._ecopitaHasCustomDiagFee && prefix !== 'HC' && isDiagEst;
+  var menu = document.getElementById('repair_menu_section');
+  var isRepairMenu = docType === '見積書' && prefix !== 'EC' && prefix !== 'HC'
+    && menu && menu.style.display !== 'none';
+  var canShow = window._ecopitaHasCustomDiagFee && prefix !== 'HC' && (isDiagEst || isRepairMenu);
   field.style.display = canShow ? '' : 'none';
   if (!canShow) {
     var sel = document.getElementById('q_custom_diag_fee');

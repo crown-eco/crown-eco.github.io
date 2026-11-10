@@ -1713,6 +1713,8 @@ function removeEstCoupon2(idx) {
 }
 
 const REPAIR_MENU = [
+  { name: '故障箇所診断費', price: 9000, diag: true },
+  { name: '故障箇所診断費（業務用）', price: 15000, diag: true },
   { name: '冷媒ガス注入（500gまで）', price: 27000 },
   { name: '冷媒ガス追加（100g）', price: 3000 },
   { name: '真空引き', price: 16000 },
@@ -1721,6 +1723,28 @@ const REPAIR_MENU = [
   { name: '四方弁動作不良解消', price: 24000 },
   { name: '電源部再接続', price: 24000 },
 ];
+
+// 新しい診断費の修理行だけ、既存の単価指定を共有する。
+function getRepairPrice_(item) {
+  var sel = document.getElementById('est_custom_diag_fee');
+  var custom = sel ? (parseInt(sel.value) || 0) : 0;
+  return item.diag && custom > 0 ? custom : item.price;
+}
+
+// 値札だけ更新し、選択済みの数量と行の状態を保つ。
+function refreshRepairPrices_() {
+  ['today', 'est', 'resest'].forEach(function(prefix) {
+    REPAIR_MENU.forEach(function(item, i) {
+      if (!item.diag) return;
+      var row = document.getElementById(prefix + '_row_' + i);
+      if (!row) return;
+      var price = getRepairPrice_(item);
+      row.dataset.price = price;
+      var tag = row.querySelector('.repair-price-tag');
+      if (tag) tag.textContent = '¥' + price.toLocaleString();
+    });
+  });
+}
 
 // === URLパラメータから情報取得 ===
 const params = new URLSearchParams(location.search);
@@ -1743,7 +1767,10 @@ function applyRepairMode() {
 
   P.order_items.forEach(function(item) {
     if (P.is_repair) {
-      const idx = REPAIR_MENU.findIndex(function(m) { return m.name === item.name || m.name.indexOf(item.name) > -1 || item.name.indexOf(m.name) > -1; });
+      const idx = REPAIR_MENU.findIndex(function(m) {
+        if (m.diag) return m.name === item.name && Number(item.price) === getRepairPrice_(m);
+        return m.name === item.name || m.name.indexOf(item.name) > -1 || item.name.indexOf(m.name) > -1;
+      });
       if (idx >= 0) {
         const qty = parseInt(item.qty) || 1;
         const span = document.getElementById('today_qty_' + idx);
@@ -2319,10 +2346,10 @@ document.getElementById('res_est_expiry').value = toLocalYMD(d30);
 function buildRepairMenu(containerId, prefix) {
   const container = document.getElementById(containerId);
   container.innerHTML = REPAIR_MENU.map((item, i) => `
-    <div class="repair-item" id="${prefix}_row_${i}" data-price="${item.price}">
+    <div class="repair-item" id="${prefix}_row_${i}" data-price="${getRepairPrice_(item)}">
       <div>
         <div class="repair-name">${item.name}</div>
-        <span class="repair-price-tag">¥${item.price.toLocaleString()}</span>
+        <span class="repair-price-tag">¥${getRepairPrice_(item).toLocaleString()}</span>
       </div>
       <div class="counter">
         <button class="minus" onclick="changeQty('${prefix}',${i},-1)">-</button>
@@ -2629,7 +2656,7 @@ function recalc() {
   REPAIR_MENU.forEach((item, i) => {
     const el = document.getElementById('today_qty_' + i);
     if (!el) return;
-    repairSubEx += item.price * (parseInt(el.textContent) || 0);
+    repairSubEx += getRepairPrice_(item) * (parseInt(el.textContent) || 0);
   });
 
   let customSubEx = 0;
@@ -2662,7 +2689,7 @@ function recalc() {
       const el = document.getElementById('today_qty_' + i);
       if (!el) return;
       const qty = parseInt(el.textContent) || 0;
-      if (qty > 0) _tbHtml += '<div style="' + _rowStyle + '"><span>' + item.name + '</span><span>' + fmtBreakdownPrice(item.price, qty) + '</span></div>';
+      if (qty > 0) _tbHtml += '<div style="' + _rowStyle + '"><span>' + item.name + '</span><span>' + fmtBreakdownPrice(getRepairPrice_(item), qty) + '</span></div>';
     });
     if (_addCondVisible) {
       document.querySelectorAll('#inv_options_area .inv-est-row').forEach(function(row) {
@@ -2701,7 +2728,7 @@ function recalc() {
       const el = document.getElementById('est_qty_' + i);
       if (!el) return;
       const qty = parseInt(el.textContent) || 0;
-      estTotal += item.price * qty;
+      estTotal += getRepairPrice_(item) * qty;
     });
     const _estAddCondEl = document.getElementById('est_add_conditions_section');
     const _estAddCondVisible = _estAddCondEl && _estAddCondEl.style.display !== 'none';
@@ -2733,7 +2760,7 @@ function recalc() {
       const el = document.getElementById('est_qty_' + i);
       if (!el) return;
       const qty = parseInt(el.textContent) || 0;
-      if (qty > 0) _bHtml += '<div style="' + _rowStyle + '"><span>' + item.name + '</span><span>' + fmtBreakdownPrice(item.price, qty) + '</span></div>';
+      if (qty > 0) _bHtml += '<div style="' + _rowStyle + '"><span>' + item.name + '</span><span>' + fmtBreakdownPrice(getRepairPrice_(item), qty) + '</span></div>';
     });
     document.querySelectorAll('#est_inv_options_area .est-inv-row').forEach(function(row) {
       const p = parseInt(row.querySelector('.est-inv-price').value) || 0;
@@ -2759,7 +2786,7 @@ function recalc() {
     const el = document.getElementById('resest_qty_' + i);
     if (!el) return;
     const qty = parseInt(el.textContent) || 0;
-    resEstRepairEx += item.price * qty;
+    resEstRepairEx += getRepairPrice_(item) * qty;
   });
   getResCustomItems().forEach(it => { resEstRepairEx += it.subtotal; });
   let resEstInvEx = 0;
@@ -2796,7 +2823,7 @@ function recalc() {
       if (!el) return;
       const qty = parseInt(el.textContent) || 0;
       if (qty > 0) {
-        _html += '<div style="' + _rowStyle + '"><span>' + item.name + '</span><span>' + fmtBreakdownPrice(item.price, qty) + '</span></div>';
+        _html += '<div style="' + _rowStyle + '"><span>' + item.name + '</span><span>' + fmtBreakdownPrice(getRepairPrice_(item), qty) + '</span></div>';
       }
     });
     getResCustomItems().forEach(function(it) {
@@ -2825,6 +2852,7 @@ function recalc() {
 function toggleEstimate() {
   document.getElementById('estimate_area').style.display =
     document.getElementById('chk_estimate').checked ? 'block' : 'none';
+  if (typeof _updateEstCustomDiagFeeVisibility_ === 'function') _updateEstCustomDiagFeeVisibility_();
 }
 
 // ===== 分割（ご相談）UI =====
@@ -3265,7 +3293,8 @@ function getSelectedItems(prefix) {
   REPAIR_MENU.forEach((item, i) => {
     const qty = parseInt(document.getElementById(prefix + '_qty_' + i).textContent);
     if (qty > 0) {
-      items.push({ name: item.name, price: item.price, qty: qty, subtotal: item.price * qty });
+      const price = getRepairPrice_(item);
+      items.push({ name: item.name, price: price, qty: qty, subtotal: price * qty });
     }
   });
   return items;
@@ -4301,6 +4330,7 @@ function onResEstTypeChange() {
 }
 
 function onEstChkTypeChange() {
+  if (typeof _updateEstCustomDiagFeeVisibility_ === 'function') _updateEstCustomDiagFeeVisibility_();
   var dt = (document.querySelector('input[name="est_chk_doc_type"]:checked') || {}).value || '見積書';
   var isDiag = (dt === '診断見積書');
   var repMenu = document.getElementById('estimate_repairs');
@@ -4396,17 +4426,29 @@ function _updateEstCustomDiagFeeVisibility_() {
   var resDocEl = document.querySelector('input[name="res_est_doc_type"]:checked');
   var resDoc = resDocEl ? resDocEl.value : '見積書';
   var isResDiagEst = (resDoc === '診断見積書');
-  // 表示条件:
-  //   完工+診断モード / (予約+見積 or 予約+請求) かつ 診断見積書タイプ
-  //   HC除外
+  var chkEst = document.getElementById('chk_estimate');
+  var estDocEl = document.querySelector('input[name="est_chk_doc_type"]:checked');
+  var estDoc = estDocEl ? estDocEl.value : '見積書';
+  var repairAllowed = prefix !== 'EC' && !currentIsEC && !currentIsHC;
+  // 既存の診断場面に加え、実際に修理メニューを出す場面も対象。
   var modeOk = (isKankou && workType !== '修理')
-    || ((isReserveEst || isReserveInv) && isResDiagEst);
+    || ((isReserveEst || isReserveInv) && isResDiagEst)
+    || (repairAllowed && (
+      (isKankou && workType === '修理')
+      || (isKankou && chkEst && chkEst.checked && estDoc !== '診断見積書')
+      || ((isReserveEst || isReserveInv || status === '完工（請求書あり）') && !isResDiagEst)
+    ));
   var canShow = window._ecopitaHasCustomDiagFee && prefix !== 'HC' && modeOk;
   field.style.display = canShow ? '' : 'none';
   if (!canShow) {
     var sel = document.getElementById('est_custom_diag_fee');
-    if (sel && sel.value) { sel.value = ''; if (typeof recalc === 'function') recalc(); }
+    if (sel && sel.value) {
+      sel.value = '';
+      refreshRepairPrices_();
+      if (typeof recalc === 'function') recalc();
+    }
   }
+  refreshRepairPrices_();
 }
 (async function loadStaffFlagsEst_() {
   try {
@@ -4426,6 +4468,7 @@ function _updateEstCustomDiagFeeVisibility_() {
 var _estCdf = document.getElementById('est_custom_diag_fee');
 if (_estCdf) {
   _estCdf.addEventListener('change', function() {
+    refreshRepairPrices_();
     // 手入力モード診断時のみ initial_fee を更新（修理モードは0固定）
     var workRadio = document.querySelector('input[name="manual_work_type"]:checked');
     var isDiag = !workRadio || workRadio.value !== '修理';
