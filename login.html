@@ -194,10 +194,20 @@ async function callApi(payload) {
   try { return JSON.parse(text); } catch(e) { throw new Error('サーバーからの応答が不正です。'); }
 }
 
+// スマホの LINE WORKS は長押し→コピーで吹き出しを丸ごとコピーするため、伏せ字の PIN 欄に案内文ごと入る（2026-11-11 0104）。
+// 「PIN：」「PIN:」があればその後ろの英数字だけを使う。全角は半角に直し、見えない文字は除く。
+function pinFromInput_(raw) {
+  var s = String(raw || '');
+  try { s = s.normalize('NFKC'); } catch (e) {}
+  s = s.replace(/[​-‍⁠﻿]/g, '');
+  var m = s.match(/PIN\s*:\s*([A-Za-z0-9]+)/);
+  return m ? m[1] : s.trim();
+}
+
 async function doLogin() {
   if (busy) return;
   var sid = document.getElementById('staffId').value.trim();
-  var p = document.getElementById('pin').value.trim();
+  var p = pinFromInput_(document.getElementById('pin').value);
   document.getElementById('loginErr').classList.remove('on');
   if (!sid || !p) {
     document.getElementById('loginErr').textContent = '担当者番号とPINを入力してください';
