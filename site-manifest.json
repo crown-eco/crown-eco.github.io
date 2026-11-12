@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "site": "crown",
-  "source_commit": "13fb72918861ff3b0c8275baf58c69d08f6b8a73",
+  "source_commit": "d6bf12a6579af4d33a3c56cbaebd315b4c009742",
   "excluded": [
     ".git",
     "woff-test",
@@ -30,8 +30,8 @@
     },
     {
       "path": "company_dashboard.html",
-      "size": 90533,
-      "sha256": "24a2cae91e28ee5633b20f505391af512af7b54a49bce9e1176a59759f5f3e60"
+      "size": 91202,
+      "sha256": "4f83c18d427330b08e03314a7643b894babca52c6aa899b032d422e38e42c0b2"
     },
     {
       "path": "dashboard-analytics-core.js",
