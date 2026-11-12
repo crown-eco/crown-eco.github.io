@@ -3897,6 +3897,44 @@ async function confirmSend() {
     return;
   }
 
+  if (syncResult.dummy_case) {
+    var dummyResultText_ = function(reply) {
+      var mark = reply && reply.dummy_case;
+      var lines = ['ダミー案件番号の送信です。売上・通知・ポータルには反映されません'];
+      if (!mark) { lines.push('送信結果を確認できませんでした。再送せず、送信状況を確認してください。'); return lines.join('\n'); }
+      var mails = Array.isArray(mark.mail_results) ? mark.mail_results : [];
+      mails.forEach(function(mail) {
+        var to = String(mail.to || '');
+        var cc = Array.isArray(mail.cc) ? mail.cc.join(', ') : String(mail.cc || '');
+        var destination = to + (cc ? '（CC: ' + cc + '）' : '');
+        var state = String(mail.state || '').toUpperCase();
+        if (state === 'SENT') lines.push('書類を ' + destination + ' に送りました。');
+        else if (state === 'UNKNOWN' || state === 'PENDING') lines.push('書類を ' + destination + ' に送れたか確認できません。再送せず、送信状況を確認してください。');
+        else lines.push('書類を ' + destination + ' に送れませんでした。' + String(mail.error || ''));
+      });
+      if (!reply.ok) lines.push('送信に失敗しました。' + String(reply.error || ''));
+      else if (!mails.length) lines.push('書類の送信はありません。');
+      return lines.join('\n');
+    };
+    var dummyText_;
+    try {
+      var dummyPayload_ = reportAttachmentAsyncPayload_(payload, syncResult);
+      var dummyResponse_ = await fetch(GAS_API_URL, { method: 'POST', body: JSON.stringify(dummyPayload_) });
+      dummyText_ = dummyResultText_(await dummyResponse_.json());
+    } catch (dummyError_) { dummyText_ = 'ダミー案件番号の送信です。売上・通知・ポータルには反映されません\n送信結果を確認できませんでした。通信状態を確認してください。再送すると重複する可能性があります。'; }
+    var dummyPreview_ = document.getElementById('preview_view');
+    dummyPreview_.classList.add('hidden');
+    dummyPreview_.style.display = 'none';
+    var dummyDone_ = document.getElementById('done_view');
+    dummyDone_.classList.remove('hidden');
+    dummyDone_.style.display = 'flex';
+    document.getElementById('done_msg').textContent = dummyText_;
+    document.getElementById('done_msg').style.whiteSpace = 'pre-line';
+    window.scrollTo(0, 0);
+    window._submittedPayload = payload;
+    return;
+  }
+
   // 完了画面を全画面オーバーレイ表示
   var _pvHide = document.getElementById('preview_view');
   _pvHide.classList.add('hidden');

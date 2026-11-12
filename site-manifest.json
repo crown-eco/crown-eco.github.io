@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "site": "crown",
-  "source_commit": "d6bf12a6579af4d33a3c56cbaebd315b4c009742",
+  "source_commit": "48f2c490e48a7c66c870d2a9074755c25bee3310",
   "excluded": [
     ".git",
     "woff-test",
@@ -60,8 +60,8 @@
     },
     {
       "path": "estimate.html",
-      "size": 250851,
-      "sha256": "a0d2a3ecc31ada207baa194069af870516c268cfe6acb4e64c1eeeb0754de813"
+      "size": 253351,
+      "sha256": "bca81757b7ed12e90a8efc66e4e72c6c33cc776ad7ffc08f55625cf4c0f92e05"
     },
     {
       "path": "expense.html",
@@ -80,8 +80,8 @@
     },
     {
       "path": "index.html",
-      "size": 158908,
-      "sha256": "743c15b3d1ae3d3c2edd2bfa98444f63d22c49105efd4a5469c10123a6b07ee4"
+      "size": 161164,
+      "sha256": "b6a4d18c3463f22c7dd931fc531f15b618797cab5a3736eb585c1ab2f31a1c74"
     },
     {
       "path": "invoice.html",
@@ -105,8 +105,8 @@
     },
     {
       "path": "quote.html",
-      "size": 65379,
-      "sha256": "046b44afbdd207d37ccb3e91db9e871e81b617c5a16a2140754b48db837cb479"
+      "size": 68044,
+      "sha256": "ea5158bc5a11707f0e0163190ceb3a07812ab186d580ab89de441b4b2142295f"
     },
     {
       "path": "receipt.html",

@@ -2284,6 +2284,34 @@ async function doSubmit() {
   consentPhotoState_.allowed = false;
   document.getElementById('consentPhotoPreview').src = '';
   var orderCardPayBackgroundOk_ = false;
+  if (result && result.dummy_case) {
+    var dummyResultText_ = function(reply) {
+      var mark = reply && reply.dummy_case;
+      var lines = ['ダミー案件番号の送信です。売上・通知・ポータルには反映されません'];
+      if (!mark) { lines.push('送信結果を確認できませんでした。再送せず、送信状況を確認してください。'); return lines.join('\n'); }
+      var mails = Array.isArray(mark.mail_results) ? mark.mail_results : [];
+      mails.forEach(function(mail) {
+        var to = String(mail.to || '');
+        var cc = Array.isArray(mail.cc) ? mail.cc.join(', ') : String(mail.cc || '');
+        var destination = to + (cc ? '（CC: ' + cc + '）' : '');
+        var state = String(mail.state || '').toUpperCase();
+        if (state === 'SENT') lines.push('書類を ' + destination + ' に送りました。');
+        else if (state === 'UNKNOWN' || state === 'PENDING') lines.push('書類を ' + destination + ' に送れたか確認できません。再送せず、送信状況を確認してください。');
+        else lines.push('書類を ' + destination + ' に送れませんでした。' + String(mail.error || ''));
+      });
+      if (!reply.ok) lines.push('送信に失敗しました。' + String(reply.error || ''));
+      else if (!mails.length) lines.push('書類の送信はありません。');
+      return lines.join('\n');
+    };
+    if (completeText) {
+      completeText.style.whiteSpace = 'pre-line';
+      completeText.textContent = 'ダミー案件番号の送信です。売上・通知・ポータルには反映されません\n書類の送信結果を確認しています…';
+    }
+    fetch(GAS_API_URL, { method: 'POST', body: JSON.stringify(asyncPayload) })
+      .then(function(reply) { return reply.json(); })
+      .then(function(reply) { if (completeText) completeText.textContent = dummyResultText_(reply); })
+      .catch(function() { if (completeText) completeText.textContent = 'ダミー案件番号の送信です。売上・通知・ポータルには反映されません\n送信結果を確認できませんでした。通信状態を確認してください。再送すると重複する可能性があります。'; });
+  } else {
   fetch(GAS_API_URL, { method: 'POST', body: JSON.stringify(asyncPayload) })
     .then(function(r) { return r.json(); })
     .then(function(res) {
@@ -2302,6 +2330,7 @@ async function doSubmit() {
     })
     .catch(function(){ /* 通信断のみ。サーバ側処理は継続中の可能性が高いため黙殺 */ })
     .then(function(){ if(orderCardPayDirectSuccess_ && orderCardPayBackgroundOk_)orderCardPayJump_(payload); });
+  }
   } finally {
     try { if (window.ECOPITA_SCREEN_LATENCY) window.ECOPITA_SCREEN_LATENCY.finish(screenTiming_, result, { url: GAS_API_URL }); } catch (ignored) {}
   }
