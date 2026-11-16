@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "site": "crown",
-  "source_commit": "48f2c490e48a7c66c870d2a9074755c25bee3310",
+  "source_commit": "25263d908a00e6671b73f2d773a974e2063c88f3",
   "excluded": [
     ".git",
     "woff-test",
