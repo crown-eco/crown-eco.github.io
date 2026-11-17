@@ -218,7 +218,7 @@ async function doLogin() {
   document.getElementById('loginBtn').textContent = 'ログイン中...';
   document.getElementById('loading').classList.add('on');
   try {
-    var r = await callApi({ action: 'login', staffId: sid, pin: p, ua: ua });
+    var r = await callApi({ action: 'login', staffId: sid, pin: p, ua: ua, siteGroup: window.ECOPITA_SITE.group });
     document.getElementById('loading').classList.remove('on');
     setBusy(false);
     document.getElementById('loginBtn').textContent = 'ログイン';
@@ -378,7 +378,7 @@ async function submitTotp() {
   document.getElementById('totpBtn').textContent = '送信中...';
   var action = (_totpMode === 'login') ? 'totp_verify_login' : 'totp_confirm_setup';
   try {
-    var res = await callApi({ action: action, staffId: _totpStaffId, passToken: _totpPassToken, code: code });
+    var res = await callApi({ action: action, staffId: _totpStaffId, passToken: _totpPassToken, code: code, siteGroup: window.ECOPITA_SITE.group });
     document.getElementById('totpBtn').disabled = false;
     document.getElementById('totpBtn').textContent = (_totpMode === 'login') ? 'ログイン' : '登録完了';
     if (!res.ok) {

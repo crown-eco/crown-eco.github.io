@@ -583,6 +583,9 @@ function render(json) {
     { label: '電話失注数', value: s.denwa_shicchu,    unit: '件', color: 'var(--orange)', dot: 'var(--orange)' },
     { label: '予約・保留', value: (s.yoyaku||0)+(s.futsu||0), unit: '件', color: '#6b7280', dot: '#6b7280' }
   ];
+  if ((!json.groupId || json.groupId === 'main') && typeof s.callback === 'number' && Number.isFinite(s.callback)) {
+    kpis.push({ label: '折り返し待ち', value: s.callback, unit: '件', color: '#6b7280', dot: '#6b7280' });
+  }
   var allHtml = kpis.map(function(k) {
     return '<div class="ag-card"><div class="ag-label"><span class="kpi-dot" style="background:' + k.dot + '"></span>' + k.label + '</div>'
       + '<div class="ag-val-lg" style="color:' + k.color + '">' + esc(k.value) + '<span class="ag-unit">' + k.unit + '</span></div></div>';
