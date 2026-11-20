@@ -5,6 +5,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>業務報告</title>
+<script>
+// HC の案件で「エアコンの作業」の選択を全員に出す旗（注文・見積書・領収書と同じ名前）。
+// false の間は練習の番号 HC-00000000 のときだけ選択が出る。全員に出すときは true にする。
+var HC_AIRCON_INPUT_ALL = false;
+</script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -193,7 +198,7 @@ input[type="date"]{width:100%;max-width:100%;box-sizing:border-box;-webkit-appea
           <!-- 番号入力: 入力中はローカル更新のみ、検索はblur時に1回 -->
           <input type="text" id="case_number" placeholder="12345678" inputmode="numeric"
             style="flex:1;min-width:120px;padding:10px;border:2px solid var(--border);border-radius:8px;font-size:1rem"
-            oninput="updateCaseIdPreview(); clearEstCustomerFields(); clearEstCaseIdError();"
+            oninput="updateCaseIdPreview(); clearEstCustomerFields(); clearEstCaseIdError(); onHcAirconCaseIdInput_();"
             onblur="clearTimeout(_lookupTimer); lookupByCaseIdEst(true);">
         </div>
         <!-- 組み立て結果プレビュー -->
@@ -471,6 +476,23 @@ input[type="date"]{width:100%;max-width:100%;box-sizing:border-box;-webkit-appea
       <div class="field">
         <label>担当者メモ（社内用）</label>
         <textarea id="staff_memo" rows="2" placeholder="現場の状況・お客様への説明内容など"></textarea>
+      </div>
+    </div>
+
+    <!-- ===== エアコンの作業（HC の案件だけ。旗 HC_AIRCON_INPUT_ALL が false の間は練習の番号 HC-00000000 だけ）。「あり」なら HM と同じに動く ===== -->
+    <div id="hc_aircon_choice" style="display:none">
+      <div class="section-title">エアコンの作業</div>
+      <div class="card" style="margin-bottom:12px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <label class="status-label">
+            <input type="radio" name="hc_aircon_work" value="なし" checked onchange="onHcAirconChange()">
+            なし（清掃）
+          </label>
+          <label class="status-label">
+            <input type="radio" name="hc_aircon_work" value="あり" onchange="onHcAirconChange()">
+            あり
+          </label>
+        </div>
       </div>
     </div>
 
@@ -1762,6 +1784,90 @@ const P = {
   _selectedVerItems: null
 };
 
+// === HC の「エアコンの作業」（2026-11-19 麗香・HC 担当者の要望） ===
+// currentIsHC は「頭が HC」のまま。清掃だから分けている所は (currentIsHC && !isHcAirconMode_()) で分ける。
+// ページどうし・system とは作業対象（equipment）の値の完全一致だけでつなぐ（新しい送り項目は作らない）。
+var HC_AIRCON_PRACTICE_CASE_ID_ = 'HC-00000000';
+var HC_AIRCON_EQUIPMENTS_ = ['ルームエアコン', '業務用エアコン'];
+// 注文（lookup・URL）の作業対象。「あり」「なし」を切り替えたときに、その形に合う作業対象へ戻すために持つ
+var hcAirconOrderEquipment_ = P.equipment;
+
+function isHcAirconEquipment_(equipment) {
+  return HC_AIRCON_EQUIPMENTS_.indexOf(String(equipment == null ? '' : equipment)) >= 0;
+}
+
+// 今の案件番号（手入力は入力欄から・URL から開いたときは P.case_id）
+function hcAirconCaseId_() {
+  var sec = document.getElementById('customer_input_section');
+  var manual = !!sec && sec.style.display !== 'none';
+  return String((manual ? buildCaseId() : P.case_id) || '').trim().toUpperCase();
+}
+
+// 「エアコンの作業」の選択を出すか＝頭が HC かつ（旗が true か、練習の番号 HC-00000000）
+function hcAirconChoiceApplies_(isHc) {
+  if (!isHc) return false;
+  return HC_AIRCON_INPUT_ALL === true || hcAirconCaseId_() === HC_AIRCON_PRACTICE_CASE_ID_;
+}
+
+// HC かつ選択が出ていて「あり」か。prefix を渡すとその頭で見る（渡さないときは currentIsHC）
+function isHcAirconMode_(prefix) {
+  var isHc = (prefix === undefined) ? currentIsHC : String(prefix || '').toUpperCase() === 'HC';
+  if (!hcAirconChoiceApplies_(isHc)) return false;
+  var picked = document.querySelector('input[name="hc_aircon_work"]:checked');
+  return !!picked && picked.value === 'あり';
+}
+
+function setHcAirconChoice_(aircon) {
+  var radio = document.querySelector('input[name="hc_aircon_work"][value="' + (aircon ? 'あり' : 'なし') + '"]');
+  if (radio) radio.checked = true;
+}
+
+// 選択の表示を今の案件番号に合わせる。出ないときは初期値「なし（清掃）」に戻す
+function refreshHcAirconChoice_() {
+  var shown = hcAirconChoiceApplies_(currentIsHC);
+  var card = document.getElementById('hc_aircon_choice');
+  if (card) card.style.display = shown ? '' : 'none';
+  if (!shown) setHcAirconChoice_(false);
+  return shown;
+}
+
+// 注文から開いたとき: 選択が出る案件で、注文の作業対象がルームエアコン／業務用エアコンなら「あり」で開く
+function hcAirconOpenFromOrder_(prefix, equipment) {
+  if (String(prefix || '').toUpperCase() !== 'HC' || !hcAirconChoiceApplies_(true) || !isHcAirconEquipment_(equipment)) return false;
+  setHcAirconChoice_(true);
+  return true;
+}
+
+// 「あり」「なし」を切り替えた（または選択が消えた）とき。前の形の入力は持ち越さない
+// ＝「なし」に戻したらエアコンの入力（修理メニュー・追加条件・作業対象）は送らない
+function onHcAirconChange() {
+  resetRepairMenuQty('');
+  resetAddConditions('inv_options_area');
+  resetAddConditions('est_inv_options_area');
+  resetAddConditions('res_inv_options_area');
+  var _workRadio = document.querySelector('input[name="manual_work_type"][value="診断"]');
+  if (_workRadio) _workRadio.checked = true;
+  var aircon = isHcAirconMode_();
+  var orderEquip = (aircon === isHcAirconEquipment_(hcAirconOrderEquipment_)) ? hcAirconOrderEquipment_ : '';
+  updateEquipOptions('HC', orderEquip);
+  P.equipment = getEquipValue() || orderEquip;
+  updateEstChkEquipOptions('HC', P.equipment);
+  applyPrefixUI('HC');
+  onResEstTypeChange();
+  onEstChkTypeChange();
+  if (typeof _updateEstCustomDiagFeeVisibility_ === 'function') _updateEstCustomDiagFeeVisibility_();
+  onStatusChange();
+}
+
+// 手入力で案件番号を変えたとき: 選択が出なくなったら「なし」に戻して清掃の形に入れ直す
+function onHcAirconCaseIdInput_() {
+  hcAirconOrderEquipment_ = '';
+  var picked = document.querySelector('input[name="hc_aircon_work"]:checked');
+  var wasAircon = !!picked && picked.value === 'あり';
+  refreshHcAirconChoice_();
+  if (wasAircon && !isHcAirconMode_()) onHcAirconChange();
+}
+
 function applyRepairMode() {
   if (!P.order_items || P.order_items.length === 0) return;
 
@@ -1818,7 +1924,8 @@ function applyRepairMode() {
 
 function getDiagFee(equipment) {
   // ハウクリ（HC-）は故障診断費なし。作業対象「ハウスクリーニング」を選んでも 0（10/8 麗香）
-  if (currentIsHC || equipment === 'ハウスクリーニング') return 0;
+  // HC でも「エアコンの作業」が「あり」ならエアコンの案件と同じ（9,000／業務用 15,000・担当者別）
+  if ((currentIsHC && !isHcAirconMode_()) || equipment === 'ハウスクリーニング') return 0;
   var sel = document.getElementById('est_custom_diag_fee');
   var custom = sel ? (parseInt(sel.value) || 0) : 0;
   if (custom > 0) return custom;
@@ -1833,7 +1940,7 @@ function updateEquipOptions(prefix, currentVal) {
   let opts = [];
   if (prefix === 'EC') {
     opts = ['エコキュート', 'ガス給湯器'];
-  } else if (prefix === 'HC') {
+  } else if (prefix === 'HC' && !isHcAirconMode_(prefix)) {
     opts = ['ハウスクリーニング'];
   } else {
     opts = ['ルームエアコン', '業務用エアコン'];
@@ -1854,7 +1961,7 @@ function updateEstChkEquipOptions(prefix, currentVal) {
   if (!sel) return;
   var opts = [];
   if (prefix === 'EC') { opts = ['エコキュート', 'ガス給湯器']; }
-  else if (prefix === 'HC') { opts = ['ハウスクリーニング']; }
+  else if (prefix === 'HC' && !isHcAirconMode_(prefix)) { opts = ['ハウスクリーニング']; }
   else { opts = ['ルームエアコン', '業務用エアコン']; }
   var prev = currentVal || sel.value || (document.getElementById('manual_equipment') ? document.getElementById('manual_equipment').value : '') || P.equipment;
   sel.innerHTML = '';
@@ -1918,6 +2025,7 @@ function initUI() {
   if (P.address) document.getElementById('manual_address').value = P.address;
 
   const casePrefix = (P.case_id || '').split('-')[0].toUpperCase();
+  hcAirconOpenFromOrder_(casePrefix, P.equipment);
   updateEquipOptions(casePrefix, P.equipment);
   updateEstChkEquipOptions(casePrefix, P.equipment);
   applyPrefixUI(casePrefix);
@@ -2001,7 +2109,10 @@ function onPrefixChange() {
 
   document.getElementById('manual_equipment').value = '';
   P.equipment = '';
-  P.initial_fee = (prefix === 'HC') ? 0 : getDiagFee('');
+  // 頭を変えたら「エアコンの作業」は初期値「なし（清掃）」に戻す
+  hcAirconOrderEquipment_ = '';
+  setHcAirconChoice_(false);
+  P.initial_fee = (prefix === 'HC' && !isHcAirconMode_(prefix)) ? 0 : getDiagFee('');
   P.is_repair = false;
 
   resetRepairMenuQty('');
@@ -2079,9 +2190,11 @@ function onPrefixChange() {
 
 function applyPrefixUI(prefix) {
   const isEC = (prefix === 'EC');
-  const isHC = (prefix === 'HC');
-  currentIsHC = isHC;
+  currentIsHC = (prefix === 'HC');
   currentIsEC = isEC;
+  refreshHcAirconChoice_();
+  // この関数の isHC は「清掃の HC」。HC でも「エアコンの作業」が「あり」なら HM と同じ形にする
+  const isHC = currentIsHC && !isHcAirconMode_();
   setEstSubjectOptions_(isHC, isEC);
 
   const _workType = document.querySelector('input[name="manual_work_type"]:checked');
@@ -2251,6 +2364,9 @@ function syncManualInputs() {
         if (r.contact_name)  P.contact_name  = r.contact_name;
 
         const pfx = (r.case_id || P.case_id || '').split('-')[0].toUpperCase();
+        // 注文の作業対象がエアコンなら「エアコンの作業」を「あり」で開く（下の修理の判定より先）
+        hcAirconOrderEquipment_ = P.equipment;
+        hcAirconOpenFromOrder_(pfx, P.equipment);
         const hasDiagFee = (r.order_items || []).some(function(it) {
           return it.name && it.name.startsWith('故障診断');
         });
@@ -2272,7 +2388,7 @@ function syncManualInputs() {
         });
         if (repairItems.length > 0) {
           P.order_items = repairItems;
-          if (pfx !== 'HC' && pfx !== 'EC' && !hasDiagFee) {
+          if (!(pfx === 'HC' && !isHcAirconMode_(pfx)) && pfx !== 'EC' && !hasDiagFee) {
             P.is_repair = true;
             P.initial_fee = 0;
           }
@@ -3167,7 +3283,7 @@ function onStatusChange() {
     // 種別カード: 請求書ありでも表示（ラベルだけ変更）、HCは非表示
     var _typeCard = document.getElementById('res_est_type_card');
     if (_typeCard) {
-      _typeCard.style.display = currentIsHC ? 'none' : '';
+      _typeCard.style.display = (currentIsHC && !isHcAirconMode_()) ? 'none' : '';
       var _typeLabel = _typeCard.querySelector('div[style*="font-weight"]');
       if (_typeLabel) _typeLabel.textContent = isInvoiceMode ? '📝 請求書の種別' : '📝 見積書の種別';
     }
@@ -3185,10 +3301,11 @@ function onStatusChange() {
     }
     document.getElementById('toggle_estimate_box').style.display = (isReserveEst || isDiagEst) ? 'none' : '';
     const _isResOrDiag = isReserveEst || isDiagEst || isKankouInv;
-    document.getElementById('add_conditions_section').style.display = (currentIsHC || _isResOrDiag) ? 'none' : '';
+    const _isHcCleaning = currentIsHC && !isHcAirconMode_();
+    document.getElementById('add_conditions_section').style.display = (_isHcCleaning || _isResOrDiag) ? 'none' : '';
     const _workTypeNow = (document.querySelector('input[name="manual_work_type"]:checked') || {}).value;
     const _isWorkTypeDiag = (_workTypeNow !== '修理');
-    document.getElementById('today_repairs_section').style.display = (_isResOrDiag || _isWorkTypeDiag || currentIsHC || currentIsEC) ? 'none' : '';
+    document.getElementById('today_repairs_section').style.display = (_isResOrDiag || _isWorkTypeDiag || _isHcCleaning || currentIsEC) ? 'none' : '';
     document.getElementById('kankou_custom_section').style.display = _isResOrDiag ? 'none' : '';
     document.getElementById('kankou_coupon_section').style.display = _isResOrDiag ? 'none' : '';
     document.getElementById('kankou_total_section').style.display = _isResOrDiag ? 'none' : '';
@@ -3226,8 +3343,9 @@ function onStatusChange() {
     document.getElementById('section_reserve_datetime').classList.toggle('hidden', !isReserve);
 
     const casePrefix = (P.case_id || '').split('-')[0].toUpperCase();
-    const isHCPrefix = casePrefix === 'HC' ||
-      (document.getElementById('case_prefix') && document.getElementById('case_prefix').value === 'HC');
+    // 作業種別を隠すのは清掃の HC だけ（「エアコンの作業」が「あり」なら HM と同じに出す）
+    const isHCPrefix = (casePrefix === 'HC' ||
+      (document.getElementById('case_prefix') && document.getElementById('case_prefix').value === 'HC')) && !isHcAirconMode_('HC');
     const isECPrefix = casePrefix === 'EC' ||
       (document.getElementById('case_prefix') && document.getElementById('case_prefix').value === 'EC');
     const toggle = document.getElementById('work_type_toggle');
@@ -3346,6 +3464,13 @@ async function submitReport() {
       return;
     }
   }
+  // HC の「エアコンの作業」が「あり」のときは、URL から開いたときも作業対象を必須にする
+  // （system は作業対象の値でエアコンを見分けるので、空だと清掃として扱われる・2026-11-19 Claude 決め）
+  if (isHcAirconMode_() && !isHcAirconEquipment_(getEquipValue())) {
+    alert('対象機器を選択してください');
+    document.getElementById('manual_equipment').focus();
+    return;
+  }
 
   if (!P.name) {
     alert('お客様名を入力してください');
@@ -3454,7 +3579,7 @@ async function submitReport() {
     });
   }
 
-  if (isKankouPlain && (P.is_repair || currentIsHC)) {
+  if (isKankouPlain && (P.is_repair || (currentIsHC && !isHcAirconMode_()))) {
     var realTodayItems = todayItems.filter(function(it) { return !it.name.startsWith('クーポン'); });
     if (realTodayItems.length === 0) {
       alert('作業項目を1つ以上入力してください');
@@ -4275,6 +4400,9 @@ async function generateDoc(type) {
      if (fullAddr) document.getElementById('manual_address').value = fullAddr;
       if (r.equipment) {
         const prefix = document.getElementById('case_prefix').value;
+        // 注文の作業対象がエアコンなら「エアコンの作業」を「あり」にして HM と同じ形にしてから入れる
+        hcAirconOrderEquipment_ = r.equipment;
+        if (!isHcAirconMode_(prefix) && hcAirconOpenFromOrder_(prefix, r.equipment)) onHcAirconChange();
         updateEquipOptions(prefix, r.equipment);
         document.getElementById('manual_equipment').value = r.equipment;
         P.equipment = r.equipment;
@@ -4342,14 +4470,15 @@ function onResEstTypeChange() {
   var dt = (document.querySelector('input[name="res_est_doc_type"]:checked') || {}).value || '見積書';
   var isDiag = (dt === '診断見積書');
   if (typeof _updateEstCustomDiagFeeVisibility_ === 'function') _updateEstCustomDiagFeeVisibility_();
+  var isHcCleaning = currentIsHC && !isHcAirconMode_();
   var repMenu = document.getElementById('reserve_est_repairs');
-  if (repMenu) repMenu.style.display = (isDiag || currentIsHC || currentIsEC) ? 'none' : '';
-  if (isDiag || currentIsHC || currentIsEC) resetRepairMenuQty('resest');
+  if (repMenu) repMenu.style.display = (isDiag || isHcCleaning || currentIsEC) ? 'none' : '';
+  if (isDiag || isHcCleaning || currentIsEC) resetRepairMenuQty('resest');
   var resAddCond = document.getElementById('res_add_conditions_section');
-  if (resAddCond) resAddCond.style.display = currentIsHC ? 'none' : '';
+  if (resAddCond) resAddCond.style.display = isHcCleaning ? 'none' : '';
   var info = document.getElementById('res_est_diag_fee_info');
   if (info) {
-    if (isDiag && !currentIsHC) {
+    if (isDiag && !isHcCleaning) {
       var eqEl = document.getElementById('manual_equipment');
       var eq = (eqEl && eqEl.value) ? eqEl.value : P.equipment;
       var fee = getDiagFee(eq);
@@ -4372,14 +4501,15 @@ function onEstChkTypeChange() {
   if (typeof _updateEstCustomDiagFeeVisibility_ === 'function') _updateEstCustomDiagFeeVisibility_();
   var dt = (document.querySelector('input[name="est_chk_doc_type"]:checked') || {}).value || '見積書';
   var isDiag = (dt === '診断見積書');
+  var isHcCleaning = currentIsHC && !isHcAirconMode_();
   var repMenu = document.getElementById('estimate_repairs');
-  if (repMenu) repMenu.style.display = (isDiag || currentIsHC || currentIsEC) ? 'none' : '';
-  if (isDiag || currentIsHC || currentIsEC) resetRepairMenuQty('est');
+  if (repMenu) repMenu.style.display = (isDiag || isHcCleaning || currentIsEC) ? 'none' : '';
+  if (isDiag || isHcCleaning || currentIsEC) resetRepairMenuQty('est');
   var estAddCond = document.getElementById('est_add_conditions_section');
-  if (estAddCond) estAddCond.style.display = currentIsHC ? 'none' : '';
+  if (estAddCond) estAddCond.style.display = isHcCleaning ? 'none' : '';
   var info = document.getElementById('est_chk_diag_fee_info');
   if (info) {
-    if (isDiag && !currentIsHC) {
+    if (isDiag && !isHcCleaning) {
       var eqEl = document.getElementById('est_chk_equipment');
       var eq = (eqEl && eqEl.value) ? eqEl.value : P.equipment;
       var fee = getDiagFee(eq);
@@ -4469,7 +4599,7 @@ function _updateEstCustomDiagFeeVisibility_() {
   var chkEst = document.getElementById('chk_estimate');
   var estDocEl = document.querySelector('input[name="est_chk_doc_type"]:checked');
   var estDoc = estDocEl ? estDocEl.value : '見積書';
-  var repairAllowed = prefix !== 'EC' && !currentIsEC && !currentIsHC;
+  var repairAllowed = prefix !== 'EC' && !currentIsEC && !(currentIsHC && !isHcAirconMode_());
   // 既存の診断場面に加え、実際に修理メニューを出す場面も対象。
   var modeOk = (isKankou && workType !== '修理')
     || ((isReserveEst || isReserveInv) && isResDiagEst)
@@ -4478,7 +4608,8 @@ function _updateEstCustomDiagFeeVisibility_() {
       || (isKankou && chkEst && chkEst.checked && estDoc !== '診断見積書')
       || ((isReserveEst || isReserveInv || status === '完工（請求書あり）') && !isResDiagEst)
     ));
-  var canShow = window._ecopitaHasCustomDiagFee && prefix !== 'HC' && modeOk;
+  // 担当者別の診断費の欄: 清掃の HC には出さない（「エアコンの作業」が「あり」なら HM と同じ）
+  var canShow = window._ecopitaHasCustomDiagFee && !(prefix === 'HC' && !isHcAirconMode_(prefix)) && modeOk;
   field.style.display = canShow ? '' : 'none';
   if (!canShow) {
     var sel = document.getElementById('est_custom_diag_fee');
