@@ -461,6 +461,13 @@ body { font-family:'Noto Sans JP',sans-serif; background:var(--bg); color:var(--
   <div class="step" id="step3">
     <div class="card">
       <div class="card-title">ご依頼内容 (1/2)</div>
+      <div class="field" id="f_hc_aircon" style="display:none">
+        <label>エアコンの作業</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <label class="order-type-label"><input type="radio" name="hc_aircon_mode" value="なし" checked onclick="onHcAirconModeChange()">なし（清掃）</label>
+          <label class="order-type-label"><input type="radio" name="hc_aircon_mode" value="あり" onclick="onHcAirconModeChange()">あり</label>
+        </div>
+      </div>
       <div class="field" id="f_equipment">
         <label>作業対象 <span style="color:red;font-size:.8rem">※必須</span></label>
         <select id="c_equipment" onchange="toggleWorkMenus()">
@@ -799,6 +806,8 @@ body { font-family:'Noto Sans JP',sans-serif; background:var(--bg); color:var(--
 </div>
 
 <script>
+// HC の案件で「エアコンの作業」を選べる旗（2026-11-19）。false の間は練習の番号 HC-00000000 だけに出す。全員に出すときは true
+var HC_AIRCON_INPUT_ALL = false;
 const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbyvjri6i0fe11hzfoqfhSxWCsn1aP2WyT9ELZOzNMrVyEOx-ZsKqlhJQONzlaFLmPw/exec';
 const CASE_ID_INVALID_MESSAGE = '案件番号が正しくありません　確認してください';
 
@@ -1120,11 +1129,83 @@ function onIndexPrefixChange() {
   if (typeof _updateCustomDiagFeeVisibility_ === 'function') _updateCustomDiagFeeVisibility_();
   if (prefix !== 'YA') alphaEl.value = '';
   updateIndexCaseIdPreview();
+  applyIndexWorkUI_();
+  clearCustomerFields();
+  clearIndexCaseIdError();
+  lookupByCaseId(true);
+}
+
+// ===== HC の案件でエアコンの作業を入れる（2026-11-19） =====
+// 選択「エアコンの作業」が出るのは、頭が HC かつ（旗 HC_AIRCON_INPUT_ALL が true か、練習の番号 HC-00000000）のときだけ。
+// 「あり」のときは HM（エアコンの案件）と同じに動く。出ないとき・「なし」のときは今までの HC（清掃）と同じ。
+// 集客の意味の分け（案件番号の頭・形のチェック）は頭のまま。ここで使うのは「清掃だから」の分けだけ。
+var HC_AIRCON_PRACTICE_CASE_ID = 'HC-00000000';
+var _hcAirconApplied = false; // 画面に今かかっているのが「HC でエアコンの作業あり」か
+function indexCasePrefix_() {
+  var el = document.getElementById('c_case_prefix');
+  return el ? el.value : '';
+}
+function hcAirconToggleVisible_() {
+  if (indexCasePrefix_() !== 'HC') return false;
+  return HC_AIRCON_INPUT_ALL === true || buildIndexCaseId() === HC_AIRCON_PRACTICE_CASE_ID;
+}
+// HC かつ選択が出ていて「あり」
+function isHcAirconMode_() {
+  if (!hcAirconToggleVisible_()) return false;
+  var checked = document.querySelector('input[name="hc_aircon_mode"]:checked');
+  return !!checked && checked.value === 'あり';
+}
+// HC の清掃（今までの HC と同じ動き）＝HC かつ「あり」でない
+function isHcCleaningMode_() {
+  return indexCasePrefix_() === 'HC' && !isHcAirconMode_();
+}
+// ページどうし・system とのつなぎ＝作業対象の値の完全一致だけ
+function isHcAirconEquipment_(equipment) {
+  return equipment === 'ルームエアコン' || equipment === '業務用エアコン';
+}
+function setHcAirconChoice_(aircon) {
+  var target = aircon ? 'あり' : 'なし';
+  document.querySelectorAll('input[name="hc_aircon_mode"]').forEach(function(rb) { rb.checked = rb.value === target; });
+}
+// 「あり」から清掃に戻したら、エアコンの入力（症状・作業種別・修理メニュー・追加条件）を空に戻して送らない。
+// 対象機器情報は equipmentInfoApplies_() が false の間は空で送る（今の HC と同じ）。自由入力の追加項目は残す。
+function clearHcAirconInputs_() {
+  document.querySelectorAll('input[name="symptom"]').forEach(function(cb) { cb.checked = false; });
+  var otherArea = document.getElementById('symptom_other_area'); if (otherArea) otherArea.style.display = 'none';
+  var otherText = document.getElementById('symptom_other_text'); if (otherText) otherText.value = '';
+  var dr = document.querySelector('input[name="order_type"][value="原因究明作業"]'); if (dr) dr.checked = true;
+  document.querySelectorAll('.repair-item-row').forEach(function(row) {
+    row.querySelector('.count-num').textContent = '0';
+    row.classList.remove('active');
+  });
+  document.querySelectorAll('.inv-item-row .inv-price').forEach(function(input) { input.value = ''; });
+}
+function onHcAirconModeChange() {
+  if (typeof _updateCustomDiagFeeVisibility_ === 'function') _updateCustomDiagFeeVisibility_();
+  applyIndexWorkUI_();
+}
+// 案件番号が変わるたびに選択の出し入れを合わせる（出なくなったら「なし」に戻す）
+function syncHcAirconToggle_() {
+  var field = document.getElementById('f_hc_aircon');
+  if (!field) return;
+  var visible = hcAirconToggleVisible_();
+  field.style.display = visible ? '' : 'none';
+  if (!visible) setHcAirconChoice_(false);
+  if (isHcAirconMode_() !== _hcAirconApplied) onHcAirconModeChange();
+}
+
+// 作業対象・症状・作業種別・修理メニュー・追加条件・当日の文言を、頭と「エアコンの作業」に合わせる
+function applyIndexWorkUI_() {
+  const prefix = document.getElementById('c_case_prefix').value;
+  const hcCleaning = isHcCleaningMode_();
+  const hcAircon = isHcAirconMode_();
+  if (_hcAirconApplied && !hcAircon && hcCleaning) clearHcAirconInputs_();
+  _hcAirconApplied = hcAircon;
   const equipSel = document.getElementById('c_equipment'), curVal = equipSel.value;
   equipSel.innerHTML = '<option value="">選択してください</option>';
   let opts = [];
   if (prefix === 'EC') opts = ['エコキュート', 'ガス給湯器'];
-  else if (prefix === 'HC') opts = ['ハウスクリーニング'];
+  else if (hcCleaning) opts = ['ハウスクリーニング'];
   else opts = ['ルームエアコン', '業務用エアコン'];
   opts.forEach(opt => {
     const o = document.createElement('option');
@@ -1134,7 +1215,7 @@ function onIndexPrefixChange() {
   });
   updateEquipmentInfoVisibility_();
   const fSymptom = document.getElementById('f_symptom');
-  if (prefix === 'HC') {
+  if (hcCleaning) {
     fSymptom.style.display = 'none';
   } else {
     fSymptom.style.display = '';
@@ -1151,7 +1232,7 @@ function onIndexPrefixChange() {
     document.getElementById('symptom_other_text').value = '';
   }
   const otg = document.getElementById('order_type_grid'), otf = document.getElementById('order_type_fixed');
-  if (prefix === 'HC') {
+  if (hcCleaning) {
     otg.style.display = 'none'; otf.style.display = 'block';
     document.getElementById('investigation_options_area').style.display = 'none';
     document.getElementById('repair_options_area').style.display = 'none';
@@ -1168,10 +1249,7 @@ function onIndexPrefixChange() {
     toggleWorkMenus();
   }
   const sl = document.getElementById('sameday_label');
-  if (sl) sl.textContent = (prefix === 'HC') ? '緊急事態につき当日の清掃作業を希望します' : '緊急事態につき当日の工事を希望します';
-  clearCustomerFields();
-  clearIndexCaseIdError();
-  lookupByCaseId(true);
+  if (sl) sl.textContent = hcCleaning ? '緊急事態につき当日の清掃作業を希望します' : '緊急事態につき当日の工事を希望します';
 }
 
 function buildIndexCaseId() {
@@ -1186,6 +1264,7 @@ function buildIndexCaseId() {
 function updateIndexCaseIdPreview() {
   const id = buildIndexCaseId();
   document.getElementById('c_case_id_preview').textContent = id || '---';
+  syncHcAirconToggle_();
 }
 
 function isIndexCaseIdCompleteForError() {
@@ -1286,6 +1365,8 @@ function _initOrderFormUI() {
         if (r.staff_id) { document.getElementById('c_emp_id').value = r.staff_id; lookupStaffName(); }
         if (r.transfer_name) document.getElementById('transfer_name').value = r.transfer_name;
         if (p.get('repeat')) {
+          // HC のリピートで前の行の作業対象がエアコンなら「エアコンの作業：あり」で開く（選択が出ているときだけ）
+          if (hcAirconToggleVisible_() && isHcAirconEquipment_(r.equipment)) { setHcAirconChoice_(true); onHcAirconModeChange(); }
           if (r.equipment_info) prefillRepeatEquipmentInfo_(r.equipment_info);
           var b2 = document.getElementById('repeat_banner');
           if (b2) { b2.textContent = '🔁 リピート受付　案件番号: ' + r.case_id + ' ／ ' + r.name + ' 様'; b2.style.display = 'block'; }
@@ -1631,10 +1712,11 @@ function autoFillAddress(zip) {
 function toggleWorkMenus() {
   const prefix = document.getElementById('c_case_prefix').value;
   const dn = document.getElementById('diag_fee_notice');
-  if (prefix === 'EC' || prefix === 'HC') {
+  const hcCleaning = isHcCleaningMode_();
+  if (prefix === 'EC' || hcCleaning) {
     document.getElementById('repair_options_area').style.display = 'none';
     document.getElementById('investigation_options_area').style.display = (prefix === 'EC') ? 'block' : 'none';
-    if (prefix === 'HC') {
+    if (hcCleaning) {
       if (dn) dn.style.display = 'none';
     } else {
       if (dn) dn.style.display = getOrderType().indexOf('修理') === 0 ? 'none' : 'block';
@@ -1745,8 +1827,7 @@ function getSymptoms() {
 }
 
 function getOrderType() {
-  const prefix = document.getElementById('c_case_prefix').value;
-  if (prefix === 'HC') return '清掃作業';
+  if (isHcCleaningMode_()) return '清掃作業';
   const checked = document.querySelector('input[name="order_type"]:checked');
   return checked ? checked.value : '原因究明作業';
 }
@@ -1888,15 +1969,13 @@ function validateStep(step) {
     // ご依頼内容-1: 機器+症状
     ['f_equipment','f_symptom'].forEach(clearFieldError);
     if (!document.getElementById('c_equipment').value) { setFieldError('f_equipment', '作業対象を選択してください'); ok = false; }
-    const prefix = document.getElementById('c_case_prefix').value;
-    if (prefix !== 'HC' && getSymptoms().length === 0) { setFieldError('f_symptom', '症状を1つ以上選択してください'); ok = false; }
+    if (!isHcCleaningMode_() && getSymptoms().length === 0) { setFieldError('f_symptom', '症状を1つ以上選択してください'); ok = false; }
     if (!validateEquipmentInfo_()) ok = false;
   }
   if (step === 4) {
     // ご依頼内容-2: 作業種別+項目
-    const prefix = document.getElementById('c_case_prefix').value;
     const _ot = getOrderType();
-    if (_ot.indexOf('修理') === 0 || (prefix === 'HC' && _ot === '清掃作業')) {
+    if (_ot.indexOf('修理') === 0 || (isHcCleaningMode_() && _ot === '清掃作業')) {
       let hasItems = false;
       document.querySelectorAll('.repair-item-row').forEach(row => {
         if (parseInt(row.querySelector('.count-num').textContent) > 0) hasItems = true;
@@ -2080,8 +2159,7 @@ function nextStep() {
         }
       });
     } else {
-      const prefix = document.getElementById('c_case_prefix').value;
-      feeLabel.textContent = (prefix === 'HC') ? '清掃作業費用（目安・税込）' : '修理作業費用（目安・税込）';
+      feeLabel.textContent = isHcCleaningMode_() ? '清掃作業費用（目安・税込）' : '修理作業費用（目安・税込）';
       document.querySelectorAll('.repair-item-row').forEach(row => {
         const cnt = parseInt(row.querySelector('.count-num').textContent);
         if (cnt > 0) {
@@ -2880,8 +2958,7 @@ window._ecopitaHasCustomDiagFee = false;
 function _updateCustomDiagFeeVisibility_() {
   var field = document.getElementById('c_custom_diag_fee_field');
   if (!field) return;
-  var prefix = document.getElementById('c_case_prefix').value;
-  var canShow = window._ecopitaHasCustomDiagFee && prefix !== 'HC';
+  var canShow = window._ecopitaHasCustomDiagFee && !isHcCleaningMode_();
   field.style.display = canShow ? '' : 'none';
   // 非表示時はリセットして金額が残らないようにする
   if (!canShow) {
@@ -2939,10 +3016,10 @@ function prefillRepeatEquipmentInfo_(info) {
     } else el.value = value;
   });
 }
-// 機器情報はエアコン（YA/HM/CP など）だけ。HC・EC は欄を出さず空で送る
+// 機器情報はエアコン（YA/HM/CP など）と、HC で「エアコンの作業：あり」のときだけ。HC の清掃・EC は欄を出さず空で送る
 function equipmentInfoApplies_() {
   var el = document.getElementById('c_case_prefix'), prefix = el ? el.value : '';
-  return prefix !== 'HC' && prefix !== 'EC';
+  return !isHcCleaningMode_() && prefix !== 'EC';
 }
 function updateEquipmentInfoVisibility_() {
   var card = document.getElementById('equipment_info_card');

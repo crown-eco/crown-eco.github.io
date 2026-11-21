@@ -159,6 +159,13 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
         <label>取引日（施工日）</label>
         <div id="service_date_display" class="readonly-box"></div>
       </div>
+      <div class="field hidden" id="receipt_hc_aircon_area">
+        <label>エアコンの作業</label>
+        <select id="receipt_hc_aircon" onchange="onReceiptHcAirconChange()">
+          <option value="なし">なし（清掃）</option>
+          <option value="あり">あり</option>
+        </select>
+      </div>
       <div class="field">
         <label>但し書きの内容</label>
         <input type="text" id="receipt_proviso_base" maxlength="80" placeholder="例：山田太郎邸のエアコン工事" oninput="updateProvisoPreview()">
@@ -208,6 +215,8 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
 </div>
 
 <script>
+// HC の案件で「エアコンの作業」（なし（清掃）／あり）を選べるようにする旗（2026-11-19）。false の間は練習の番号 HC-00000000 だけに出す
+var HC_AIRCON_INPUT_ALL = false;
 var GAS_URL = 'https://script.google.com/macros/s/AKfycbyvjri6i0fe11hzfoqfhSxWCsn1aP2WyT9ELZOzNMrVyEOx-ZsKqlhJQONzlaFLmPw/exec';
 var CASE_ID_INVALID_MESSAGE = '案件番号が正しくありません　確認してください';
 var receiptLookup = null;
@@ -333,14 +342,52 @@ function renderReceiptProviso(base, category) {
   return '但し、' + base + '代として';
 }
 
-function defaultReceiptProvisoBase(data, caseId) {
+function defaultReceiptProvisoBase(data, caseId, hcAircon) {
   data = data || {};
   // ハウクリ（HC-）は「…のハウスクリーニング代として」、給湯器（EC-）は「…の給湯器工事代として」（10/28 麗香）。GAS の既定はエアコン工事のままなので画面で差し替える
-  var work = /^HC-/i.test(String(caseId || '')) ? 'ハウスクリーニング' : (/^EC-/i.test(String(caseId || '')) ? '給湯器工事' : '');
+  // hcAircon＝HC の「エアコンの作業：あり」（2026-11-19）。エアコンの案件と同じ既定（…のエアコン工事）にする
+  var work = (/^HC-/i.test(String(caseId || '')) && !hcAircon) ? 'ハウスクリーニング' : (/^EC-/i.test(String(caseId || '')) ? '給湯器工事' : '');
   if (work) return data.default_receipt_site ? data.default_receipt_site + 'の' + work : work;
   if (data.default_receipt_proviso_base) return data.default_receipt_proviso_base;
   if (data.default_receipt_site) return data.default_receipt_site + 'のエアコン工事';
   return '';
+}
+
+// ===== HC の案件の「エアコンの作業」（2026-11-19 麗香「おすすめで進める」6） =====
+// 「あり」なら但し書きの初期値をエアコンの案件と同じにする。「なし」は今の HC と同じ。送る中身は変えない（作業対象は検索の結果のまま）。
+// 選択が出るのは案件番号の頭が HC で、旗が true か練習の番号のときだけ。
+var HC_AIRCON_PRACTICE_CASE_ID_ = 'HC-00000000';
+var HC_AIRCON_EQUIPMENTS_ = ['ルームエアコン', '業務用エアコン'];
+
+function hcAirconChoiceApplies_(caseId) {
+  var id = String(caseId || '').trim().toUpperCase();
+  return /^HC-/.test(id) && (HC_AIRCON_INPUT_ALL === true || id === HC_AIRCON_PRACTICE_CASE_ID_);
+}
+
+// HC かつ「エアコンの作業：あり」か（このページの判定はここ 1 か所）
+function isHcAirconMode_(caseId) {
+  if (!hcAirconChoiceApplies_(caseId === undefined ? searchCaseId : caseId)) return false;
+  var sel = document.getElementById('receipt_hc_aircon');
+  return !!sel && sel.value === 'あり';
+}
+
+// 検索したとき: 選択を出すか決め、注文の作業対象がエアコン（完全一致）なら「あり」で開いて但し書きの初期値もエアコンにする
+function setupReceiptHcAirconChoice_(data, caseId) {
+  var applies = hcAirconChoiceApplies_(caseId);
+  document.getElementById('receipt_hc_aircon_area').classList.toggle('hidden', !applies);
+  document.getElementById('receipt_hc_aircon').value = applies && HC_AIRCON_EQUIPMENTS_.indexOf(String((data && data.equipment) || '')) > -1 ? 'あり' : 'なし';
+  if (isHcAirconMode_(caseId)) document.getElementById('receipt_proviso_base').value = defaultReceiptProvisoBase(data, caseId, true);
+}
+
+// 切り替えたとき: 但し書きが前の初期値のまま（空も含む）なら新しい初期値に入れ替える。手で書き換えた但し書きは残す
+function onReceiptHcAirconChange() {
+  var on = isHcAirconMode_();
+  var input = document.getElementById('receipt_proviso_base');
+  var current = normalizeReceiptLine(input.value);
+  if (!current || current === defaultReceiptProvisoBase(receiptLookup, searchCaseId, !on)) {
+    input.value = defaultReceiptProvisoBase(receiptLookup, searchCaseId, on);
+  }
+  updateProvisoPreview();
 }
 
 function selectedCategoryDefault(rows) {
@@ -662,6 +709,7 @@ async function searchReceipt() {
     document.getElementById('service_date_display').textContent = serviceText;
     document.getElementById('service_date_area').classList.toggle('hidden', !serviceText);
     document.getElementById('receipt_proviso_base').value = defaultReceiptProvisoBase(data, caseId);
+    setupReceiptHcAirconChoice_(data, caseId);
     updateReceiptCategoryControl();
     document.getElementById('customer_memo').value = '';
     document.getElementById('step2').scrollIntoView({ behavior: 'smooth' });

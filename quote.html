@@ -148,6 +148,13 @@ body { font-family:'Noto Sans JP',sans-serif; background:var(--bg); color:var(--
       <div class="info-row"><span class="info-label">住所</span><input type="text" id="d_address" style="font-weight:600;text-align:right;padding:6px 8px;border:2px solid var(--border);border-radius:8px;font-size:.9rem;background:#fff;max-width:60%"></div>
       <div class="info-row"><span class="info-label">番地</span><input type="text" id="d_banchi" style="font-weight:600;text-align:right;padding:6px 8px;border:2px solid var(--border);border-radius:8px;font-size:.9rem;background:#fff;max-width:60%"></div>
       <div class="info-row"><span class="info-label">建物</span><input type="text" id="d_building" style="font-weight:600;text-align:right;padding:6px 8px;border:2px solid var(--border);border-radius:8px;font-size:.9rem;background:#fff;max-width:60%"></div>
+      <div id="q_hc_aircon_choice" class="hidden" style="margin:12px 0">
+        <div style="margin-bottom:8px">エアコンの作業</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <label class="order-type-label"><input type="radio" name="q_hc_aircon" value="なし" checked onchange="onQHcAirconChange()">なし（清掃）</label>
+          <label class="order-type-label"><input type="radio" name="q_hc_aircon" value="あり" onchange="onQHcAirconChange()">あり</label>
+        </div>
+      </div>
       <div class="info-row">
         <span class="info-label">作業対象</span>
         <select id="d_equipment" onchange="onQuoteEquipChange()"
@@ -332,6 +339,8 @@ body { font-family:'Noto Sans JP',sans-serif; background:var(--bg); color:var(--
 </div>
 
 <script>
+// HC の案件で「エアコンの作業」（なし（清掃）／あり）を選べるようにする旗（2026-11-19）。false の間は練習の番号 HC-00000000 だけに出す
+var HC_AIRCON_INPUT_ALL = false;
 const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbyvjri6i0fe11hzfoqfhSxWCsn1aP2WyT9ELZOzNMrVyEOx-ZsKqlhJQONzlaFLmPw/exec';
 const BASE_URL = window.ECOPITA_SITE.baseUrl + '/';
 const CASE_ID_INVALID_MESSAGE = '案件番号が正しくありません　確認してください';
@@ -486,6 +495,61 @@ async function loadData(caseId) {
   }
 }
 
+// ===== HC の案件の「エアコンの作業」（2026-11-19 麗香「おすすめで進める」） =====
+// 「あり」のときだけ HM（エアコンの案件）と同じに動く（作業対象・修理メニュー・追加条件・診断費・件名）。「なし」は今の HC と同じ。
+// 選択が出るのは案件番号の頭が HC で、旗が true か練習の番号のときだけ。ほかのページ・system とは作業対象の値（完全一致）だけでつなぐ。
+var HC_AIRCON_PRACTICE_CASE_ID_ = 'HC-00000000';
+var HC_AIRCON_EQUIPMENTS_ = ['ルームエアコン', '業務用エアコン'];
+var HC_AIRCON_EQUIPMENT_OPTIONS_ = [['ルームエアコン','ルームエアコン'],['業務用エアコン','業務用エアコン']];
+var qCleanEquipmentOptions_ = null; // 「なし」に戻すときの作業対象の選択肢（renderMain が今の決め方で作った物）
+var qHcCleanEquipment_;             // 「あり」にする前の作業対象（「なし」に戻したら送り物を今の HC と同じにする）
+var qRepairLabelText_ = null;       // 「🔧 修理見積書」の元の文字（「あり」にしたとき戻す）
+
+function hcAirconChoiceApplies_() {
+  var id = String((Q && Q.case_id) || '').trim().toUpperCase();
+  return /^HC-/.test(id) && (HC_AIRCON_INPUT_ALL === true || id === HC_AIRCON_PRACTICE_CASE_ID_);
+}
+
+// HC かつ「エアコンの作業：あり」か（このページの判定はここ 1 か所）
+function isHcAirconMode_() {
+  if (!hcAirconChoiceApplies_()) return false;
+  var checked = document.querySelector('input[name="q_hc_aircon"]:checked');
+  return !!checked && checked.value === 'あり';
+}
+
+// 案件を読み込んだとき: 選択を出すか決め、注文の作業対象がエアコン（完全一致）なら「あり」で開く
+function setupQHcAirconChoice_() {
+  var applies = hcAirconChoiceApplies_();
+  var on = applies && HC_AIRCON_EQUIPMENTS_.indexOf(String(Q.equipment || '')) > -1;
+  document.getElementById('q_hc_aircon_choice').classList.toggle('hidden', !applies);
+  document.querySelectorAll('input[name="q_hc_aircon"]').forEach(function(radio) { radio.checked = radio.value === (on ? 'あり' : 'なし'); });
+  qHcCleanEquipment_ = undefined;
+  var rl = document.querySelector('input[name="q_doc_type"][value="見積書"]');
+  if (qRepairLabelText_ === null && rl && rl.nextSibling) qRepairLabelText_ = rl.nextSibling.textContent;
+}
+
+function onQHcAirconChange() {
+  var on = isHcAirconMode_();
+  if (on && HC_AIRCON_EQUIPMENTS_.indexOf(Q.equipment) < 0) qHcCleanEquipment_ = Q.equipment;
+  if (!on) Q.equipment = qHcCleanEquipment_ === undefined ? '' : qHcCleanEquipment_;
+  var eqSel = document.getElementById('d_equipment');
+  var opts = on ? HC_AIRCON_EQUIPMENT_OPTIONS_ : (qCleanEquipmentOptions_ || []);
+  eqSel.innerHTML = opts.map(function(o) {
+    return '<option value="' + o[0] + '">' + o[1] + '</option>';
+  }).join('');
+  eqSel.value = Q.equipment;
+  if (!eqSel.value && opts.length > 0) eqSel.value = opts[0][0];
+  if (on || qHcCleanEquipment_ === undefined) Q.equipment = eqSel.value;
+  document.getElementById('add_cond_section').style.display = on ? '' : 'none';
+  document.getElementById('opt_diag_type').style.display = on ? '' : 'none';
+  var rl = document.querySelector('input[name="q_doc_type"][value="見積書"]');
+  if (rl && rl.nextSibling) rl.nextSibling.textContent = on ? (qRepairLabelText_ || '🔧 修理見積書') : '🧹 清掃作業見積書';
+  var diag = document.querySelector('input[name="q_doc_type"][value="診断見積書"]');
+  if (!on && diag && diag.checked && rl) rl.checked = true; // 清掃の見積書では診断見積書を選べない（今の HC と同じ）
+  resetQSubject_();
+  onDocTypeChange();
+}
+
 function renderMain() {
   document.getElementById('lookup_view').classList.add('hidden');
   document.getElementById('main_view').classList.remove('hidden');
@@ -507,6 +571,7 @@ function renderMain() {
   document.getElementById('d_banchi').value = Q.banchi;
   document.getElementById('d_building').value = Q.building;
 
+  setupQHcAirconChoice_();
   var eqSel  = document.getElementById('d_equipment');
   var eqOpts = {
     YA: [['ルームエアコン','ルームエアコン'],['業務用エアコン','業務用エアコン'],['その他','その他']],
@@ -519,11 +584,14 @@ function renderMain() {
     ['ルームエアコン','ルームエアコン'],['業務用エアコン','業務用エアコン'],
     ['エコキュート','エコキュート'],['その他','その他']
   ];
+  qCleanEquipmentOptions_ = opts;
+  if (isHcAirconMode_()) opts = HC_AIRCON_EQUIPMENT_OPTIONS_;
   eqSel.innerHTML = opts.map(function(o) {
     return '<option value="' + o[0] + '">' + o[1] + '</option>';
   }).join('');
   eqSel.value = Q.equipment;
   if (!eqSel.value && opts.length > 0) eqSel.value = opts[0][0];
+  if (isHcAirconMode_()) Q.equipment = eqSel.value;
 
   if (Q.staff_id) {
     var s = String(Q.staff_id);
@@ -538,6 +606,7 @@ function renderMain() {
     toggleEmailWarn();
 
   var isEC = (Q.prefix === 'EC'), isHC = (Q.prefix === 'HC');
+  if (isHcAirconMode_()) isHC = false; // HC でも「エアコンの作業：あり」はエアコンの案件と同じ
   document.getElementById('repair_menu_section').style.display = (isEC || isHC) ? 'none' : '';
   document.getElementById('add_cond_section').style.display    = isHC ? 'none' : '';
   if (typeof _updateQuoteCustomDiagFeeVisibility_ === 'function') _updateQuoteCustomDiagFeeVisibility_();
@@ -582,7 +651,7 @@ function syncQuoteCustomerFields() {
 }
 
 function getQRepairPrice_(item) {
-  if (item.diag && window._ecopitaHasCustomDiagFee && Q.prefix !== 'HC') {
+  if (item.diag && window._ecopitaHasCustomDiagFee && (Q.prefix !== 'HC' || isHcAirconMode_())) {
     var sel = document.getElementById('q_custom_diag_fee');
     var custom = sel ? (parseInt(sel.value) || 0) : 0;
     if (custom > 0) return custom;
@@ -753,6 +822,7 @@ function onDocTypeChange() {
   var isDiag = (dt === '診断見積書');
   document.getElementById('repair_menu_section').style.display = isDiag ? 'none' : '';
   var isEC = (Q.prefix === 'EC'), isHC = (Q.prefix === 'HC');
+  if (isHcAirconMode_()) isHC = false; // HC でも「エアコンの作業：あり」はエアコンの案件と同じ
   if (isEC || isHC) document.getElementById('repair_menu_section').style.display = 'none';
   if (typeof _updateQuoteCustomDiagFeeVisibility_ === 'function') _updateQuoteCustomDiagFeeVisibility_();
   updateVerInfo();
@@ -859,8 +929,8 @@ function onQuoteEquipChange() {
 }
 
 function getDiagFee_() {
-  // ハウクリ（HC-）は故障診断費なし（10/8 麗香・estimate.html と同じ）
-  if (Q.prefix === 'HC' || Q.equipment === 'ハウスクリーニング') return 0;
+  // ハウクリ（HC-）は故障診断費なし（10/8 麗香・estimate.html と同じ）。「エアコンの作業：あり」はエアコンと同じ（2026-11-19）
+  if ((Q.prefix === 'HC' && !isHcAirconMode_()) || Q.equipment === 'ハウスクリーニング') return 0;
   var sel = document.getElementById('q_custom_diag_fee');
   var custom = sel ? (parseInt(sel.value) || 0) : 0;
   if (custom > 0) return custom;
@@ -1190,9 +1260,10 @@ function _updateQuoteCustomDiagFeeVisibility_() {
   var docType = docTypeEl ? docTypeEl.value : '見積書';
   var isDiagEst = (docType === '診断見積書');
   var menu = document.getElementById('repair_menu_section');
-  var isRepairMenu = docType === '見積書' && prefix !== 'EC' && prefix !== 'HC'
+  var hcClean = prefix === 'HC' && !isHcAirconMode_(); // 「エアコンの作業：あり」の HC はエアコンと同じ（2026-11-19）
+  var isRepairMenu = docType === '見積書' && prefix !== 'EC' && !hcClean
     && menu && menu.style.display !== 'none';
-  var canShow = window._ecopitaHasCustomDiagFee && prefix !== 'HC' && (isDiagEst || isRepairMenu);
+  var canShow = window._ecopitaHasCustomDiagFee && !hcClean && (isDiagEst || isRepairMenu);
   field.style.display = canShow ? '' : 'none';
   if (!canShow) {
     var sel = document.getElementById('q_custom_diag_fee');
@@ -1225,7 +1296,9 @@ function getQSubject() {
 // 件名の選択肢。ハウクリ（HC-）は清掃、給湯器（EC-）は給湯器の件名だけで空調機器の件名は出さない（10/28 麗香）
 function qSubjectOptions_() {
   var id = String(Q.case_id || '');
-  if (Q.prefix === 'HC' || /^HC-/i.test(id)) return ['ハウスクリーニング作業'];
+  // 「エアコンの作業：あり」の HC はエアコンの件名（2026-11-19）。この関数だけを抜き出して動かす試験もあるので typeof で確かめる
+  var hcAircon = typeof isHcAirconMode_ === 'function' && isHcAirconMode_();
+  if ((Q.prefix === 'HC' || /^HC-/i.test(id)) && !hcAircon) return ['ハウスクリーニング作業'];
   if (Q.prefix === 'EC' || /^EC-/i.test(id)) return ['給湯器修理作業', '給湯器交換作業'];
   return ['空調機器修理作業', '空調機器入れ替え作業'];
 }

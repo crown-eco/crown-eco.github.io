@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "site": "crown",
-  "source_commit": "fbafc2ed9246b0352f85a731fc62d5ab65a5b455",
+  "source_commit": "b62c5a68e3cc221ec30bf6a885d5f5f0b2191799",
   "excluded": [
     ".git",
     "woff-test",
@@ -85,8 +85,8 @@
     },
     {
       "path": "index.html",
-      "size": 166600,
-      "sha256": "1e98c38c8f668c0d1b62d356f0c89f819e3b65f0a7db8f4834714a5c9089a5d6"
+      "size": 171385,
+      "sha256": "fae01570f7ed83aaf9899c327ae124203f162f025b1a7336a9a07b8e1aaca48c"
     },
     {
       "path": "invoice.html",
@@ -110,13 +110,13 @@
     },
     {
       "path": "quote.html",
-      "size": 68486,
-      "sha256": "e563ef3df30695e8482e16ab6510a4d3f97e826e50f9db3f265036cfb8565d62"
+      "size": 73971,
+      "sha256": "dcb595b5def2af96fba0b2ed8a7eaeba71e6809bfaa5d6d453a3e51363296ca0"
     },
     {
       "path": "receipt.html",
-      "size": 46477,
-      "sha256": "943235324c5502a2188a54efe6daa6f4f23e48d0a61a36eaf73920702f1abb58"
+      "size": 49551,
+      "sha256": "9b508ddb94f22cfe7484f14049fbd3c0d031e309f92bed9261ed12d26aaa2863"
     },
     {
       "path": "resend.html",
