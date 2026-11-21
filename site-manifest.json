@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "site": "crown",
-  "source_commit": "3d54fb44539982fcb14880e6b410ace956993b1d",
+  "source_commit": "fbafc2ed9246b0352f85a731fc62d5ab65a5b455",
   "excluded": [
     ".git",
     "woff-test",
@@ -74,14 +74,19 @@
       "sha256": "d16765f6a3984742a5c20974a3f9e39098b0abad35655a55eeaf7333badae5ac"
     },
     {
+      "path": "form-session-read.js",
+      "size": 8288,
+      "sha256": "488bb977719a728b3b1443216ab6ac68b06c79931bbe596f0c1839f8c3a305d0"
+    },
+    {
       "path": "go.html",
       "size": 995,
       "sha256": "c00e9147e68520522e007d56414604d74f3da1b0222823d06d7c547f2f5b2784"
     },
     {
       "path": "index.html",
-      "size": 161164,
-      "sha256": "b6a4d18c3463f22c7dd931fc531f15b618797cab5a3736eb585c1ab2f31a1c74"
+      "size": 166600,
+      "sha256": "1e98c38c8f668c0d1b62d356f0c89f819e3b65f0a7db8f4834714a5c9089a5d6"
     },
     {
       "path": "invoice.html",
@@ -105,13 +110,13 @@
     },
     {
       "path": "quote.html",
-      "size": 68044,
-      "sha256": "ea5158bc5a11707f0e0163190ceb3a07812ab186d580ab89de441b4b2142295f"
+      "size": 68486,
+      "sha256": "e563ef3df30695e8482e16ab6510a4d3f97e826e50f9db3f265036cfb8565d62"
     },
     {
       "path": "receipt.html",
-      "size": 45513,
-      "sha256": "8300dda6ed395cba94e3fa2f36ca4da7f732a55bc84a0c9a4d8c16b4d0b3a955"
+      "size": 46477,
+      "sha256": "943235324c5502a2188a54efe6daa6f4f23e48d0a61a36eaf73920702f1abb58"
     },
     {
       "path": "resend.html",
@@ -120,8 +125,8 @@
     },
     {
       "path": "reserve.html",
-      "size": 16856,
-      "sha256": "10b53111f2c38efbf07a132db54873625f316a87dc046aeeea42dff497251907"
+      "size": 17456,
+      "sha256": "4b2f3c29c1c2313966c188bcd9d8353ab293a4d6f6dd612cb022eb48a866a5a9"
     },
     {
       "path": "reward.html",
@@ -132,6 +137,11 @@
       "path": "shared-auth.js",
       "size": 11128,
       "sha256": "baf6034f4716d042e3ff499da48ffb4548565bd0d0a79fab186833247b924c2a"
+    },
+    {
+      "path": "shared-cloud-call.js",
+      "size": 11435,
+      "sha256": "34d08dd9d82659d75ca4329949b83961c167aa8c707ef7024287339267257e3b"
     },
     {
       "path": "shared-consent-photo.js",

@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
+<script src="./shared-cloud-call.js"></script>
+<script src="./form-session-read.js"></script>
 <script src="form-direct-read.js"></script>
 <script src="./shared-site-config.js"></script>
 <meta charset="UTF-8">
@@ -235,7 +237,7 @@ function buildCaseId() {
 
 function updatePreview() {
   var id = buildCaseId();
-  document.getElementById('preview_val').textContent = id || '---';
+  document.getElementById('preview_val').textContent = window.S2FormRead.validCase(id) ? id : '---';
   document.getElementById('btn_search').disabled = !id;
   document.getElementById('search_error').style.display = 'none';
 }
@@ -529,8 +531,12 @@ async function searchReceipt() {
   var screenTiming_ = window.ECOPITA_SCREEN_LATENCY ? window.ECOPITA_SCREEN_LATENCY.begin() : null;
   try {
   var caseId = buildCaseId();
-  if (!caseId) return;
+  if (!window.S2FormRead.validCase(caseId)) { showError('search_error', CASE_ID_INVALID_MESSAGE); return; }
   searchCaseId = caseId;
+  receiptLookup = null;
+  paidRows = [];
+  selectedRowIds = {};
+  document.getElementById('step2').classList.add('hidden');
   clearError('search_error');
   receiptWriteGateActive = false;
   if (receiptWriteGateController) receiptWriteGateController.stop();
@@ -544,7 +550,10 @@ async function searchReceipt() {
   btn.textContent = '検索中...';
 
   try {
-    var data = await formDirectGasRead(gasCall,
+    var cloudRead = window.ECOPITA_FORM_SESSION_READ;
+    var result = cloudRead && await cloudRead.read('receipt_lookup', caseId);
+    if (result) result.assertCurrent();
+    var data = result ? result.dto : await formDirectGasRead(gasCall,
       { form_type: 'receipt_lookup', case_id: caseId, p1_sf: 'p1_sf_v1' },
       {
         mode: 'lookup',
@@ -557,6 +566,10 @@ async function searchReceipt() {
       return;
     }
     if (!data.ok) {
+      if (result && data.reason === 'write_visibility_pending') {
+        showError('search_error', RECEIPT_WRITE_GATE_COPY);
+        return;
+      }
       if (data.reason === 'write_visibility_pending' && data.write_async_status &&
           data.write_async_status.enabled === true) {
         receiptWriteGateActive = true;
@@ -652,8 +665,12 @@ async function searchReceipt() {
     updateReceiptCategoryControl();
     document.getElementById('customer_memo').value = '';
     document.getElementById('step2').scrollIntoView({ behavior: 'smooth' });
+    if (result) result.rendered();
   } catch(e) {
-    showError('search_error', gasCallErrorMessage(e));
+    var message = e.reason === 'pending' ? RECEIPT_WRITE_GATE_COPY :
+      e.reason === 'denied' && /^(?:CP|EC|HC)-00000000$/.test(caseId) ? 'ダミー案件番号ではこの画面は試せません' :
+        gasCallErrorMessage(e);
+    showError('search_error', message);
   } finally {
     btn.disabled = false;
     btn.textContent = '検索';
@@ -824,7 +841,7 @@ async function issueReceipt() {
 (function autoFillCaseFromUrl_() {
   var params = new URLSearchParams(location.search);
   var c = params.get('case_id') || params.get('c');
-  if (!c) return;
+  if (!window.S2FormRead.validCase(c)) return;
   var parts = c.split('-');
   if (parts.length < 2) return;
   var prefix = parts[0];

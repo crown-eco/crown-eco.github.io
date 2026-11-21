@@ -8,6 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <!-- reCAPTCHA v3（見えない認証、スパム/bot対策）。sitekey は登録後に差し替え -->
 <script src="./shared-gas-call.js?v=20260930-gap-v1"></script>
+<script src="./shared-cloud-call.js"></script>
 <script src="./shared-screen-latency.js?v=20260930-gap-v1"></script>
 <script src="./shared-consent-photo.js?v=20260925-1"></script>
 <script>
@@ -822,6 +823,89 @@ let currentStep = 1, coupons = [], couponDiscount = 0, splitDiffName = false, cu
 let _lookupTimer = null;
 let _inflightLookupCid = null; // 照会進行中の案件番号（in-flightガード・連射防止・2026-07-12）
 let _dupGuardLastCid = '';      // 警告表示中の案件番号（同一案件の再照会で消さない・2026-07-12）
+// S3-1 is OFF until the site injects the reviewed F1/F2 and transport configuration.
+function orderPreReadEnabled_(op) {
+  const settings = window.ECOPITA_ORDER_PRE_READ;
+  return window.SharedCloudCall && settings && settings.enabled?.[op] === true;
+}
+async function orderPreRead_(payload, legacy, condition) {
+  const op = payload.form_type;
+  if (!orderPreReadEnabled_(op)) return { dto: await legacy(), source: 'gas', rendered() {} };
+  const settings = window.ECOPITA_ORDER_PRE_READ;
+  const f5 = window.SharedCloudCall;
+  const io = settings.io;
+  const hidden = /(?:^|[^\p{L}\p{N}])(?:AC|AR|ES|AP|AT|GP|AG)\s*[-_]?\s*\d{4,}/iu;
+  const forbidden = value => typeof value === 'string' ? hidden.test(value) :
+    value && typeof value === 'object' && Object.entries(value).some(([key, item]) => hidden.test(key) || forbidden(item));
+  const selectors = {};
+  if (op === 'lookup') {
+    if (payload.case_id) selectors.case_id = payload.case_id;
+    if (payload.contract_id) selectors.contract_id = payload.contract_id;
+    if (payload.repeat) selectors.repeat = true;
+  } else if (op === 'duplicate_guard_lookup') selectors.case_id = payload.case_id;
+  else if (op === 'staff_lookup') selectors.staff_id = payload.staff_id;
+  const job = { legacy, condition, source: 'cloud', token: window.ECOPITA_SESSION?.token,
+    key: JSON.stringify(selectors), abort: new AbortController() };
+  let lane = orderPreReadClients_.get(op);
+  if (lane?.settings !== settings) {
+    lane?.job?.abort.abort();
+    lane = { settings };
+    const current = () => lane.job?.condition() && window.ECOPITA_ORDER_PRE_READ === settings &&
+      lane.job.token === window.ECOPITA_SESSION?.token;
+    lane.client = f5.create({ ...settings.config, enabled: true }, {
+      ...io,
+      context() {
+        if (!current()) return null;
+        const ctx = io.context();
+        return ctx && ctx.token === lane.job.token ? { ...ctx, conditionKey: JSON.stringify([ctx.conditionKey, lane.job.key]) } : null;
+      },
+      clearCache() { _dupGuardSnapshots = {}; _orderGuardContext = null; io.clearCache(); },
+      async gas(_op, _payload, _ctx, { signal }) {
+        if (!current() || lane.job.abort.signal !== signal || signal.aborted) throw Error('superseded');
+        lane.job.source = 'gas';
+        return lane.job.legacy(f5.oneAttemptFetch(window.fetch.bind(window)));
+      }
+    });
+    orderPreReadClients_.set(op, lane);
+  }
+  lane.job?.abort.abort();
+  lane.job = job;
+  const client = lane.client;
+  const result = await client.call(op, selectors, {
+    project(value) {
+      if (forbidden(value)) throw Error('dto_invalid');
+      // Preserve the GAS repeat payload. Cloud never supplies equipment_info.
+      if (job.source === 'cloud' && value && Object.hasOwn(value,'equipment_info')) throw Error('dto_invalid');
+      return value;
+    },
+    validate(value) {
+      if (!value || typeof value.ok !== 'boolean') return false;
+      if (value.case_id && selectors.case_id && value.case_id !== selectors.case_id) return false;
+      if (op !== 'duplicate_guard_lookup' || !value.ok) return true;
+      const guard = value.guard;
+      return guard && !/https?:|@|sales_record_id|z_key|password/i.test(JSON.stringify(guard)) &&
+        ['sales','contracts','documents','incomplete'].every(key => Array.isArray(guard[key]));
+    }
+  }, { signal: job.abort.signal });
+  result.assertCurrent();
+  return { dto: result.dto, source: job.source, rendered: result.rendered };
+}
+function orderPreReadGasCall_(payload, opts, condition) {
+  return orderPreRead_(payload, fetchFn => gasCall(payload, fetchFn ? { ...opts, fetchFn } : opts), condition);
+}
+function orderPreReadGasFetch_(payload, opts, condition) {
+  return orderPreRead_(payload, async fetchFn => (await gasReadFetch(GAS_API_URL, {
+    method: 'POST', body: JSON.stringify(payload)
+  }, fetchFn ? { ...opts, fetchFn } : opts)).json(), condition);
+}
+function orderLandingBaseline_(caseId) {
+  if (orderPreReadEnabled_('duplicate_guard_lookup')) {
+    if (!_orderGuardContext || _orderGuardContext !== window.ECOPITA_SESSION?.token) return null;
+  }
+  return _dupGuardSnapshots[caseId] || null;
+}
+const orderPreReadClients_ = new Map();
+let _orderGuardContext = null;
 let _dupGuardSnapshots = {};    // sync応答断時の着地確認用。案件ごとの送信前件数を保持する。
 const TAX_RATE = 0.10;
 
@@ -1151,7 +1235,8 @@ function _initOrderFormUI() {
     }
     var repeatLookupPayload = { form_type: 'lookup', case_id: shortId, p1_sf: 'p1_sf_v1' };
     if (p.get('repeat')) repeatLookupPayload.repeat = 1;
-    gasCall(
+    const repeatBefore = buildIndexCaseId();
+    orderPreReadGasCall_(
       repeatLookupPayload,
       {
         mode: 'lookup',
@@ -1167,9 +1252,11 @@ function _initOrderFormUI() {
             preview.style.color = status === GAS_P1_SF_HONEST_MESSAGE ? 'var(--red)' : '#999';
           }
         }
-      }
+      }, function() { return buildIndexCaseId() === repeatBefore; }
     )
-      .then(function(r){
+      .then(function(answer){
+        const r = answer.dto;
+        answer.rendered();
         if (r && r.code === 'busy_caseid_check') return;
         if (!r.ok) return;
         fillCaseId(r.case_id);
@@ -2219,7 +2306,7 @@ async function doSubmit() {
   };
   consentAttachOrder_(payload);
   contractId = payload.contract_id;
-  const landingBaseline = _dupGuardSnapshots[payload.case_id] || null;
+  const landingBaseline = orderLandingBaseline_(payload.case_id);
   var orderCardPayDirectSuccess_ = false;
   // Phase 1: スプレッドシート書き込み（同期）
   try {
@@ -2488,25 +2575,35 @@ async function _runDupGuard(cid) {
     if (
       _dgTs &&
       (Date.now() - parseInt(_dgTs, 10)) < 180000 &&
-      _dupGuardSnapshots[cid]
+      !orderPreReadEnabled_('duplicate_guard_lookup') && _dupGuardSnapshots[cid]
     ) return;
     sessionStorage.setItem(_dgKey, String(Date.now()));
   } catch (e) {}
   _clearDupGuardWarning();
   try {
-    var res = await gasCall(
+    const orderGuardOn = orderPreReadEnabled_('duplicate_guard_lookup');
+    const guardToken = window.ECOPITA_SESSION?.token;
+    if (orderGuardOn) delete _dupGuardSnapshots[cid];
+    const answer = await orderPreReadGasCall_(
       {
         form_type: 'duplicate_guard_lookup',
         sessionToken: (window.ECOPITA_SESSION ? window.ECOPITA_SESSION.token : ''),
         case_id: cid
       },
-      { mode: 'lookup', url: GAS_API_URL, onStatus: function() {} }
+      { mode: 'lookup', url: GAS_API_URL, onStatus: function() {} },
+      function() { return buildIndexCaseId() === cid; }
     );
+    var res = answer.dto;
     // 案件が切り替わっていたら描画しない（古い応答の取りこぼし防止）
     if (buildIndexCaseId() !== cid) return;
     if (!res || res.ok === false || !res.guard) { return; }
     var g = res.guard;
-    _dupGuardSnapshots[cid] = g;
+    if (answer.source === 'gas') {
+      if (orderGuardOn && _orderGuardContext !== guardToken) _dupGuardSnapshots = {};
+      if (orderGuardOn) _orderGuardContext = guardToken;
+      _dupGuardSnapshots[cid] = g;
+    }
+    answer.rendered();
     if (g.issued_contract !== true) return;
     var box = document.getElementById('dup_guard_warning');
     if (!box) return;
@@ -2599,7 +2696,7 @@ async function lookupByCaseId(showInvalid) {
   // sessionStorage キャッシュ（3分TTL）チェック
   try {
     var cacheKey = 'case_lookup_v2_' + cid;
-    var cached = sessionStorage.getItem(cacheKey);
+    var cached = !orderPreReadEnabled_('lookup') && sessionStorage.getItem(cacheKey);
     if (cached) {
       var parsed = JSON.parse(cached);
       if (parsed && parsed.ts && (Date.now() - parsed.ts) < 180000) {
@@ -2615,14 +2712,16 @@ async function lookupByCaseId(showInvalid) {
 
   preview.textContent = '検索中...'; preview.style.color = '#999';
   try {
-    const r = await gasCall(
+    const answer = await orderPreReadGasCall_(
       { form_type: 'lookup', case_id: cid, p1_sf: 'p1_sf_v1' },
       {
         mode: 'lookup',
         url: GAS_API_URL,
         onStatus: function(status) { preview.textContent = status; }
-      }
+      }, function() { return buildIndexCaseId() === cid; }
     );
+    const r = answer.dto;
+    answer.rendered();
     if (r && r.code === 'busy_caseid_check') {
       preview.textContent = r.error || GAS_P1_SF_HONEST_MESSAGE;
       preview.style.color = 'var(--red)';
@@ -2630,7 +2729,7 @@ async function lookupByCaseId(showInvalid) {
     }
     // キャッシュ保存（成功時のみ）
     try {
-      if (r && r.ok !== false && !r.error) {
+      if (!orderPreReadEnabled_('lookup') && r && r.ok !== false && !r.error) {
         sessionStorage.setItem('case_lookup_v2_' + cid, JSON.stringify({ ts: Date.now(), data: r }));
       }
     } catch(e) {}
@@ -2695,7 +2794,7 @@ async function lookupStaffName() {
   // localStorage キャッシュ（1時間TTL）。業者マスタは変動少なく、フロント静的キャッシュが効く
   try {
     var cacheKey = 'staff_lookup_' + sid;
-    var cached = localStorage.getItem(cacheKey);
+    var cached = !orderPreReadEnabled_('staff_lookup') && localStorage.getItem(cacheKey);
     if (cached) {
       var parsed = JSON.parse(cached);
       if (parsed && parsed.ts && (Date.now() - parsed.ts) < 3600000) {
@@ -2708,17 +2807,19 @@ async function lookupStaffName() {
 
   display.textContent = '検索中...'; display.style.color = '#999';
   try {
-    var resp = await gasReadFetch(GAS_API_URL, {
-      method: 'POST',
-      body: JSON.stringify({ form_type: 'staff_lookup', staff_id: sid })
-    }, { onStatus: gasReadStatusTarget(display) });
-    var r = await resp.json();
+    var answer = await orderPreReadGasFetch_({ form_type: 'staff_lookup', staff_id: sid },
+      { onStatus: gasReadStatusTarget(display) }, function() {
+        const value = document.getElementById('c_emp_id').value.trim();
+        return value && value.padStart(4, '0') === sid;
+      });
+    var r = answer.dto;
+    answer.rendered();
     if (r.ok) {
       display.textContent = '担当：' + r.staff_name; display.style.color = '#2e7d32';
-      try { localStorage.setItem('staff_lookup_' + sid, JSON.stringify({ ts: Date.now(), name: r.staff_name })); } catch(e) {}
+      try { if (!orderPreReadEnabled_('staff_lookup')) localStorage.setItem('staff_lookup_' + sid, JSON.stringify({ ts: Date.now(), name: r.staff_name })); } catch(e) {}
     } else {
       display.textContent = '※該当なし'; display.style.color = '#c62828';
-      try { localStorage.setItem('staff_lookup_' + sid, JSON.stringify({ ts: Date.now(), name: null })); } catch(e) {}
+      try { if (!orderPreReadEnabled_('staff_lookup')) localStorage.setItem('staff_lookup_' + sid, JSON.stringify({ ts: Date.now(), name: null })); } catch(e) {}
     }
   } catch(e) { display.textContent = GAS_READ_FINAL_MESSAGE; display.style.color = '#c62828'; }
 }
@@ -2793,11 +2894,10 @@ function _updateCustomDiagFeeVisibility_() {
   try {
     var session = window.ECOPITA_SESSION || {};
     if (!session.token || !session.staffId) return;
-    var resp = await gasReadFetch(GAS_API_URL, {
-      method: 'POST',
-      body: JSON.stringify({ form_type: 'staff_flags', sessionToken: session.token })
-    }, { onStatus: gasReadStatusTarget('staff_name_display') });
-    var flags = await resp.json();
+    var answer = await orderPreReadGasFetch_({ form_type: 'staff_flags', sessionToken: session.token },
+      { onStatus: gasReadStatusTarget('staff_name_display') }, function() { return window.ECOPITA_SESSION?.token === session.token; });
+    var flags = answer.dto;
+    answer.rendered();
     applyConsentPhotoPolicy_(flags);
     window._ecopitaHasCustomDiagFee = !!(flags && flags.ok && flags.customDiagFee);
     _updateCustomDiagFeeVisibility_();

@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
+<script src="./shared-cloud-call.js"></script>
+<script src="./form-session-read.js"></script>
 <script src="form-direct-read.js"></script>
 <script src="./shared-site-config.js"></script>
 <meta charset="UTF-8">
@@ -369,7 +371,7 @@ const paramReportId = params.get('report_id') || '';
 // DOMContentLoaded 時点なら parser-blocking の shared-auth.js は実行済み。
 function _quoteAutoStart() {
   if (window.ECOPITA_SITE_BLOCKED) return;
-  if (paramCaseId) {
+  if (window.S2FormRead.validCase(paramCaseId)) {
     document.getElementById('h_case_id').textContent = paramCaseId + '（読込中...）';
     loadData(paramCaseId);
   } else {
@@ -417,10 +419,14 @@ function showLkErr(m) {
 }
 
 async function loadData(caseId) {
+  if (!window.S2FormRead.validCase(caseId)) { showLkErr(CASE_ID_INVALID_MESSAGE); return; }
   var screenTiming_ = window.ECOPITA_SCREEN_LATENCY ? window.ECOPITA_SCREEN_LATENCY.begin() : null;
   try {
   try {
-    var r = await formDirectGasRead(gasCall,
+    var cloudRead = window.ECOPITA_FORM_SESSION_READ;
+    var result = cloudRead && await cloudRead.read('quote_lookup', caseId);
+    if (result) result.assertCurrent();
+    var r = result ? result.dto : await formDirectGasRead(gasCall,
       { form_type: 'quote_lookup', case_id: caseId, report_id: paramReportId, p1_sf: 'p1_sf_v1' },
       {
         mode: 'lookup',
@@ -471,6 +477,7 @@ async function loadData(caseId) {
     Q.contact_name        = r.contact_name  || '';
     Q.cc_emails           = r.cc_emails     || [];
     renderMain();
+    if (result) result.rendered();
   } catch(e) {
     showLkErr('通信エラー: ' + e.message);
   }

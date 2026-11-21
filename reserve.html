@@ -7,6 +7,8 @@
 <title>予約日管理</title>
 <script src="./shared-auth.js"></script>
 <script src="./shared-gas-call.js?v=20260914-read-v1"></script>
+<script src="./shared-cloud-call.js"></script>
+<script src="./form-session-read.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 :root{--green:#2e7d32;--green-dark:#1b5e20;--bg:#f5f7fa;--card:#fff;--text:#1a1a1a;--text-sub:#5f6368;--border:#dce1e8;--radius:14px;--red:#c62828;--orange:#e65100}
@@ -183,8 +185,8 @@ function buildCaseId() {
 
 function updatePreview() {
   var id = buildCaseId();
-  document.getElementById('preview_val').textContent = id || '---';
-  document.getElementById('btn_search').disabled = !id;
+  document.getElementById('preview_val').textContent = window.S2FormRead.validCase(id) ? id : '---';
+  document.getElementById('btn_search').disabled = !window.S2FormRead.validCase(id);
   document.getElementById('error_msg').style.display = 'none';
 }
 
@@ -195,7 +197,7 @@ function showError(elId, msg) {
 
 async function doSearch() {
   var id = buildCaseId();
-  if (!id) return;
+  if (!window.S2FormRead.validCase(id)) return;
   var btn = document.getElementById('btn_search');
   btn.disabled = true; btn.textContent = '検索中...';
   document.getElementById('error_msg').style.display = 'none';
@@ -204,14 +206,20 @@ async function doSearch() {
   document.getElementById('step3').classList.add('hidden');
 
   try {
-    var r = await gasCall(
+    var cloudRead = window.ECOPITA_FORM_SESSION_READ;
+    var result = cloudRead && await cloudRead.read('reserve_lookup', id);
+    if (result) result.assertCurrent();
+    var r = result ? result.dto : await gasCall(
       { form_type: 'reserve_lookup', case_id: id, p1_sf: 'p1_sf_v1' },
       { mode: 'lookup', url: GAS_URL, onStatus: function(status) { btn.textContent = status; } }
     );
     if (r.case_id_valid === false) { showError('error_msg', CASE_ID_INVALID_MESSAGE); }
     else if (!r.ok) { showError('error_msg', r.error || '案件が見つかりません'); }
-    else { renderCaseInfo(r); }
-  } catch(e) { showError('error_msg', '通信エラーが発生しました'); }
+    else { renderCaseInfo(r); if (result) result.rendered(); }
+  } catch(e) {
+    var dummyDenied = e.reason === 'denied' && /^(?:CP|EC|HC)-00000000$/.test(id);
+    showError('error_msg', dummyDenied ? 'ダミー案件番号ではこの画面は試せません' : '通信エラーが発生しました');
+  }
   btn.disabled = false; btn.textContent = '検索';
 }
 
@@ -312,7 +320,7 @@ function fireReserveUpdateAsync(payload) {
 (function() {
   var params = new URLSearchParams(location.search);
   var c = params.get('c');
-  if (c) {
+  if (window.S2FormRead.validCase(c)) {
     var parts = c.match(/^([A-Z]+)-?([A-Z]?)(\d+)$/i);
     if (parts) {
       document.getElementById('case_prefix').value = parts[1].toUpperCase();
