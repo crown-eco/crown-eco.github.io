@@ -9,7 +9,7 @@
 <!-- reCAPTCHA v3（見えない認証、スパム/bot対策）。sitekey は登録後に差し替え -->
 <script src="./shared-gas-call.js?v=20260930-gap-v1"></script>
 <script src="./shared-cloud-call.js"></script>
-<script src="./shared-screen-latency.js?v=20260930-gap-v1"></script>
+<script src="./shared-screen-latency.js?v=20261124-order-async-v1"></script>
 <script src="./shared-consent-photo.js?v=20260925-1"></script>
 <script>
   window.RECAPTCHA_SITE_KEY = '6Lc6D6otAAAAADVD1SF958DQkj86yw0N3yUmZA0b';
@@ -2295,6 +2295,7 @@ function orderCardPayJump_(payload) {
     if(!current || current.token!==token || !url)return;
     url.searchParams.set('c',caseId);url.searchParams.set('from','order');if(contractId)url.searchParams.set('contract_id',contractId);location.assign(url.href);
   },1000);
+  return true;
 }
 // END CARD_PAY_ORDER_JUMP
 
@@ -2385,11 +2386,10 @@ async function doSubmit() {
   consentAttachOrder_(payload);
   contractId = payload.contract_id;
   const landingBaseline = orderLandingBaseline_(payload.case_id);
-  var orderCardPayDirectSuccess_ = false;
+  var orderCardPayAccepted_ = false;
   // Phase 1: スプレッドシート書き込み（同期）
   try {
     var result = await gasCall(payload, { mode: 'submit', url: GAS_API_URL });
-    orderCardPayDirectSuccess_ = !!(result && result.ok === true);
     if (result && result.ok === false && result.reason === 'recent_order_exists' && result.recent) {
       btn.textContent = '確認してください';
       var userWaitMark_; try { userWaitMark_ = window.ECOPITA_SCREEN_LATENCY && window.ECOPITA_SCREEN_LATENCY.mark(screenTiming_, 'user_wait'); } catch (ignored) {}
@@ -2414,6 +2414,7 @@ async function doSubmit() {
       btn.disabled = false; btn.textContent = '上記に同意して送信';
       return;
     }
+    orderCardPayAccepted_ = result.ok === true;
   } catch(e) {
     btn.textContent = '受付状況を確認しています…';
     var landed = await _confirmOrderLanding_(payload, landingBaseline);
@@ -2422,6 +2423,7 @@ async function doSubmit() {
       btn.disabled = false; btn.textContent = '上記に同意して送信';
       return;
     }
+    orderCardPayAccepted_ = true;
   }
 
   // 完了画面を表示
@@ -2448,8 +2450,20 @@ async function doSubmit() {
   consentPhotoState_.attempt = null;
   consentPhotoState_.allowed = false;
   document.getElementById('consentPhotoPreview').src = '';
-  var orderCardPayBackgroundOk_ = false;
-  if (result && result.dummy_case) {
+  var dummyOrder_ = result && result.dummy_case;
+  var cardPayJump_ = orderCardPayAccepted_ && !dummyOrder_ && orderCardPayJump_(payload);
+  var asyncBody_ = JSON.stringify(asyncPayload);
+  var asyncRequest_ = { method: 'POST', body: asyncBody_ };
+  // Leave room within the shared 64 KiB keepalive budget for diagnostics.
+  if (cardPayJump_ && new Blob([asyncBody_]).size <= 60 * 1024) asyncRequest_.keepalive = true;
+  var finishAsyncTiming_;
+  try { if (window.ECOPITA_SCREEN_LATENCY) finishAsyncTiming_ = window.ECOPITA_SCREEN_LATENCY.watchOrderAsync(GAS_API_URL, payload.sessionToken); } catch (ignored) {}
+  var asyncReply_ = fetch(GAS_API_URL, asyncRequest_).then(function(reply) { return reply.json(); });
+  if (finishAsyncTiming_) {
+    asyncReply_.then(function(reply) { finishAsyncTiming_(reply && reply.ok === true ? 'ok' : 'not_ok'); },
+      function() { finishAsyncTiming_('transport_error'); });
+  }
+  if (dummyOrder_) {
     var dummyResultText_ = function(reply) {
       var mark = reply && reply.dummy_case;
       var lines = ['ダミー案件番号の送信です。売上・通知・ポータルには反映されません'];
@@ -2472,15 +2486,12 @@ async function doSubmit() {
       completeText.style.whiteSpace = 'pre-line';
       completeText.textContent = 'ダミー案件番号の送信です。売上・通知・ポータルには反映されません\n書類の送信結果を確認しています…';
     }
-    fetch(GAS_API_URL, { method: 'POST', body: JSON.stringify(asyncPayload) })
-      .then(function(reply) { return reply.json(); })
+    asyncReply_
       .then(function(reply) { if (completeText) completeText.textContent = dummyResultText_(reply); })
       .catch(function() { if (completeText) completeText.textContent = 'ダミー案件番号の送信です。売上・通知・ポータルには反映されません\n送信結果を確認できませんでした。通信状態を確認してください。再送すると重複する可能性があります。'; });
   } else {
-  fetch(GAS_API_URL, { method: 'POST', body: JSON.stringify(asyncPayload) })
-    .then(function(r) { return r.json(); })
+  asyncReply_
     .then(function(res) {
-      orderCardPayBackgroundOk_ = !!(res && res.ok === true);
       if (res && res.ok === false) {
         return fetch(GAS_API_URL, {
           method: 'POST',
@@ -2493,8 +2504,7 @@ async function doSubmit() {
         }).catch(function(){});
       }
     })
-    .catch(function(){ /* 通信断のみ。サーバ側処理は継続中の可能性が高いため黙殺 */ })
-    .then(function(){ if(orderCardPayDirectSuccess_ && orderCardPayBackgroundOk_)orderCardPayJump_(payload); });
+    .catch(function(){ /* 通信断は管理者通知の対象にしない。 */ });
   }
   } finally {
     try { if (window.ECOPITA_SCREEN_LATENCY) window.ECOPITA_SCREEN_LATENCY.finish(screenTiming_, result, { url: GAS_API_URL }); } catch (ignored) {}

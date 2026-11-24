@@ -191,5 +191,30 @@
       });
     } catch (ignored) {}
   }
-  root.ECOPITA_SCREEN_LATENCY = { relayRequest: relayRequest, relayResponse: relayResponse, begin: begin, finish: finish, capture: capture, startCall: startCall, endCall: endCall, bind: bind, bindResponse: bindResponse, mark: mark, endMark: endMark };
+  function watchOrderAsync(endpoint, credential) {
+    if (!endpoint || !credential) return null;
+    var document = root.document, started = now(), finished = false;
+    function finish(outcome) {
+      if (finished) return;
+      finished = true;
+      try {
+        document.removeEventListener('visibilitychange', onVisibility);
+        root.removeEventListener('pagehide', onPageHide);
+        var elapsed = Math.round(now() - started);
+        if (!valid(elapsed)) return;
+        var fields = { form_type: 'latency_browser', scene: 'order_async', browser_ms: elapsed,
+          outcome: outcome, sessionToken: credential };
+        Promise.resolve(root.fetch(endpoint, { method: 'POST', body: JSON.stringify(fields),
+          redirect: 'follow', keepalive: true })).catch(function() {});
+      } catch (ignored) {}
+    }
+    function onPageHide() { finish('hidden'); }
+    function onVisibility() { if (document.hidden) onPageHide(); }
+    document.addEventListener('visibilitychange', onVisibility);
+    root.addEventListener('pagehide', onPageHide);
+    onVisibility();
+    return finish;
+  }
+
+  root.ECOPITA_SCREEN_LATENCY = { watchOrderAsync: watchOrderAsync, relayRequest: relayRequest, relayResponse: relayResponse, begin: begin, finish: finish, capture: capture, startCall: startCall, endCall: endCall, bind: bind, bindResponse: bindResponse, mark: mark, endMark: endMark };
 })(window);
