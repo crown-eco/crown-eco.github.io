@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "site": "crown",
-  "source_commit": "b62c5a68e3cc221ec30bf6a885d5f5f0b2191799",
+  "source_commit": "d55906e7932af9ccc35f1b2e9192d5bcedf359f2",
   "excluded": [
     ".git",
     "woff-test",
@@ -65,8 +65,8 @@
     },
     {
       "path": "expense.html",
-      "size": 61916,
-      "sha256": "05c268baf63386700e200d4df3fce9d99d6fecb911e5c06aa6d80de1ff25f61a"
+      "size": 64239,
+      "sha256": "5e09a1f8dc069c26c053b6a61d261b3b7e30d06bd3e1243c2589c87ef94fab40"
     },
     {
       "path": "form-direct-read.js",

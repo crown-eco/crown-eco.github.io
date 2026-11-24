@@ -159,11 +159,11 @@ input[type=text]:focus,input[type=number]:focus{outline:none;border-color:#378AD
         <div class="card-title">経費種別（複数選択可）</div>
         <div class="checkbox-row">
           <input type="checkbox" id="chk-maker" onchange="toggleMaker()">
-          <span>メーカー施工費（会社へ請求）</span>
+          <span id="maker-kind-label">メーカー施工費（会社へ請求）</span>
         </div>
         <div class="indent" id="maker-fields" style="display:none">
           <div>
-            <label>メーカー名 <span style="color:#c0392b">*</span></label>
+            <label><span id="maker-name-label">メーカー名</span> <span style="color:#c0392b">*</span></label>
             <input type="text" id="maker-name" placeholder="例: ダイキン工業">
           </div>
           <div>
@@ -175,7 +175,7 @@ input[type=text]:focus,input[type=number]:focus{outline:none;border-color:#378AD
         <div class="divider"></div>
         <div class="checkbox-row">
           <input type="checkbox" id="chk-body" onchange="toggleBody()">
-          <span>本体代</span>
+          <span id="body-kind-label">本体代</span>
         </div>
         <div class="indent" id="body-fields" style="display:none">
           <div id="body-items-container"></div>
@@ -189,11 +189,11 @@ input[type=text]:focus,input[type=number]:focus{outline:none;border-color:#378AD
         <div class="card-title">申請合計</div>
         <div class="total-box">
           <div class="total-row" id="total-maker-row" style="display:none">
-            <span class="label">メーカー施工費</span>
+            <span class="label" id="total-maker-label">メーカー施工費</span>
             <span id="total-maker-val">¥0</span>
           </div>
           <div class="total-row" id="total-body-row" style="display:none">
-            <span class="label">本体代合計</span>
+            <span class="label" id="total-body-label">本体代合計</span>
             <span id="total-body-val">¥0</span>
           </div>
           <div class="total-row grand">
@@ -223,6 +223,7 @@ var CASE_ID_INVALID_MESSAGE = '案件番号が正しくありません　確認�
 var sessionToken = '';
 var staffId = '';
 var selectedContract = null;
+var expenseFormIsHc = false;
 var bodyItemCount = 0;
 var bodyItemData = {};
 var airconCatalog = { epoch: 0, status: 'idle', categories: [], models: Object.create(null), prefetchStarted: false, prefetchPending: false };
@@ -650,8 +651,39 @@ function selectContract(c, el) {
   badge.textContent = '選択中';
   el.appendChild(badge);
   selectedContract = c;
+  var isHc = isHcExpenseContract(c);
+  if (isHc !== expenseFormIsHc) {
+    updateExpenseFormKind(isHc);
+    document.getElementById('chk-maker').checked = false;
+    document.getElementById('chk-body').checked = false;
+    document.getElementById('body-items-container').innerHTML = '';
+    document.getElementById('submit-error').textContent = '';
+    bodyItemCount = 0;
+    bodyItemData = {};
+    addBodyItem();
+    toggleMaker();
+    toggleBody();
+  }
   document.getElementById('expense-section').style.display = 'block';
   document.getElementById('expense-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function isHcExpenseContract(contract) {
+  return String((contract && contract.case_id) || '').trim().indexOf('HC-') === 0;
+}
+
+function updateExpenseFormKind(isHc) {
+  if (isHc === expenseFormIsHc) return;
+  expenseFormIsHc = isHc;
+  document.getElementById('maker-kind-label').textContent = isHc ? 'リフォーム外注費' : 'メーカー施工費（会社へ請求）';
+  document.getElementById('maker-name-label').textContent = isHc ? '外注先名' : 'メーカー名';
+  document.getElementById('maker-name').placeholder = isHc ? '例: ○○工務店' : '例: ダイキン工業';
+  document.getElementById('body-kind-label').textContent = isHc ? 'リフォーム器具代' : '本体代';
+  document.getElementById('total-maker-label').textContent = isHc ? 'リフォーム外注費' : 'メーカー施工費';
+  document.getElementById('total-body-label').textContent = isHc ? 'リフォーム器具代合計' : '本体代合計';
+
+  document.getElementById('maker-name').value = '';
+  document.getElementById('maker-amount').value = '';
 }
 
 function toggleMaker() {
@@ -663,7 +695,7 @@ function toggleBody() {
   var checked = document.getElementById('chk-body').checked;
   document.getElementById('body-fields').style.display = checked ? '' : 'none';
   hideErr('kind-error'); hideErr('body-error'); updateTotal();
-  if (checked) {
+  if (checked && !isHcExpenseContract(selectedContract)) {
     Object.keys(airconCatalog.models).forEach(function(key) { if (airconCatalog.models[key].status === 'error') delete airconCatalog.models[key]; });
     loadAirconCatalog();
     Object.keys(bodyItemData).forEach(function(id) { bodyItemData[id].units.forEach(function(unit) { if (unit.maker) loadAirconModels(id, unit); }); });
@@ -791,8 +823,9 @@ function removeAirconUnit(id, unit) {
 function renderAirconItem(id) {
   var item = bodyItemData[id], host = document.getElementById('aircon-fields-' + id);
   if (!item || !host) return;
-  host.innerHTML = ''; host.style.display = airconCatalog.status === 'legacy' ? 'none' : '';
-  if (airconCatalog.status === 'legacy') return;
+  var showAircon = !isHcExpenseContract(selectedContract) && airconCatalog.status !== 'legacy';
+  host.innerHTML = ''; host.style.display = showAircon ? '' : 'none';
+  if (!showAircon) return;
   function note(parent, text) { var el = document.createElement('p'); el.className = 'aircon-note'; el.textContent = text; parent.appendChild(el); return el; }
   note(host, 'エアコン本体');
   if (airconCatalog.status !== 'ready') note(host, airconCatalog.status === 'error' ? AIRCON_LOAD_ERROR : '型番の一覧を読み込み中...');
@@ -845,7 +878,7 @@ function validAirconUnits(item) {
 }
 function expenseBodyPayloadItem(item, url) {
   var result = { amount: item.amount, receipt_url: url };
-  if (airconCatalog.status !== 'legacy') result.units = item.units.map(function(unit) { return { category: unit.category, maker: unit.maker, model: unit.model }; });
+  if (!isHcExpenseContract(selectedContract) && airconCatalog.status !== 'legacy') result.units = item.units.map(function(unit) { return { category: unit.category, maker: unit.maker, model: unit.model }; });
   return result;
 }
 
@@ -967,37 +1000,53 @@ function validate() {
   hideErr('kind-error'); hideErr('maker-error'); hideErr('body-error');
   document.querySelectorAll('[id^=item-error-]').forEach(function(el) { el.classList.add('hidden'); });
   if (!selectedContract) { showErr('search-error', '施工を選択してください'); return false; }
+  var isHc = isHcExpenseContract(selectedContract);
   var makerChecked = document.getElementById('chk-maker').checked;
   var bodyChecked = document.getElementById('chk-body').checked;
   if (!makerChecked && !bodyChecked) { showErr('kind-error', '経費種別を選択してください'); return false; }
   if (makerChecked) {
-    if (!document.getElementById('maker-name').value.trim()) { showErr('maker-error', 'メーカー名を入力してください'); return false; }
-    if (!(Number(document.getElementById('maker-amount').value) > 0)) { showErr('maker-error', 'メーカー施工費の金額を入力してください'); return false; }
+    if (!document.getElementById('maker-name').value.trim()) { showErr('maker-error', isHc ? '外注先名を入力してください' : 'メーカー名を入力してください'); return false; }
+    if (!(Number(document.getElementById('maker-amount').value) > 0)) { showErr('maker-error', isHc ? 'リフォーム外注費の金額を入力してください' : 'メーカー施工費の金額を入力してください'); return false; }
   }
   if (bodyChecked) {
     var activeItems = getActiveBodyItems();
-    if (activeItems.length === 0) { showErr('body-error', '本体代の金額を1件以上入力してください'); return false; }
+    if (activeItems.length === 0) { showErr('body-error', isHc ? 'リフォーム器具代の金額を1件以上入力してください' : '本体代の金額を1件以上入力してください'); return false; }
     for (var i = 0; i < activeItems.length; i++) {
       if (!activeItems[i].data.dataUrl) { showErr('item-error-' + activeItems[i].id, '領収書を添付してください'); return false; }
-      if (!validAirconUnits(activeItems[i].data)) { showErr('item-error-' + activeItems[i].id, airconCatalog.status === 'error' ? AIRCON_LOAD_ERROR : '各エアコンの区分・メーカー・型番を一覧から選んでください。型番の一覧を読めない場合は、少し待ってから「本体代」を付け直してください'); return false; }
+      if (!isHc && !validAirconUnits(activeItems[i].data)) { showErr('item-error-' + activeItems[i].id, airconCatalog.status === 'error' ? AIRCON_LOAD_ERROR : '各エアコンの区分・メーカー・型番を一覧から選んでください。型番の一覧を読めない場合は、少し待ってから「本体代」を付け直してください'); return false; }
     }
   }
   return true;
 }
 function submitExpense() {
+  var btn = document.getElementById('submit-btn');
+  if (btn.disabled) return;
   document.getElementById('submit-error').textContent = '';
   if (!validate()) return;
-  var slipType = String((selectedContract && selectedContract.slip_type) || 'unknown');
+  var contract = selectedContract;
+  var slipType = String(contract.slip_type || 'unknown');
   if (slipType === 'unknown') {
     document.getElementById('submit-error').textContent = '伝票種別を判定できません（要管理者対応）';
     return;
   }
-  var btn = document.getElementById('submit-btn');
   btn.disabled = true; btn.textContent = '送信中...';
   var makerChecked = document.getElementById('chk-maker').checked;
   var bodyChecked = document.getElementById('chk-body').checked;
+  var submittedBodyItems = bodyItemData;
   var activeItems = bodyChecked ? getActiveBodyItems() : [];
   var submittedPayload = null;
+  var payload = {
+    action: 'expense_submit',
+    contract_id: String(contract.contract_id || ''),
+    slip_type: slipType,
+    case_id: String(contract.case_id || buildCaseId()),
+    uriage_row: String(contract.uriage_row || ''),
+    sales_record_id: String(contract.sales_record_id || ''),
+    source_partition: String(contract.source_partition || ''),
+    equipment: contract.equipment || '',
+    maker_fee: makerChecked ? { selected: true, maker_name: document.getElementById('maker-name').value.trim(), amount: Number(document.getElementById('maker-amount').value) || 0 } : null,
+    body_cost: null
+  };
 
   // 領収書を先に1枚ずつアップロード
   var uploadPromises = activeItems.map(function(it, idx) {
@@ -1014,20 +1063,12 @@ function submitExpense() {
     });
   });
 
-  Promise.all(uploadPromises)
+  return Promise.all(uploadPromises)
     .then(function(uploadedItems) {
-      var payload = {
-        action: 'expense_submit',
-        contract_id: String(selectedContract.contract_id || ''),
-        slip_type: slipType,
-        case_id: String(selectedContract.case_id || buildCaseId()),
-        uriage_row: String(selectedContract.uriage_row || ''),
-        sales_record_id: String(selectedContract.sales_record_id || ''),
-        source_partition: String(selectedContract.source_partition || ''),
-        equipment: selectedContract.equipment || '',
-        maker_fee: makerChecked ? { selected: true, maker_name: document.getElementById('maker-name').value.trim(), amount: Number(document.getElementById('maker-amount').value) || 0 } : null,
-        body_cost: bodyChecked ? { selected: true, items: uploadedItems } : null
-      };
+      if (selectedContract !== contract || bodyItemData !== submittedBodyItems) {
+        throw new Error('施工の選択が変わりました。入力を確認してもう一度申請してください');
+      }
+      payload.body_cost = bodyChecked ? { selected: true, items: uploadedItems } : null;
       expensePreparePendingSubmission_(payload);
       submittedPayload = payload;
       return post(payload);
@@ -1051,6 +1092,7 @@ function submitExpense() {
 }
 function resetForm() {
   selectedContract = null; bodyItemCount = 0; bodyItemData = {};
+  updateExpenseFormKind(false);
   document.getElementById('e_case_num').value = '';
   document.getElementById('e_case_alpha').value = '';
   updatePreview();
