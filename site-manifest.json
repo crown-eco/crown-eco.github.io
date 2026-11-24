@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "site": "crown",
-  "source_commit": "527a9067fd1865e65b84acbbae19e82c138d212a",
+  "source_commit": "d0b7dbb5ec2c5b560e1eab7e0c09e89fecc34ecd",
   "excluded": [
     ".git",
     "woff-test",
@@ -55,18 +55,18 @@
     },
     {
       "path": "docs.html",
-      "size": 4667,
-      "sha256": "bb8dc6ad5caae0410e5d4bbcde34d79b1644955ef956dc3d9ff117e27a9c56ab"
+      "size": 4795,
+      "sha256": "05fa562b901ebbbaa87d3120b08d8977dd35548aa7a154c7cea19224413f3177"
     },
     {
       "path": "estimate.html",
-      "size": 261107,
-      "sha256": "4d7b282bb0efd4bed68bd1e64e560a2b4b6c71c8a450fdc39f2ea84fee4b2637"
+      "size": 261895,
+      "sha256": "3a9ed573c9eccb483c0b3d3d4822e174c1ac4f5bbbeaf1d122a8803cb43f3edb"
     },
     {
       "path": "expense.html",
-      "size": 64239,
-      "sha256": "5e09a1f8dc069c26c053b6a61d261b3b7e30d06bd3e1243c2589c87ef94fab40"
+      "size": 68230,
+      "sha256": "479c894941790516d4e86047039f6660a100d92e25cdca9d147cc08a4bbae220"
     },
     {
       "path": "form-direct-read.js",
@@ -90,8 +90,8 @@
     },
     {
       "path": "invoice.html",
-      "size": 72638,
-      "sha256": "5c3d3eae8795c63d52d30a2ce04f0485fbcc07bbcfabed56294fbcef038226e2"
+      "size": 76423,
+      "sha256": "3fea9686335e82c8df7a659ed791cfd97eb4d25e6013026d0dda63b1e685e074"
     },
     {
       "path": "login.html",
@@ -110,13 +110,13 @@
     },
     {
       "path": "quote.html",
-      "size": 73971,
-      "sha256": "dcb595b5def2af96fba0b2ed8a7eaeba71e6809bfaa5d6d453a3e51363296ca0"
+      "size": 74110,
+      "sha256": "600924730b16d134504043958855af2002a3e7a79a4dcadff10d49737624fa4a"
     },
     {
       "path": "receipt.html",
-      "size": 49551,
-      "sha256": "9b508ddb94f22cfe7484f14049fbd3c0d031e309f92bed9261ed12d26aaa2863"
+      "size": 49686,
+      "sha256": "9341805bf03cc5d5a58c057041963baaec551bfe0c5c1cd7b5e99dd5f3672d75"
     },
     {
       "path": "resend.html",
@@ -154,6 +154,11 @@
       "sha256": "0126a2c1b6b71e930b51d8693f71f2c087eb20a2e5b7390e93330862e45c6c35"
     },
     {
+      "path": "shared-doc-auth-warm.js",
+      "size": 681,
+      "sha256": "0a896537d4743d834b4d8b3a8a6485919e815031dfefd573802bfbfb343ca5df"
+    },
+    {
       "path": "shared-email-check.js",
       "size": 16618,
       "sha256": "4eb4749bcd876e21190cbf9712d74c90af845be4291bcf8a9a8d26110aa2d3a8"
@@ -170,8 +175,8 @@
     },
     {
       "path": "shared-screen-latency.js",
-      "size": 12620,
-      "sha256": "48ee563099268999a90b28cd52a93ff7a10d74807ea15abd36b17ca01ba71d14"
+      "size": 12791,
+      "sha256": "b22c0db35200ff4f0a26a607aff2775202ef625af1bb4a06800d7b653be0492e"
     },
     {
       "path": "shared-site-config.js",

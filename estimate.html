@@ -3774,6 +3774,10 @@ async function submitReport() {
   // この提出操作がsync okになるまで、再押下・再読込でも同じanchor/tokenを使う。
   try {
     reportAttachToPayload_(payload);
+    const usesSavedInvoiceAmount = isKankouInv && selectedReportInvoice && selectedReportInvoice.unchanged;
+    if (isKankou && !usesSavedInvoiceAmount && (!Number.isFinite(payload.today_total) || payload.today_total <= 0)) {
+      throw new Error('完工のときは金額を入力してください');
+    }
     reportPreparePendingSubmission_(payload);
   } catch (attachmentError) {
     alert(attachmentError.message);
@@ -3796,6 +3800,19 @@ function reportShowPreparedPreview_(payload) {
   window._pendingFlags = { isKankou, isKankouPlain, isKankouInv, isReserveEst, isReserveNo, isReserveInv, isDiagEst, hasEstimate, isReserve };
   showSubmitPreview(payload, status);
   return;
+}
+
+function reportWarmAuth_() {
+  try {
+    var token = reportAttachmentSession_();
+    var now = Date.now();
+    if (!token || (reportWarmAuth_.token === token && now - reportWarmAuth_.at <= 240000)) return;
+    reportWarmAuth_.token = token;
+    reportWarmAuth_.at = now;
+    window.fetch(GAS_API_URL, {
+      method: 'POST', body: JSON.stringify({form_type:'order_auth_warm',sessionToken:token})
+    }).catch(function() {});
+  } catch (_) {}
 }
 
 function showSubmitPreview(p, status) {
@@ -3875,7 +3892,10 @@ function showSubmitPreview(p, status) {
   else if (fs.isReserveNo) btn.textContent = '予約として報告';
   else btn.textContent = '報告を送信';
   if (pendingIntake && pendingIntake.intake_id) reportRenderIntake_(pendingIntake);
-  else document.getElementById('report_intake_notice').classList.add('hidden');
+  else {
+    document.getElementById('report_intake_notice').classList.add('hidden');
+    reportWarmAuth_();
+  }
 }
 
 function hidePreview() {

@@ -5,6 +5,7 @@
 <script src="./form-session-read.js"></script>
 <script src="form-direct-read.js"></script>
 <script src="./shared-site-config.js"></script>
+<script src="./shared-doc-auth-warm.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>領収書発行</title>
@@ -805,6 +806,7 @@ function showReceiptPreview() {
   document.getElementById('step1').classList.add('hidden');
   document.getElementById('step2').classList.add('hidden');
   document.getElementById('step_preview').classList.remove('hidden');
+  if (window.ecopitaWarmDocumentSession) window.ecopitaWarmDocumentSession(GAS_URL);
   window.scrollTo(0, 0);
 }
 

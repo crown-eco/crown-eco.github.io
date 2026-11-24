@@ -2,11 +2,13 @@
 <html lang="ja">
 <head>
 <script src="./shared-site-config.js"></script>
+<script src="./shared-doc-auth-warm.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>請求書発行</title>
 <script src="./shared-auth.js"></script>
 <script src="./shared-gas-call.js?v=20261021-invoice-status-v1"></script>
+<script src="./shared-screen-latency.js?v=20260930-gap-v1"></script>
 <script src="./write-async-status.js?v=20260902-v1"></script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -395,6 +397,7 @@ async function doSearch() {
   var id = buildCaseId();
   if (!id) return;
   searchCaseId = id;
+  var screenTiming = window.ECOPITA_SCREEN_LATENCY && window.ECOPITA_SCREEN_LATENCY.begin();
   var btn = document.getElementById('btn_search');
   btn.disabled = true; btn.textContent = '検索中...';
   ['step2','step_uriage','step3','step4'].forEach(function(s) { document.getElementById(s).classList.add('hidden'); });
@@ -425,6 +428,7 @@ async function doSearch() {
     }
   } catch(e) { showError('error_msg', gasCallErrorMessage(e)); }
   btn.disabled = false; btn.textContent = '検索';
+  if (screenTiming) window.ECOPITA_SCREEN_LATENCY.finish(screenTiming, r, {url:GAS_URL});
 }
 
 function renderSelection(caseId, contracts, versions) {
@@ -1035,6 +1039,7 @@ function showPreview() {
   document.getElementById('step_uriage').classList.add('hidden');
   document.getElementById('step3').classList.add('hidden');
   document.getElementById('step_preview').classList.remove('hidden');
+  if (window.ecopitaWarmDocumentSession) window.ecopitaWarmDocumentSession(GAS_URL);
   window.scrollTo(0, 0);
 }
 
@@ -1114,21 +1119,28 @@ function invoiceSubmissionPrepare_(payload) {
   return invoiceSubmissionSave_({ version: 1, case_id: payload.case_id, saved_at_ms: Date.now(), payload: payload, phase2_sent: false });
 }
 
-async function invoiceSubmissionCheck_(pending) {
-  if (!pending.phase2_sent && Date.now() - pending.saved_at_ms <= 48 * 60 * 60 * 1000) return;
+function invoiceSubmissionStatusPayload_(pending) {
   var statusPayload = { form_type: 'report_attachment_status', route: pending.payload.write_uriage === true ? 'doc_invoice' : 'issue', case_id: pending.case_id, client_submission_id: pending.payload.doc_submission_id, doc_submission_id: pending.payload.doc_submission_id };
   if (pending.payload.issue_as_staff_id) {
     statusPayload.issue_as_staff_id = pending.payload.issue_as_staff_id;
     statusPayload.contract_ids = pending.payload.contract_ids || [];
     statusPayload.equipment = pending.payload.equipment || '';
   }
-  var response = await gasCall(statusPayload, { mode: 'lookup', url: GAS_URL });
+  return statusPayload;
+}
+
+async function invoiceSubmissionCheck_(pending) {
+  if (!pending.phase2_sent && Date.now() - pending.saved_at_ms <= 48 * 60 * 60 * 1000) return;
+  var response = await gasCall(invoiceSubmissionStatusPayload_(pending), { mode: 'lookup', url: GAS_URL });
   if (!response || response.ok !== true) throw invoiceSubmissionError_('前回の請求書発行結果を確認できませんでした。もう一度お試しください。');
   if (response.found === true && response.state === 'done') {
     invoiceSubmissionComplete_(pending);
     throw invoiceSubmissionError_('前回の請求書発行は受け付け済みです。売上・添付処理は完了しています。');
   }
   if (response.found === true && response.can_retry === true) return;
+  // A delayed Phase 2 may still reserve this ID after an absent status read.
+  if (response.found === false && pending.sales_progress_mode === true &&
+      Date.now() - pending.saved_at_ms <= 48 * 60 * 60 * 1000) return;
   if(response.can_start_new===true && (response.found===false || response.found===true && response.state==='failed')) {
     invoiceSubmissionRestart_(pending,response.restart_after_ms);
     throw invoiceSubmissionError_('前回の受付は売上書込み前に終了しています。入力を残して新しい受付を用意しました。もう一度発行ボタンを押してください。');
@@ -1143,7 +1155,7 @@ function invoiceSubmissionRestart_(pending,restartAfter) {
   var next=JSON.parse(JSON.stringify(pending));
   next.payload.doc_submission_id=window.crypto.randomUUID();
   next.payload.doc_submission_after_ms=Math.max(Date.now(),Number(restartAfter)||0);
-  delete next.prepared;delete next.async_payload;next.phase2_sent=false;next.saved_at_ms=Date.now();
+  delete next.prepared;delete next.async_payload;delete next.sales_progress_mode;next.phase2_sent=false;next.saved_at_ms=Date.now();
   invoiceSubmissionSave_(next);window._invoicePendingReviewed=next.payload.doc_submission_id;
   return next;
 }
@@ -1169,6 +1181,46 @@ function invoiceShowPendingPreview_(pending) {
   window._invoicePendingReviewed = p.doc_submission_id;
 }
 // END INVOICE_SUBMISSION_CLIENT
+
+async function invoiceWaitForSales_(pending, completion) {
+  var inquiry = invoiceSubmissionStatusPayload_(pending);
+  inquiry.invoice_sales_progress = true;
+  inquiry.equipment = (pending.async_payload && pending.async_payload.equipment) || pending.payload.equipment || '';
+  var finished = completion.then(function(result) { return {phase2Result:result}; });
+  async function readProgress() {
+    var controller = typeof AbortController === 'function' ? new AbortController() : null;
+    var timer;
+    try {
+      var options = {mode:'submit', url:GAS_URL, latencyOperation:null};
+      if (controller) options.fetchFn = function(url, request) {
+        return fetch(url, Object.assign({}, request, {signal:controller.signal}));
+      };
+      var timeout = new Promise(function(resolve) {
+        timer = setTimeout(function() {
+          resolve(null);
+        }, 8000);
+      });
+      var checked = gasCall(inquiry, options).then(function(result) {
+        return result && result.ok === true && result.sales_committed === true ? {salesCommitted:true} : null;
+      }).catch(function() { return null; });
+      return await Promise.race([finished, checked, timeout]);
+    } catch (_) { return null; }
+    finally {
+      clearTimeout(timer);
+      if (controller) controller.abort();
+    }
+  }
+  for (var delay of [2500, 3500, 5000, 5000, 5000, 5000, 5000, 5000]) {
+    var timer;
+    var nextPoll = new Promise(function(resolve) { timer = setTimeout(function() { resolve(null); }, delay); });
+    var outcome = await Promise.race([finished, nextPoll]);
+    clearTimeout(timer);
+    if (outcome) return outcome;
+    outcome = await readProgress();
+    if (outcome) return outcome;
+  }
+  return {};
+}
 
 async function issueInvoice() {
   if (invoiceP1SfBlocked_('preview_error')) return;
@@ -1295,6 +1347,8 @@ async function issueInvoice() {
     if (!/^\d{4}$/.test(issueAsStaffId)) { showError('preview_error','担当者番号が正しくありません'); btn.disabled = false; return; }
     payload.issue_as_staff_id = issueAsStaffId;
   }
+  var screenTiming = window.ECOPITA_SCREEN_LATENCY && window.ECOPITA_SCREEN_LATENCY.begin();
+  var measuredResponse;
   try {
     var pendingInvoice = invoiceSubmissionPrepare_(payload);
     if (!invoiceSubmissionSameInput_(payload, pendingInvoice.payload) && window._invoicePendingReviewed !== pendingInvoice.payload.doc_submission_id) {
@@ -1307,7 +1361,11 @@ async function issueInvoice() {
     writeUriage = payload.write_uriage === true;
     customer = payload;
     // Phase 1: データ補完・検証（即応答）
-    var r = pendingInvoice.prepared || await gasCall(payload, { mode: 'submit', url: GAS_URL });
+    var r = pendingInvoice.prepared;
+    if (!r) {
+      r = await gasCall(payload, {mode:'submit', url:GAS_URL});
+      measuredResponse = r;
+    }
     if (!r.ok) {
       showError('preview_error', r.error || '発行に失敗しました');
       btn.disabled = false; btn.textContent = '📑 発行する';
@@ -1318,21 +1376,36 @@ async function issueInvoice() {
     pendingInvoice.prepared = r;
     pendingInvoice.async_payload = asyncPayload;
     pendingInvoice.phase2_sent = true;
-    invoiceSubmissionSave_(pendingInvoice);
     var statusMode = writeUriage && r.write_async_status_enabled === true;
     var asyncResult = null;
-    // 状態表示modeでは、売上DB commitを行うPhase 2の応答前に「保存」を表示しない。
-    if (statusMode) {
+    var salesCommitted = false;
+    var saleOnly = statusMode && r.invoice_sales_progress_supported === true;
+    if (saleOnly) pendingInvoice.sales_progress_mode = true;
+    invoiceSubmissionSave_(pendingInvoice);
+    if (saleOnly) {
+      // Phase 2 stays single-shot. Its existing durable reservation owns delivery.
+      var completion = gasCall(asyncPayload, {mode:'submit', url:GAS_URL, latencyOperation:null}).catch(function() { return null; });
+      var outcome = await invoiceWaitForSales_(pendingInvoice, completion);
+      salesCommitted = outcome.salesCommitted === true;
+      asyncResult = outcome.phase2Result;
+      if (!salesCommitted && (!asyncResult || asyncResult.ok !== true)) {
+        showError('preview_error', '売上の記録状況を確認できませんでした。もう一度お試しください。');
+        btn.disabled = false; btn.textContent = '📑 発行する';
+        return;
+      }
+      completion.then(function(result) {
+        if (result && result.ok === true) invoiceSubmissionComplete_(pendingInvoice);
+      }).catch(function() {});
+    } else if (statusMode) {
       asyncResult = await gasCall(asyncPayload, { mode: 'submit', url: GAS_URL });
-      if (!asyncResult || asyncResult.ok !== true || !asyncResult.write_async_status ||
-          asyncResult.write_async_status.enabled !== true) {
+      if (!asyncResult || asyncResult.ok !== true) {
         showError('preview_error', '売上の記録状況を確認できませんでした。もう一度お試しください。');
         btn.disabled = false; btn.textContent = '📑 発行する';
         return;
       }
       invoiceSubmissionComplete_(pendingInvoice);
     }
-    // 完了画面はPhase 1成功後、売上記録があるstatus modeではDB commit応答後に表示。
+    // 状態表示モードでは売上確定、またはPhase 2の成功応答を受けて完了画面へ進む。
     document.getElementById('step1').classList.add('hidden');
     document.getElementById('step2').classList.add('hidden');
     document.getElementById('step_uriage').classList.add('hidden');
@@ -1343,15 +1416,18 @@ async function issueInvoice() {
       ? (customer.company_name + ' ' + (customer.contact_name || '')).trim()
       : customer.name;
     var resultText = searchCaseId + ' ／ ' + resultName + ' 様';
-    resultText += '\n' + payload.email + ' に請求書を送信しました。';
+    resultText += '\n' + payload.email + (salesCommitted ? ' への請求書送信を受け付けました。' : ' に請求書を送信しました。');
     if (selections.length > 1) resultText += '\n（' + selections.length + '件合算）';
     if (writeUriage && !statusMode) resultText += '\n✅ 売上管理にも記録します';
     if (notify_payment_change) resultText += '\n📋 支払情報の変更を管理者に通知します';
     document.getElementById('result_detail').textContent = resultText;
     var invoiceWriteStatus = document.getElementById('invoice_write_status');
     invoiceWriteStatus.textContent = '';
-    if (statusMode && window.WriteAsyncStatusV1) {
-      window.WriteAsyncStatusV1.start({
+    if (salesCommitted) {
+      invoiceWriteStatus.textContent = '売上の記録を確認しました';
+    } else if (statusMode) {
+      invoiceWriteStatus.textContent = '反映の状況が確認できませんでした。もう一度確認してください。';
+      if (window.WriteAsyncStatusV1 && asyncResult.write_async_status) window.WriteAsyncStatusV1.start({
         acceptance: asyncResult.write_async_status,
         target: invoiceWriteStatus,
         pendingMessage: window.WriteAsyncStatusV1.COPY.invoicePending,
@@ -1359,8 +1435,6 @@ async function issueInvoice() {
           return window.WriteAsyncStatusV1.callGasStatus(GAS_URL, operationIds);
         }
       });
-    } else if (statusMode) {
-      invoiceWriteStatus.textContent = '反映の状況が確認できませんでした。もう一度確認してください。';
     }
     window.scrollTo(0, 0);
 
@@ -1380,6 +1454,8 @@ async function issueInvoice() {
   } catch(e) {
     showError('preview_error', gasCallErrorMessage(e));
     btn.disabled = false; btn.textContent = '📑 発行する';
+  } finally {
+    if (screenTiming) window.ECOPITA_SCREEN_LATENCY.finish(screenTiming, measuredResponse, {url:GAS_URL});
   }
 }
 

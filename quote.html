@@ -5,6 +5,7 @@
 <script src="./form-session-read.js"></script>
 <script src="form-direct-read.js"></script>
 <script src="./shared-site-config.js"></script>
+<script src="./shared-doc-auth-warm.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>見積書 編集・再発行</title>
@@ -1113,6 +1114,7 @@ async function submitQuote() {
 
   document.getElementById('main_view').classList.add('hidden');
   document.getElementById('quote_preview').classList.remove('hidden');
+  if (window.ecopitaWarmDocumentSession) window.ecopitaWarmDocumentSession(GAS_API_URL);
   document.getElementById('quote_preview').scrollIntoView({ behavior: 'smooth' });
 }
 

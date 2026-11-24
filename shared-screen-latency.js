@@ -2,17 +2,19 @@
   'use strict';
   // Diagnostic values only. Never copy request/response bodies or identifiers.
   var scenes = ['order', 'estimate', 'receipt_lookup', 'receipt', 'quote_lookup', 'quote',
-    'contract_list', 'generate_doc', 'bootstrap', 'changeDate', 'company_dashboard',
+    'contract_list', 'generate_doc', 'expense_lookup', 'expense_upload_receipt', 'expense_submit', 'bootstrap', 'changeDate', 'company_dashboard',
     'business_portal_login_cache_hit', 'business_portal_login_cache_miss',
     'business_portal_json_cache_hit', 'business_portal_json_cache_miss',
     'business_portal_cases_cache_hit', 'business_portal_cases_cache_miss'];
   function now() { return root.performance.now(); }
   function valid(value) { return typeof value === 'number' && isFinite(value) && value >= 0 && value <= 600000; }
   var active = null, responses = new WeakMap();
-  function begin() {
+  function begin(options) {
     try {
+      var operation = { start: now(), ended: false, calls: 0, records: [], spans: [], spanCount: 0 };
+      if (options && options.independent === true) return operation;
       if (active) active.ambiguous = true;
-      active = { start: now(), ended: false, calls: 0, records: [], spans: [], spanCount: 0 };
+      active = operation;
       return active;
     } catch (ignored) { return null; }
   }

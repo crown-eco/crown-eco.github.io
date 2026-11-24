@@ -108,6 +108,7 @@ input[type=text]:focus,input[type=number]:focus{outline:none;border-color:#378AD
 .secret-text{font-size:11px;word-break:break-all;background:#f5f5f5;padding:4px 8px;border-radius:6px;display:inline-block;margin-top:4px}
 </style>
 <script src="./shared-gas-call.js?v=20260914-read-v1"></script>
+<script src="./shared-screen-latency.js?v=20260930-gap-v1"></script>
 </head>
 <body>
 
@@ -584,6 +585,54 @@ function postUpload(payload) {
   }).then(function(r) { return r.json(); });
 }
 
+function warmExpenseAuth() {
+  var now = Date.now();
+  if (!sessionToken || (warmExpenseAuth.token === sessionToken && now - warmExpenseAuth.at <= 240000)) return;
+  warmExpenseAuth.token = sessionToken;
+  warmExpenseAuth.at = now;
+  postUpload({ form_type: 'order_auth_warm' }).catch(function() {});
+}
+
+function uploadExpenseAttachment(bytes, mime, label) {
+  var timing = window.ECOPITA_SCREEN_LATENCY;
+  var operation = timing && timing.begin.length ? timing.begin({ independent: true }) : null;
+  var record = operation ? timing.startCall(operation) : null;
+  return postUpload({
+    form_type: 'expense_upload_receipt', receipt_base64: bytes, receipt_mime: mime, label: label
+  }).then(function(response) {
+    if (operation) {
+      timing.endCall(record, response);
+      timing.finish(operation, response, { url: GAS_URL });
+    }
+    return response;
+  }, function(error) {
+    if (operation) timing.finish(operation, null, { url: GAS_URL });
+    throw error;
+  });
+}
+
+async function compressExpensePhoto(file, mime, original) {
+  if (!['image/jpeg', 'image/png'].includes(mime) || typeof createImageBitmap !== 'function') return null;
+  var bitmap;
+  try {
+    bitmap = await createImageBitmap(file);
+    var longEdge = Math.max(bitmap.width, bitmap.height);
+    if (longEdge <= 2400) return null;
+    var canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(bitmap.width * 2400 / longEdge));
+    canvas.height = Math.max(1, Math.round(bitmap.height * 2400 / longEdge));
+    var ctx = canvas.getContext('2d', { alpha: false });
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    var url = canvas.toDataURL('image/jpeg', 0.85);
+    var bytes = url.split(',')[1];
+    return url.indexOf('data:image/jpeg;base64,') === 0 && bytes && bytes.length < original.length
+      ? { url: url, bytes: bytes } : null;
+  } catch (_) { return null; }
+  finally { if (bitmap) bitmap.close(); }
+}
+
 function fmt(n) { var v = Math.floor(n || 0); return v < 0 ? '-¥' + Math.abs(v).toLocaleString() : '¥' + v.toLocaleString(); }
 function showErr(id, msg) { var el = document.getElementById(id); el.textContent = msg; el.classList.remove('hidden'); }
 function hideErr(id) { var el = document.getElementById(id); el.textContent = ''; el.classList.add('hidden'); }
@@ -651,6 +700,7 @@ function selectContract(c, el) {
   badge.textContent = '選択中';
   el.appendChild(badge);
   selectedContract = c;
+  warmExpenseAuth();
   var isHc = isHcExpenseContract(c);
   if (isHc !== expenseFormIsHc) {
     updateExpenseFormKind(isHc);
@@ -947,13 +997,19 @@ function onFileChange(id, input) {
   var generation=item.fileGeneration=(item.fileGeneration || 0)+1;
   if(file.size>10000000){showErr('item-error-'+id,'添付ファイルは10MB以下にしてください');input.value='';return;}
   if(file.type && ['image/jpeg','image/png','image/heic','image/heif','image/webp','image/gif','application/pdf'].indexOf(file.type)<0){showErr('item-error-'+id,'添付できるのは写真か PDF です');input.value='';return;}
+  var attachmentContract = selectedContract;
+  item.dataUrl = null;
+  item.preupload = null;
   var reader=new FileReader();
-  reader.onload=function(e) {
+  reader.onload=async function(e) {
     if(bodyItemData[id]!==item || item.fileGeneration!==generation)return;
     var dataUrl=e.target.result,base64=typeof dataUrl==='string'?dataUrl.split(',')[1]:'';
     var mime=file.type;
     if(!mime){try{var head=atob(base64.slice(0,5464)),bytes=[];for(var i=0;i<head.length;i++)bytes.push(head.charCodeAt(i));mime=expenseReceiptMimeFromBytes_(bytes);}catch(error){mime='';}}
     if(!mime){showErr('item-error-'+id,'添付できるのは写真か PDF です');input.value='';return;}
+    var compressed = await compressExpensePhoto(file, mime, base64);
+    if(bodyItemData[id]!==item || item.fileGeneration!==generation || selectedContract!==attachmentContract)return;
+    if (compressed) { dataUrl = compressed.url; base64 = compressed.bytes; mime = 'image/jpeg'; }
     item.file=file;item.dataUrl=base64;item.mime=mime;
     var preview=document.getElementById('preview-'+id),pdf=document.getElementById('pdf-preview-'+id);
     preview.src=mime==='application/pdf'?'':dataUrl;preview.classList.toggle('hidden',mime==='application/pdf');
@@ -961,6 +1017,13 @@ function onFileChange(id, input) {
     var btn=document.getElementById('file-btn-'+id);btn.textContent='✓ '+file.name;btn.classList.add('has-file');
     document.getElementById('body-file-area-'+id).querySelector('.file-input-wrapper').style.display='none';
     var actions=document.getElementById('file-actions-'+id);actions.style.display='flex';actions.classList.remove('hidden');hideErr('item-error-'+id);
+    if (attachmentContract && selectedContract === attachmentContract) {
+      warmExpenseAuth();
+      item.preupload = {
+        contract: attachmentContract, generation: generation,
+        promise: uploadExpenseAttachment(base64, mime, buildReceiptLabel(id - 1)).catch(function() { return null; })
+      };
+    }
   };
   reader.onerror=function(){if(bodyItemData[id]===item && item.fileGeneration===generation)showErr('item-error-'+id,'添付ファイルを読み込めません。選び直してください');};
   reader.readAsDataURL(file);
@@ -1035,6 +1098,7 @@ function submitExpense() {
   var submittedBodyItems = bodyItemData;
   var activeItems = bodyChecked ? getActiveBodyItems() : [];
   var submittedPayload = null;
+  var screenTiming = window.ECOPITA_SCREEN_LATENCY, screenOperation, screenResponse;
   var payload = {
     action: 'expense_submit',
     contract_id: String(contract.contract_id || ''),
@@ -1051,13 +1115,20 @@ function submitExpense() {
   // 領収書を先に1枚ずつアップロード
   var uploadPromises = activeItems.map(function(it, idx) {
     var payloadItem = expenseBodyPayloadItem(it.data, '');
-    return postUpload({
-      form_type: 'expense_upload_receipt',
-      receipt_base64: it.data.dataUrl,
-      receipt_mime: it.data.mime,
-      label: buildReceiptLabel(idx)
+    var generation = it.data.fileGeneration;
+    var saved = it.data.preupload;
+    var upload = saved && saved.contract === contract && saved.generation === it.data.fileGeneration
+      ? saved.promise : Promise.resolve(null);
+    var label = buildReceiptLabel(idx), bytes = it.data.dataUrl, mime = it.data.mime;
+    return upload.then(function(res) {
+      if (res && res.ok && res.url) return res;
+      if (selectedContract !== contract || bodyItemData !== submittedBodyItems) throw new Error('施工の選択が変わりました。入力を確認してもう一度申請してください');
+      return uploadExpenseAttachment(bytes, mime, label);
     }).then(function(res) {
+      if (bodyItemData[it.id] !== it.data || it.data.fileGeneration !== generation) throw new Error('領収書が変わりました。入力を確認してもう一度申請してください');
       if (!res.ok) throw new Error(res.error || '領収書アップロード失敗');
+      if (!res.url) throw new Error('領収書アップロード失敗');
+      it.data.preupload = { contract: contract, generation: generation, promise: Promise.resolve(res) };
       payloadItem.receipt_url = res.url;
       return payloadItem;
     });
@@ -1071,9 +1142,11 @@ function submitExpense() {
       payload.body_cost = bodyChecked ? { selected: true, items: uploadedItems } : null;
       expensePreparePendingSubmission_(payload);
       submittedPayload = payload;
+      if (screenTiming) screenOperation = screenTiming.begin();
       return post(payload);
     })
     .then(function(res) {
+      screenResponse = res;
       btn.disabled = false; btn.textContent = '申請する';
       if (!res.ok) { document.getElementById('submit-error').textContent = res.error; return; }
       expenseClearPendingSubmission_(submittedPayload);
@@ -1088,6 +1161,9 @@ function submitExpense() {
     .catch(function(e) {
       btn.disabled = false; btn.textContent = '申請する';
       document.getElementById('submit-error').textContent = e.message || '通信エラーが発生しました';
+    })
+    .finally(function() {
+      try { if (screenOperation) screenTiming.finish(screenOperation, screenResponse, { url: GAS_URL }); } catch (_) {}
     });
 }
 function resetForm() {
