@@ -2063,6 +2063,18 @@ function getFormData() {
   };
 }
 
+let orderAuthWarmLastAt_ = null;
+function orderAuthWarm_() {
+  try {
+    var s = window.ECOPITA_SESSION || {};
+    const now = Date.now();
+    if (!s.token || (orderAuthWarmLastAt_ !== null && now - orderAuthWarmLastAt_ <= 240000)) return;
+    orderAuthWarmLastAt_ = now;
+    Promise.resolve(gasCall({form_type:'order_auth_warm', sessionToken:s.token},
+      {mode:'submit', url:GAS_API_URL})).catch(function() {});
+  } catch (_) {}
+}
+
 function nextStep() {
   if (!consentCanSubmit_()) { consentGateVisible_(true); return; }
   if (!validateStep(currentStep)) return;
@@ -2227,6 +2239,7 @@ function nextStep() {
   }
   currentStep++;
   updateUI();
+  if (currentStep >= 6 && currentStep <= 8) orderAuthWarm_();
 }
 
 function prevStep() { if (currentStep > 1) { currentStep--; updateUI(); } }
