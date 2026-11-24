@@ -134,6 +134,10 @@ var _ecopitaCasePrefixes = [];
 var _ecopitaCanUseRm = false;
 var _ecopitaGroupId = 'main', _ecopitaGroupAdmin = false, _ecopitaGroupSiteUrl = '';
 var _ecopitaAdminGroupIds = [];
+var _currentScreen = 'screen-login', _totpSubmitting = false, _lwOtcSubmitting = false;
+var _busyOnPageHide = false;
+var _clientPage = '', _clientSeq = 0;
+var REQUEST_TIMEOUT_MS = 60000;
 
 function readLoginGroupContext_(response) {
   var groupId = typeof response.groupId === 'string' ? response.groupId.trim().toLowerCase() : '';
@@ -178,20 +182,48 @@ var redirectUrl = (function() {
 })();
 
 function showScreen_(id) {
+  _currentScreen = id;
   ['screen-login','screen-lw-otc','screen-qr','screen-totp'].forEach(function(s) {
     document.getElementById(s).classList.toggle('active', s === id);
   });
 }
 
 function setBusy(v) { busy = v; }
+window.addEventListener('pagehide', function() {
+  _busyOnPageHide = busy || _totpSubmitting || _lwOtcSubmitting;
+});
+window.addEventListener('pageshow', function(e) {
+  if (e.persisted && (_busyOnPageHide || _currentScreen === '')) location.reload();
+});
 
 async function callApi(payload) {
+  if (payload.action === 'login' || payload.action === 'totp_verify_login') {
+    try {
+      if (!_clientPage) {
+        var draws = new Uint32Array(1);
+        do { window.crypto.getRandomValues(draws); } while (draws[0] >= 4200000000);
+        _clientPage = String(draws[0] % 100000000).padStart(8, '0');
+      }
+      if (_clientSeq < 999999) {
+        payload.client_page = _clientPage;
+        payload.client_seq = ++_clientSeq;
+      }
+    } catch (_) {}
+  }
   var json = JSON.stringify(payload);
   var encoded = btoa(unescape(encodeURIComponent(json)));
   var url = GAS_API_URL + '?_portal_data=' + encodeURIComponent(encoded);
   var resp = await fetch(url, { redirect: 'follow' });
   var text = await resp.text();
   try { return JSON.parse(text); } catch(e) { throw new Error('サーバーからの応答が不正です。'); }
+}
+
+function callWithTimeout_(payload) {
+  var timer;
+  var timeout = new Promise(function(_, reject) {
+    timer = setTimeout(function() { reject(new Error('通信がタイムアウトしました。')); }, REQUEST_TIMEOUT_MS);
+  });
+  return Promise.race([callApi(payload), timeout]).finally(function() { clearTimeout(timer); });
 }
 
 // スマホの LINE WORKS は長押し→コピーで吹き出しを丸ごとコピーするため、伏せ字の PIN 欄に案内文ごと入る（2026-11-11 0104）。
@@ -205,7 +237,7 @@ function pinFromInput_(raw) {
 }
 
 async function doLogin() {
-  if (busy) return;
+  if (busy || _currentScreen !== 'screen-login') return;
   var sid = document.getElementById('staffId').value.trim();
   var p = pinFromInput_(document.getElementById('pin').value);
   document.getElementById('loginErr').classList.remove('on');
@@ -218,12 +250,10 @@ async function doLogin() {
   document.getElementById('loginBtn').textContent = 'ログイン中...';
   document.getElementById('loading').classList.add('on');
   try {
-    var r = await callApi({ action: 'login', staffId: sid, pin: p, ua: ua, siteGroup: window.ECOPITA_SITE.group });
+    var r = await callWithTimeout_({ action: 'login', staffId: sid, pin: p, ua: ua, siteGroup: window.ECOPITA_SITE.group });
     document.getElementById('loading').classList.remove('on');
-    setBusy(false);
-    document.getElementById('loginBtn').textContent = 'ログイン';
     if (r && r.ok) {
-      handleLoginSuccess(r);
+      await handleLoginSuccess(r);
     } else {
       document.getElementById('loginErr').textContent = (r && r.error) || 'ログイン失敗';
       document.getElementById('loginErr').classList.add('on');
@@ -232,10 +262,11 @@ async function doLogin() {
     }
   } catch(e) {
     document.getElementById('loading').classList.remove('on');
-    setBusy(false);
-    document.getElementById('loginBtn').textContent = 'ログイン';
     document.getElementById('loginErr').textContent = e.message || '通信エラー';
     document.getElementById('loginErr').classList.add('on');
+  } finally {
+    setBusy(false);
+    document.getElementById('loginBtn').textContent = 'ログイン';
   }
 }
 
@@ -264,7 +295,7 @@ function handleLoginSuccess(r) {
     completeLogin(r.token, r.staffId, r.displayName || r.staffId, r.role || '');
   } else if (r.otc) {
     // TOTP無効ユーザー: OTCをトークンに交換してからログイン完了
-    callApi({ action: 'exchangeOTC', otc: r.otc }).then(function(res) {
+    return callWithTimeout_({ action: 'exchangeOTC', otc: r.otc }).then(function(res) {
       if (res && res.ok && res.token) {
         _ecopitaCanUseRm = res.canUseRm === true || _totpRole === 'admin';
         readLoginGroupContext_(res);
@@ -297,39 +328,44 @@ function completeLogin(token, staffId, displayName, role) {
   };
   if (window.ECOPITA_SITE_NOTICE(session)) { showScreen_(''); return; }
   localStorage.setItem('ecopita_session', JSON.stringify(session));
+  _currentScreen = '';
   location.href = redirectUrl;
 }
 
 // LINE WORKS OTC
 async function sendLwOtc_() {
+  _lwOtcSubmitting = true;
   showScreen_('screen-lw-otc');
+  document.getElementById('lwOtcBtn').disabled = true;
   document.getElementById('lwOtcInput').value = '';
   document.getElementById('lwOtcError').style.display = 'none';
   document.getElementById('loading').classList.add('on');
   try {
-    var res = await callApi({ action: 'totp_send_otc', staffId: _totpStaffId, passToken: _totpPassToken });
-    document.getElementById('loading').classList.remove('on');
+    var res = await callWithTimeout_({ action: 'totp_send_otc', staffId: _totpStaffId, passToken: _totpPassToken });
     if (!res.ok) { showErr_('lwOtcError', 'コードの送信に失敗しました（' + res.reason + '）'); return; }
     _totpPassToken = res.passToken || _totpPassToken;
     document.getElementById('lwOtcInput').focus();
   } catch(e) {
-    document.getElementById('loading').classList.remove('on');
     showErr_('lwOtcError', '通信エラーが発生しました。');
+  } finally {
+    _lwOtcSubmitting = false;
+    document.getElementById('lwOtcBtn').disabled = false;
+    document.getElementById('loading').classList.remove('on');
   }
 }
 
 async function submitLwOtc() {
+  if (_lwOtcSubmitting || _currentScreen !== 'screen-lw-otc') return;
   // 全角数字→半角、数字以外を除去（日本語IMEで全角になり不一致になる事故を防ぐ）
   var code = document.getElementById('lwOtcInput').value
     .replace(/[０-９]/g, function(c){ return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); })
     .replace(/[^0-9]/g, '');
   if (code.length !== 6) { showErr_('lwOtcError', '6桁のコードを入力してください。'); return; }
+  _lwOtcSubmitting = true;
   document.getElementById('lwOtcBtn').disabled = true;
   document.getElementById('lwOtcBtn').textContent = '送信中...';
   try {
-    var res = await callApi({ action: 'totp_verify_otc', staffId: _totpStaffId, passToken: _totpPassToken, code: code });
-    document.getElementById('lwOtcBtn').disabled = false;
-    document.getElementById('lwOtcBtn').textContent = '確認';
+    var res = await callWithTimeout_({ action: 'totp_verify_otc', staffId: _totpStaffId, passToken: _totpPassToken, code: code });
     _totpPassToken = res.passToken || _totpPassToken;
     if (!res.ok) {
       if (res.reason === 'invalid_pass_token') {
@@ -345,9 +381,11 @@ async function submitLwOtc() {
     }
     showQrCode_(res.otpauth);
   } catch(e) {
+    showErr_('lwOtcError', '通信エラーが発生しました。');
+  } finally {
+    _lwOtcSubmitting = false;
     document.getElementById('lwOtcBtn').disabled = false;
     document.getElementById('lwOtcBtn').textContent = '確認';
-    showErr_('lwOtcError', '通信エラーが発生しました。');
   }
 }
 
@@ -372,15 +410,15 @@ function showTotpConfirm() {
 
 // TOTP送信
 async function submitTotp() {
+  if (_totpSubmitting || _currentScreen !== 'screen-totp') return;
   var code = document.getElementById('totpInput').value.trim();
   if (code.length !== 6) { showErr_('totpError', '6桁のコードを入力してください。'); return; }
+  _totpSubmitting = true;
   document.getElementById('totpBtn').disabled = true;
   document.getElementById('totpBtn').textContent = '送信中...';
   var action = (_totpMode === 'login') ? 'totp_verify_login' : 'totp_confirm_setup';
   try {
-    var res = await callApi({ action: action, staffId: _totpStaffId, passToken: _totpPassToken, code: code, siteGroup: window.ECOPITA_SITE.group });
-    document.getElementById('totpBtn').disabled = false;
-    document.getElementById('totpBtn').textContent = (_totpMode === 'login') ? 'ログイン' : '登録完了';
+    var res = await callWithTimeout_({ action: action, staffId: _totpStaffId, passToken: _totpPassToken, code: code, siteGroup: window.ECOPITA_SITE.group });
     if (!res.ok) {
       _totpPassToken = res.passToken || _totpPassToken;
       if (res.reason === 'invalid_pass_token') {
@@ -405,9 +443,13 @@ async function submitTotp() {
     _ecopitaCasePrefixes = Array.isArray(res.casePrefixes) ? res.casePrefixes : _ecopitaCasePrefixes;
     completeLogin(res.token, _totpStaffId, _totpDisplayName, res.role || _totpRole || '');
   } catch(e) {
-    document.getElementById('totpBtn').disabled = false;
-    document.getElementById('totpBtn').textContent = (_totpMode === 'login') ? 'ログイン' : '登録完了';
     showErr_('totpError', '通信エラーが発生しました。');
+  } finally {
+    _totpSubmitting = false;
+    if (_currentScreen !== '') {
+      document.getElementById('totpBtn').disabled = false;
+      document.getElementById('totpBtn').textContent = (_totpMode === 'login') ? 'ログイン' : '登録完了';
+    }
   }
 }
 
