@@ -139,6 +139,7 @@
             fields.form_type = 'latency_server'; if (context.token) fields.sessionToken = context.token;
             request = {method:'POST', body:JSON.stringify(fields), redirect:'follow'};
           }
+          request.keepalive = true;
           Promise.resolve(root.fetch(endpoint, request)).catch(function() {});
         } catch (ignored) {}
       }

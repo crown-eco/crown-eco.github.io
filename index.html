@@ -2363,7 +2363,7 @@ async function doSubmit() {
   } catch(e) {}
 
   const payload = {
-    ...d, contract_id: contractId, services: d.symptoms, order_type: orderInfo,
+    ...d, form_type: 'order', contract_id: contractId, services: d.symptoms, order_type: orderInfo,
     equipment_info: getEquipmentInfo(),
     service_date: serviceDate,
     service_sameday: reqSameday,

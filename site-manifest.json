@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "site": "crown",
-  "source_commit": "b26244d9874d83a4293a2de0b7be5929968dc8f4",
+  "source_commit": "a6253c23c487b0507386723d5642dfddd727511a",
   "excluded": [
     ".git",
     "woff-test",
@@ -85,8 +85,8 @@
     },
     {
       "path": "index.html",
-      "size": 171849,
-      "sha256": "96a52bacced22de28b1bdc4ac868aa0e3ef891f03ef340bfba4dffc9b53c9d1e"
+      "size": 171869,
+      "sha256": "515035a28ec0a1774350c507c10295d823a684a408f0af6541f2530f0a44335f"
     },
     {
       "path": "invoice.html",
@@ -170,8 +170,8 @@
     },
     {
       "path": "shared-screen-latency.js",
-      "size": 12584,
-      "sha256": "2abf34015d51dcbc0cc4ec4ae1e5768118b25fb17defe7f6787dad5987b134e3"
+      "size": 12620,
+      "sha256": "48ee563099268999a90b28cd52a93ff7a10d74807ea15abd36b17ca01ba71d14"
     },
     {
       "path": "shared-site-config.js",
