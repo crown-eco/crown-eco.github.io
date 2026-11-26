@@ -138,6 +138,7 @@ var _currentScreen = 'screen-login', _totpSubmitting = false, _lwOtcSubmitting =
 var _busyOnPageHide = false;
 var _clientPage = '', _clientSeq = 0;
 var REQUEST_TIMEOUT_MS = 60000;
+var _requestInFlight = false;
 
 function readLoginGroupContext_(response) {
   var groupId = typeof response.groupId === 'string' ? response.groupId.trim().toLowerCase() : '';
@@ -196,7 +197,7 @@ window.addEventListener('pageshow', function(e) {
   if (e.persisted && (_busyOnPageHide || _currentScreen === '')) location.reload();
 });
 
-async function callApi(payload) {
+async function callApi(payload, signal) {
   if (payload.action === 'login' || payload.action === 'totp_verify_login') {
     try {
       if (!_clientPage) {
@@ -210,20 +211,38 @@ async function callApi(payload) {
       }
     } catch (_) {}
   }
-  var json = JSON.stringify(payload);
-  var encoded = btoa(unescape(encodeURIComponent(json)));
-  var url = GAS_API_URL + '?_portal_data=' + encodeURIComponent(encoded);
-  var resp = await fetch(url, { redirect: 'follow' });
+  var url = GAS_API_URL;
+  var options = { redirect: 'follow', signal: signal };
+  if (payload.action === 'login' || payload.action === 'totp_verify_login') {
+    options.method = 'POST';
+    options.headers = { 'Content-Type': 'text/plain;charset=UTF-8' };
+    options.body = JSON.stringify(Object.assign({}, payload, { form_type: 'portal_login' }));
+  } else {
+    var encoded = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+    url += '?_portal_data=' + encodeURIComponent(encoded);
+  }
+  var resp = await fetch(url, options);
   var text = await resp.text();
   try { return JSON.parse(text); } catch(e) { throw new Error('サーバーからの応答が不正です。'); }
 }
 
-function callWithTimeout_(payload) {
+async function callWithTimeout_(payload) {
+  if (_requestInFlight) throw new Error('通信中です。');
+  var controller = new AbortController();
   var timer;
-  var timeout = new Promise(function(_, reject) {
-    timer = setTimeout(function() { reject(new Error('通信がタイムアウトしました。')); }, REQUEST_TIMEOUT_MS);
-  });
-  return Promise.race([callApi(payload), timeout]).finally(function() { clearTimeout(timer); });
+  _requestInFlight = true;
+  try {
+    var timeout = new Promise(function(_, reject) {
+      timer = setTimeout(function() {
+        reject(new Error('通信がタイムアウトしました。'));
+        controller.abort();
+      }, REQUEST_TIMEOUT_MS);
+    });
+    return await Promise.race([callApi(payload, controller.signal), timeout]);
+  } finally {
+    clearTimeout(timer);
+    _requestInFlight = false;
+  }
 }
 
 // スマホの LINE WORKS は長押し→コピーで吹き出しを丸ごとコピーするため、伏せ字の PIN 欄に案内文ごと入る（2026-11-11 0104）。
@@ -421,10 +440,12 @@ async function submitTotp() {
     var res = await callWithTimeout_({ action: action, staffId: _totpStaffId, passToken: _totpPassToken, code: code, siteGroup: window.ECOPITA_SITE.group });
     if (!res.ok) {
       _totpPassToken = res.passToken || _totpPassToken;
-      if (res.reason === 'invalid_pass_token') {
+      if (res.reason === 'invalid_pass_token' || res.reason === 'duplicate_login_request') {
         // 認証セッションが切れた → PIN入力画面に戻す
         showScreen_('screen-login');
-        document.getElementById('loginErr').textContent = 'もう一度ログインしてください。';
+        document.getElementById('loginErr').textContent = res.reason === 'duplicate_login_request'
+          ? '通信が二重になりました。最初からもう一度ログインしてください。'
+          : 'もう一度ログインしてください。';
         document.getElementById('loginErr').classList.add('on');
         document.getElementById('totpInput').value = '';
         return;

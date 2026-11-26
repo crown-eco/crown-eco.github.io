@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "site": "crown",
-  "source_commit": "d0b7dbb5ec2c5b560e1eab7e0c09e89fecc34ecd",
+  "source_commit": "813054cd6949ebb1205d69dff13d8674e9f53ebd",
   "excluded": [
     ".git",
     "woff-test",
@@ -10,7 +10,8 @@
     "README.md",
     "company_dashboard_graph.html",
     "line-kanri",
-    "customer-triage"
+    "customer-triage",
+    "nippo"
   ],
   "files": [
     {
@@ -95,8 +96,8 @@
     },
     {
       "path": "login.html",
-      "size": 24344,
-      "sha256": "8f3fde46472160e37fd6daae84bee40805c77db005adcbea05baa2a65fff5bff"
+      "size": 25156,
+      "sha256": "39455a77aa3f3270664630a2ff4f256ac913924e94d67bd43898ef751a8f9c5d"
     },
     {
       "path": "portal.html",
