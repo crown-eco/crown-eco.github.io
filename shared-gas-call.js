@@ -56,7 +56,7 @@
   var READ_POST_ROUTES = ['lookup', 'contract_list', 'quote_lookup', 'receipt_lookup', 'reserve_lookup',
     'coupon_lookup', 'staff_lookup', 'staff_flags', 'duplicate_guard_lookup', 'resend_lookup',
     'resend_nonbounce_lookup', 'expense_lookup', 'write_async_status', 'report_attachment_status',
-    // 業務報告の「発行済み請求書」候補の取得。estimate.html の reportAttachmentCall_ が gasReadFetch で呼ぶ（2026-10-23・GAS_READ_ROUTE_DENIED の修理・Crown 2ed076f2 と同じ）
+    // 業務報告の「発行済み請求書」候補の取得。estimate.html の reportAttachmentCall_ が gasReadFetch で呼ぶ。
     'report_invoice_candidates'];
   var READ_GET_ACTIONS = ['bootstrap', 'changeDate', 'viewReferree', 'expense_lookup', 'expense_aircon_catalog',
     'company_dashboard', 'company_dashboard_graph', 'company_dashboard_advconfirm'];

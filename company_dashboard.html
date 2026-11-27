@@ -604,7 +604,7 @@ var SESSION = window.ECOPITA_SESSION || null;
 if (SESSION && !canUseDashboard_()) {
   location.replace(window.ECOPITA_SITE.baseUrl + '/portal.html');
 }
-// グループのサイト（Crown など）では、全体管理者でもそのグループだけを出す（表示のみ・権限はサーバ側）。2026-09-24 麗香「Crown サイトのダッシュボードにクラウン側じゃない人が出てる」
+// グループのサイトでは、全体管理者でもそのグループだけを表示する。権限はサーバ側で判定する。
 function siteGroup_() {
   var g = String(window.ECOPITA_SITE && window.ECOPITA_SITE.group || 'main').trim().toLowerCase();
   return /^[a-z0-9_]+$/.test(g) && g !== 'main' ? g : '';
