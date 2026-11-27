@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "site": "crown",
-  "source_commit": "813054cd6949ebb1205d69dff13d8674e9f53ebd",
+  "source_commit": "e2eb9f4a1d96d57bccd0d4225175639855c7d651",
   "excluded": [
     ".git",
     "woff-test",
@@ -131,8 +131,8 @@
     },
     {
       "path": "reward.html",
-      "size": 52898,
-      "sha256": "786842d7fd99d3aef1bc54af584ef0ecd454cfb52f01702a825f896d38819eb1"
+      "size": 53079,
+      "sha256": "0a107b9e80e9ecae9455612e412610389391939cd26513021f4ccf5f323c59d4"
     },
     {
       "path": "shared-auth.js",

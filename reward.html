@@ -565,16 +565,20 @@ function renderGroupReward_(){
   warning.style.display=rows.length||notices.length?'block':'none';
   warning.style.background=rows.length?'#b71c1c':'#fff3cd';warning.style.color=rows.length?'#fff':'#664d03';
   if(!weeks.length){document.getElementById('summaryArea').innerHTML='';document.getElementById('weeksArea').innerHTML='<div class="empty-w">表示対象の下請けがありません</div>';return}
-  function sum(key){var total=0;for(var i=0;i<weeks.length;i++){if(weeks[i][key]==null)return null;total+=weeks[i][key];}return total}
+  function rewardValue(w,key){
+    if(key==='groupReward'&&!Object.prototype.hasOwnProperty.call(w,key))return w.crownReward;
+    return w[key];
+  }
+  function sum(key){var total=0;for(var i=0;i<weeks.length;i++){var value=rewardValue(weeks[i],key);if(value==null)return null;total+=value;}return total}
   var error=weeks.some(function(w){return w.rateError==='rate_total_exceeded'})?'rate_total_exceeded':weeks.some(function(w){return w.rateError==='masked_view'})?'masked_view':'rate_missing';
-  var split=[['本人の取り分','selfReward'],[currentData.royaltyLabel||'ロイヤリティ','yoshidaReward'],[currentData.groupRoyaltyLabel||'グループロイヤリティ','crownReward'],[referrerLabel+'への配分','referralReward']];
+  var split=[['本人の取り分','selfReward'],[currentData.royaltyLabel||'ロイヤリティ','yoshidaReward'],[currentData.groupRoyaltyLabel||'グループロイヤリティ','groupReward'],[referrerLabel+'への配分','referralReward']];
   var summary=[['利益合計','profit']].concat(split,[[incomingLabel,'referralIncome'],['受取合計','transferAmount']]);
   document.getElementById('summaryArea').innerHTML=summary.map(function(x){return '<div class="scard"><div class="sl">'+esc(x[0])+'</div><div class="sv mono">'+groupRewardAmount_(sum(x[1]),error)+'</div></div>'}).join('');
   var html='<p style="margin-bottom:12px">'+esc(currentData.refName||viewStaffId)+'の報酬（閲覧のみ）</p>';
   html+='<p style="margin-bottom:12px">'+esc(referrerLabel)+'への配分と、'+esc(referreeLabel)+'からの受取を表示しています。</p>';
   weeks.forEach(function(w,i){
     html+='<div class="week"><div class="week-hdr"><h3>第'+(i+1)+'週 '+fmtMD(w.weekStart)+'〜'+fmtMD(w.weekEnd)+'</h3><div class="week-tf"><span class="lb">受取合計</span><span class="mono">'+groupRewardAmount_(w.transferAmount,w.rateError)+'</span></div></div>';
-    html+='<div class="summary" style="padding:12px">'+[['利益','profit']].concat(split,[[incomingLabel,'referralIncome']]).map(function(x){return '<div class="scard"><div class="sl">'+esc(x[0])+'</div><div class="sv mono">'+groupRewardAmount_(w[x[1]],w.rateError)+'</div></div>'}).join('')+'</div>';
+    html+='<div class="summary" style="padding:12px">'+[['利益','profit']].concat(split,[[incomingLabel,'referralIncome']]).map(function(x){return '<div class="scard"><div class="sl">'+esc(x[0])+'</div><div class="sv mono">'+groupRewardAmount_(rewardValue(w,x[1]),w.rateError)+'</div></div>'}).join('')+'</div>';
     var columns=[['売上','sales'],['広告費','adCost'],['手数料','cardFee'],['CO費用','coFee'],['経費','honntai']];
     html+='<div class="tbl-w"><table><thead><tr><th>日付</th>'+columns.map(function(x){return '<th class="r">'+x[0]+'</th>'}).join('')+'</tr></thead><tbody>';
     (w.days||[]).forEach(function(d){html+='<tr><td>'+fmtMD(d.date)+'（'+esc(d.dow)+'）</td>'+columns.map(function(x){return '<td class="r mono">'+groupRewardAmount_(d[x[1]],w.rateError)+'</td>'}).join('')+'</tr>'});
